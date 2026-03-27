@@ -2827,3 +2827,34 @@ body.dark-mode #sd-test-connection-btn {
     max-height: 100px;
     overflow-y: auto;
 }
+
+/* --- Accordion Settings (Phase 7) --- */
+details.settings-group {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-md);
+    margin-bottom: calc(var(--spacing-unit) * 1.5);
+    overflow: hidden;
+    padding: 0;
+}
+details.settings-group[open] {
+    padding-bottom: 0;
+}
+details.settings-group > summary.settings-summary {
+    background-color: var(--bg-secondary);
+    padding: 12px 16px;
+    cursor: pointer;
+    list-style: none; /* Hide default arrow */
+    position: relative;
+    border-bottom: 1px solid transparent;
+    transition: background-color 0.2s;
+}
+details.settings-group[open] > summary.settings-summary {
+    border-bottom-color: var(--border-color);
+}
+details.settings-group > summary::-webkit-details-marker {
+    display: none;
+}
+details.settings-group > summary:hover {
+    background-color: var(--bg-hover);
+}
