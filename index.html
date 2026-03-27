@@ -157,16 +157,13 @@
 
         <!-- 設定画面 -->
         <div id="settings-screen" class="screen">
-            <header class="app-header">
-                 <button id="back-to-chat-from-settings" class="header-button" title="チャットへ戻る"><span class="material-symbols-outlined">arrow_back_ios</span></button>
-                 <h1>設定</h1>
-                 <div id="profile-card-header-wrapper-settings" class="profile-card-wrapper">
-                    <div id="profile-card-header-settings" class="profile-card" title="プロファイルを切り替え">
-                        <div id="profile-card-icon-container-settings" class="profile-icon-container"></div>
-                        <span id="profile-card-name-settings" class="profile-card-name"></span>
-                        <span class="material-symbols-outlined profile-card-arrow">arrow_drop_down</span>
-                    </div>
-                    <div id="header-profile-menu-settings" class="profile-menu hidden"></div>
+            <header class="app-header" style="justify-content: space-between; position: sticky; top: 0; z-index: 100; padding: 0 16px;">
+                 <button id="back-to-chat-from-settings" class="header-button" style="display:flex; align-items:center; font-size:1.1rem; gap:4px; margin-right:auto; background:none; border:none; color:inherit; cursor:pointer;" title="チャットへ戻る">
+                     <span class="material-symbols-outlined">arrow_back_ios</span>設定
+                 </button>
+                 <div style="display:flex; align-items:center; gap:12px;">
+                     <span style="font-size:11px; opacity:0.8;">※反映には保存が必要</span>
+                     <button id="save-settings-btn" class="settings-action-button" style="margin:0; padding:6px 16px; background-color:#4CAF50; color:white; border-radius:4px;">設定を保存</button>
                  </div>
             </header>
             <main class="main-content">
@@ -233,104 +230,118 @@
                     </div>
                 </div>
 
-                <div class="settings-group">
-                    <h3>基本設定</h3>
-                    <label for="api-provider">APIプロバイダー:</label>
-                    <select id="api-provider" aria-label="APIプロバイダー">
-                        <option value="gemini">Gemini</option>
-                        <option value="zai">Z.ai</option>
-                        <option value="openrouter">OpenRouter</option>
-                        <option value="bedrock">Amazon Bedrock</option>
-                        <option value="openai">OpenAI (ChatGPT)</option>
-                        <option value="anthropic">Anthropic (Claude)</option>
-                    </select>
-
-                    <div id="gemini-api-key-container">
-                        <label for="api-key">Gemini APIキー:</label>
-                        <input type="password" autocomplete="new-password" id="api-key" placeholder="APIキーを入力" aria-label="Gemini APIキー">
-                    </div>
-
-                    <div id="zai-api-key-container" class="hidden">
-                        <label for="zai-api-key">Z.ai APIキー:</label>
-                        <input type="password" autocomplete="new-password" id="zai-api-key" placeholder="Z.ai APIキーを入力" aria-label="Z.ai APIキー">
-                    </div>
-
-                    <div id="openrouter-api-key-container" class="hidden">
-                        <label for="openrouter-api-key">OpenRouter APIキー:</label>
-                        <input type="password" autocomplete="new-password" id="openrouter-api-key" placeholder="OpenRouter APIキーを入力" aria-label="OpenRouter APIキー">
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ OpenRouterはデバッグモード専用です。APIキーは安全に管理してください。<br>
-                            ※ APIキーは <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">OpenRouter</a> から取得できます。
-                        </p>
-                    </div>
-
-                    <div id="bedrock-api-key-container" class="hidden">
-                        <label for="bedrock-access-key">Bedrock Access Key:</label>
-                        <input type="password" autocomplete="new-password" id="bedrock-access-key" placeholder="AWS Access Keyを入力" aria-label="Bedrock Access Key">
-                        
-                        <label for="bedrock-secret-key">Bedrock Secret Key:</label>
-                        <input type="password" autocomplete="new-password" id="bedrock-secret-key" placeholder="AWS Secret Keyを入力" aria-label="Bedrock Secret Key">
-                        
-                        <label for="bedrock-region">Bedrockリージョン:</label>
-                        <select id="bedrock-region" aria-label="Bedrockリージョン">
-                            <option value="us-east-1">us-east-1 (N. Virginia)</option>
-                            <option value="us-west-2">us-west-2 (Oregon)</option>
-                            <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
-                            <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+                <details class="settings-group" open>
+                    <summary class="settings-summary"><h3 style="display:inline;font-size:15px;color:var(--text-primary);margin:0;">▼ 基礎設定</h3></summary>
+                    <div class="settings-content" style="padding-top:15px;">
+                        <label for="api-provider">使用するAPIプロバイダー:</label>
+                        <select id="api-provider" aria-label="APIプロバイダー">
+                            <option value="gemini">Gemini</option>
+                            <option value="zai">Z.ai</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="bedrock">Amazon Bedrock</option>
+                            <option value="openai">OpenAI (ChatGPT)</option>
+                            <option value="anthropic">Anthropic (Claude)</option>
                         </select>
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ Amazon Bedrockはデバッグモード専用です。認証情報は安全に管理してください。<br>
-                            ※ IAM Access Key/Secret Keyが必要です。Bedrock APIへのアクセス権限を持つキーを使用してください。
-                        </p>
+                        <div id="api-usage-container" class="api-usage-container hidden" style="margin-top:10px;">
+                            <p id="api-usage-text" class="api-usage-text"></p>
+                            <button id="reset-api-count-btn" class="settings-reset-button" type="button">カウントをリセット</button>
+                        </div>
                     </div>
+                </details>
 
-                    <div id="openai-api-key-container" class="hidden">
-                        <label for="openai-api-key">OpenAI APIキー:</label>
-                        <input type="password" autocomplete="new-password" id="openai-api-key" placeholder="sk-proj-..." aria-label="OpenAI APIキー">
+                <details class="settings-group" open>
+                    <summary class="settings-summary"><h3 style="display:inline;font-size:15px;color:var(--text-primary);margin:0;">▼ API / モデル設定</h3></summary>
+                    <div class="settings-content" style="padding-top:10px;">
+                        
+                        <div id="gemini-api-key-container">
+                            <label for="api-key">Gemini APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="api-key" placeholder="APIキーを入力" aria-label="Gemini APIキー">
+                            <label for="gemini-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="gemini-custom-models" placeholder="例: gemini-2.0-pro"></textarea>
+                        </div>
+
+                        <div id="zai-api-key-container" class="hidden">
+                            <label for="zai-api-key">Z.ai APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="zai-api-key" placeholder="Z.ai APIキーを入力" aria-label="Z.ai APIキー">
+                            <label for="zai-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="zai-custom-models" placeholder="例: glm-4-plus"></textarea>
+                        </div>
+
+                        <div id="openrouter-api-key-container" class="hidden">
+                            <label for="openrouter-api-key">OpenRouter APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="openrouter-api-key" placeholder="OpenRouter APIキーを入力" aria-label="OpenRouter APIキー">
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ OpenRouterはデバッグモード専用です。<br>
+                                ※ APIキーは <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">OpenRouter</a> から取得できます。
+                            </p>
+                            <label for="openrouter-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="openrouter-custom-models" placeholder="例: gryphe/mythomax-l2-13b"></textarea>
+                        </div>
+
+                        <div id="bedrock-api-key-container" class="hidden">
+                            <label for="bedrock-access-key">Bedrock Access Key:</label>
+                            <input type="password" autocomplete="new-password" id="bedrock-access-key" placeholder="AWS Access Keyを入力" aria-label="Bedrock Access Key">
+                            
+                            <label for="bedrock-secret-key">Bedrock Secret Key:</label>
+                            <input type="password" autocomplete="new-password" id="bedrock-secret-key" placeholder="AWS Secret Keyを入力" aria-label="Bedrock Secret Key">
+                            
+                            <label for="bedrock-region">Bedrockリージョン:</label>
+                            <select id="bedrock-region" aria-label="Bedrockリージョン">
+                                <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                                <option value="us-west-2">us-west-2 (Oregon)</option>
+                                <option value="ap-northeast-1">ap-northeast-1 (Tokyo)</option>
+                                <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+                            </select>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ IAM Access Key/Secret Keyが必要です。<br>
+                            </p>
+                            <label for="bedrock-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="bedrock-custom-models" placeholder="例: anthropic.claude-v2"></textarea>
+                        </div>
+
+                        <div id="openai-api-key-container" class="hidden">
+                            <label for="openai-api-key">OpenAI APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="openai-api-key" placeholder="sk-proj-..." aria-label="OpenAI APIキー">
+                            <label for="openai-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="openai-custom-models" placeholder="例: gpt-4o, o1-preview"></textarea>
+                        </div>
+
+                        <div id="anthropic-api-key-container" class="hidden">
+                            <label for="anthropic-api-key">Anthropic APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="anthropic-api-key" placeholder="sk-ant-..." aria-label="Anthropic APIキー">
+                            <label for="anthropic-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="anthropic-custom-models" placeholder="例: claude-3-5-sonnet-20241022"></textarea>
+                        </div>
+
+                        <div style="border-top: 1px dashed var(--border-color); padding-top: 15px; margin-top: 15px;">
+                            <label for="model-name" id="model-name-label">モデル名:</label>
+                            <select id="model-name" aria-label="モデル名">
+                                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                                <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                                <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                                <optgroup label="プレビュー版">
+                                    <option value="gemini-2.5-flash-preview-09-2025">gemini-2.5-flash-preview-09-2025</option>
+                                    <option value="gemini-2.5-flash-lite-preview-09-2025">gemini-2.5-flash-lite-preview-09-2025</option>
+                                    <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview (Nano Banana)</option>
+                                </optgroup>
+                                <optgroup label="追加モデル" id="user-defined-models-group">
+                                    <!-- JSで動的挿入 -->
+                                </optgroup>
+                            </select>
+                            
+                            <div id="openrouter-model-input-container" class="hidden">
+                                <label for="openrouter-model-input">OpenRouter モデル名:</label>
+                                <input type="text" id="openrouter-model-input" placeholder="例: openai/gpt-5.1" aria-label="OpenRouter モデル名">
+                            </div>
+
+                            <p id="model-warning-message" class="hidden model-warning">
+                                ※Nano Banana等はテスト中のため不具合が発生する可能性があります。
+                            </p>
+                        </div>
                     </div>
-
-                    <div id="anthropic-api-key-container" class="hidden">
-                        <label for="anthropic-api-key">Anthropic APIキー:</label>
-                        <input type="password" autocomplete="new-password" id="anthropic-api-key" placeholder="sk-ant-..." aria-label="Anthropic APIキー">
-                    </div>
-
-                    <label for="model-name" id="model-name-label">モデル名:</label>
-                    <select id="model-name" aria-label="モデル名">
-                        <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                        <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
-                        <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                        <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-                        <optgroup label="プレビュー版">
-                            <option value="gemini-2.5-flash-preview-09-2025">gemini-2.5-flash-preview-09-2025</option>
-                            <option value="gemini-2.5-flash-lite-preview-09-2025">gemini-2.5-flash-lite-preview-09-2025</option>
-                            <option value="gemini-2.5-flash-image-preview">gemini-2.5-flash-image-preview (Nano Banana)</option>
-                        </optgroup>
-                        <optgroup label="ユーザー指定" id="user-defined-models-group">
-                        </optgroup>
-                    </select>
-
-                    <div id="openrouter-model-input-container" class="hidden">
-                        <label for="openrouter-model-input">OpenRouter モデル名:</label>
-                        <input type="text" id="openrouter-model-input" placeholder="例: openai/gpt-5.1" aria-label="OpenRouter モデル名">
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ 利用可能なモデル一覧は <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer">OpenRouter Models</a> で確認できます。<br>
-                            ※ モデル名は "プロバイダー/モデル名" の形式で入力してください（例: openai/gpt-5.1）<br>
-                            ※ エラーが出る場合、”Function Calling を使用する” を設定から無効にすると解決する場合があります。
-                        </p>
-                    </div>
-
-                    <div id="api-usage-container" class="api-usage-container hidden">
-                        <p id="api-usage-text" class="api-usage-text"></p>
-                        <button id="reset-api-count-btn" class="settings-reset-button" type="button">カウントをリセット</button>
-                    </div>
-                    <p id="model-warning-message" class="hidden model-warning">
-
-                    <p id="model-warning-message" class="hidden model-warning">
-                        ※Nano Bananaはテスト中のため不具合が発生する可能性があります。<br>
-                        ※サポート外の機能: システムプロンプト, Function Calling, Web検索, 思考プロセス
-                    </p>
-                </div>
+                </details>
 
                 <div class="settings-group">
                     <h3>パラメータ</h3>
@@ -480,34 +491,6 @@
                                 </p>
                             </div>
                         </div>
-                    </div>
-                </div>
-                
-                <div class="settings-group" id="custom-model-group">
-                    <h3>カスタムモデル管理</h3>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
-                        OpenAIやAnthropicの最新モデル、Z.AI等で提供されている新規追加のモデルを手動で登録できます。
-                    </p>
-                    <label for="custom-model-id">モデル名 (例: gpt-4o, claude-3-5-sonnet-20241022):</label>
-                    <input type="text" id="custom-model-id" placeholder="モデルのIDを入力" class="settings-input">
-                    
-                    <label for="custom-model-provider" style="margin-top: 10px;">プロバイダー:</label>
-                    <select id="custom-model-provider" class="settings-input">
-                        <option value="openai">OpenAI (ChatGPT系)</option>
-                        <option value="anthropic">Anthropic (Claude系)</option>
-                        <option value="gemini">Gemini (Google)</option>
-                        <option value="openrouter">OpenRouter</option>
-                        <option value="zai">Z.AI</option>
-                        <option value="bedrock">Amazon Bedrock</option>
-                    </select>
-
-                    <button type="button" id="add-custom-model-btn" class="settings-action-button" style="margin-top: 15px;">リストに追加</button>
-
-                    <div style="margin-top: 20px;">
-                        <label>登録済みカスタムモデル:</label>
-                        <ul id="custom-model-list" class="history-list" style="max-height: 150px; overflow-y: auto; background: var(--bg-tertiary); padding: 5px; border-radius: 5px;">
-                            <li style="font-size: 12px; color: var(--text-secondary); padding: 5px;">まだ登録されていません。</li>
-                        </ul>
                     </div>
                 </div>
 

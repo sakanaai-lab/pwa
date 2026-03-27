@@ -12700,21 +12700,40 @@ window.dbUtils = dbUtils;
 (()=>{
     const oCallApi = window.appLogic?.callApi;
 
-    // 1. Initial UI setup & Custom Models Rendering
-    const initPhase6 = () => {
+    // 1. Initial UI setup & Custom Models Rendering (Phase 6 + 7 Accordion and Textareas)
+    const initPhase7 = () => {
         const customGroup = document.getElementById('user-defined-models-group');
         const mainSelect = document.getElementById('model-name');
         
+        // Save Settings Button
+        const saveBtn = document.getElementById('save-settings-btn');
+        if (saveBtn) {
+            saveBtn.addEventListener('click', async () => {
+                if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
+                    await window.dbUtils.saveSettings(window.state.settings);
+                }
+                
+                // Show a brief visual confirmation without alert that requires interaction
+                const originalText = saveBtn.innerText;
+                saveBtn.innerText = "✓ 保存しました";
+                saveBtn.style.backgroundColor = "#2E7D32";
+                setTimeout(() => {
+                    saveBtn.innerText = "設定を保存";
+                    saveBtn.style.backgroundColor = "#4CAF50";
+                }, 2000);
+            });
+        }
+
         // Settings Inputs
         const oApiKey = document.getElementById('openai-api-key');
         const aApiKey = document.getElementById('anthropic-api-key');
         if(oApiKey) {
             oApiKey.value = state.settings.openaiApiKey || '';
-            oApiKey.addEventListener('change', (e) => { state.settings.openaiApiKey = e.target.value; saveSettings(); });
+            oApiKey.addEventListener('change', async (e) => { state.settings.openaiApiKey = e.target.value; if(window.dbUtils) await window.dbUtils.saveSettings(window.state.settings); });
         }
         if(aApiKey) {
             aApiKey.value = state.settings.anthropicApiKey || '';
-            aApiKey.addEventListener('change', (e) => { state.settings.anthropicApiKey = e.target.value; saveSettings(); });
+            aApiKey.addEventListener('change', async (e) => { state.settings.anthropicApiKey = e.target.value; if(window.dbUtils) await window.dbUtils.saveSettings(window.state.settings); });
         }
 
         const apiProvSelect = document.getElementById('api-provider');
@@ -12732,66 +12751,69 @@ window.dbUtils = dbUtils;
             setTimeout(updateKeyVisibility, 500); 
         }
 
-        const renderCustomModels = () => {
-            const models = state.settings.customModels || [];
-            if(customGroup) customGroup.innerHTML = '';
-            const listUi = document.getElementById('custom-model-list');
-            if(listUi) listUi.innerHTML = '';
-            
-            if(models.length === 0 && listUi) {
-                listUi.innerHTML = '<li style="font-size: 12px; color: var(--text-secondary); padding: 5px;">まだ登録されていません。</li>';
-            }
+        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic'];
+        state.settings.customModelsText = state.settings.customModelsText || {};
 
-            models.forEach((cm, i) => {
-                if(customGroup) {
-                    const opt = document.createElement('option');
-                    opt.value = cm.id;
-                    opt.textContent = `${cm.id} (${cm.provider})`;
-                    customGroup.appendChild(opt);
+        // Migrate old array logic to textareas if necessary
+        if (state.settings.customModels && Array.isArray(state.settings.customModels)) {
+            state.settings.customModels.forEach(cm => {
+                if (cm && cm.id && cm.provider) {
+                    const existing = state.settings.customModelsText[cm.provider] || '';
+                    if (!existing.includes(cm.id)) {
+                        state.settings.customModelsText[cm.provider] = existing ? `${existing}, ${cm.id}` : cm.id;
+                    }
                 }
-                if(listUi) {
-                    const li = document.createElement('li');
-                    li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; font-size: 13px; padding: 5px; border-bottom: 1px solid var(--border-color);';
-                    li.innerHTML = `<span><b>${cm.id}</b> <span style="color:var(--text-secondary)">[${cm.provider}]</span></span>
-                        <button class="icon-button" style="color:var(--bg-button-delete)" title="削除">✖</button>`;
-                    li.querySelector('button').addEventListener('click', () => {
-                        state.settings.customModels.splice(i, 1);
-                        saveSettings();
-                        renderCustomModels();
-                        apiProvSelect?.dispatchEvent(new Event('change'));
-                    });
-                    listUi.appendChild(li);
-                }
+            });
+            delete state.settings.customModels;
+            if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') window.dbUtils.saveSettings(window.state.settings);
+        }
+
+        const renderCustomModels = () => {
+            if(customGroup) customGroup.innerHTML = '';
+            
+            // Rebuild the unified custom models list mapped to UI dropdown
+            providers.forEach(prov => {
+                const text = state.settings.customModelsText[prov] || '';
+                const ids = text.split(',').map(s => s.trim()).filter(Boolean);
+                ids.forEach(id => {
+                    if (customGroup) {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = `${id} (${prov})`;
+                        // We attach dataset provider because we need to know the origin when selected
+                        opt.dataset.provider = prov;
+                        customGroup.appendChild(opt);
+                    }
+                });
             });
         };
 
-        const addBtn = document.getElementById('add-custom-model-btn');
-        if(addBtn) {
-            addBtn.addEventListener('click', () => {
-                const id = document.getElementById('custom-model-id').value.trim();
-                const prov = document.getElementById('custom-model-provider').value;
-                if(!id) return alert("モデル名を入力してください");
-                state.settings.customModels = state.settings.customModels || [];
-                if(state.settings.customModels.some(m => m.id === id)) return alert("既に登録されています");
-                state.settings.customModels.push({id, provider: prov});
-                saveSettings();
-                renderCustomModels();
-                document.getElementById('custom-model-id').value = '';
-                // Trigger change to update header sync
-                apiProvSelect?.dispatchEvent(new Event('change'));
-            });
-        }
-        
+        providers.forEach(prov => {
+            const textarea = document.getElementById(`${prov}-custom-models`);
+            if (textarea) {
+                // Restore from state
+                if (state.settings.customModelsText[prov]) {
+                    textarea.value = state.settings.customModelsText[prov];
+                }
+                
+                // Update state on change
+                textarea.addEventListener('change', (e) => {
+                    state.settings.customModelsText[prov] = e.target.value;
+                    if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') window.dbUtils.saveSettings(window.state.settings);
+                    renderCustomModels();
+                    apiProvSelect?.dispatchEvent(new Event('change'));
+                });
+            }
+        });
+
         if(mainSelect && apiProvSelect) {
             mainSelect.addEventListener('change', (e) => {
-                const sel = e.target.value;
-                const models = state.settings.customModels || [];
-                const matched = models.find(m => m.id === sel);
-                if(matched) {
-                    state.settings.apiProvider = matched.provider;
-                    apiProvSelect.value = matched.provider;
+                const selectedOpt = mainSelect.options[mainSelect.selectedIndex];
+                if (selectedOpt && selectedOpt.dataset.provider) {
+                    state.settings.apiProvider = selectedOpt.dataset.provider;
+                    apiProvSelect.value = selectedOpt.dataset.provider;
                     apiProvSelect.dispatchEvent(new Event('change'));
-                    saveSettings();
+                    if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') window.dbUtils.saveSettings(window.state.settings);
                 }
             });
         }
@@ -12800,9 +12822,9 @@ window.dbUtils = dbUtils;
     };
 
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(initPhase6, 1200));
+        document.addEventListener('DOMContentLoaded', () => setTimeout(initPhase7, 1200));
     } else {
-        setTimeout(initPhase6, 1200);
+        setTimeout(initPhase7, 1200);
     }
 
     // 2. Intercept API Calls for OpenAI/Anthropic Support
