@@ -12693,3 +12693,222 @@ window.dbUtils = dbUtils;
         setTimeout(initProjectManager, 800);
     }
 })();
+
+/* =========================================================================
+ * Phase 6 Hook: Multi-Provider (OpenAI, Anthropic) & Custom Models
+ * ========================================================================= */
+(()=>{
+    const oCallApi = window.appLogic?.callApi;
+
+    // 1. Initial UI setup & Custom Models Rendering
+    const initPhase6 = () => {
+        const customGroup = document.getElementById('user-defined-models-group');
+        const mainSelect = document.getElementById('model-name');
+        
+        // Settings Inputs
+        const oApiKey = document.getElementById('openai-api-key');
+        const aApiKey = document.getElementById('anthropic-api-key');
+        if(oApiKey) {
+            oApiKey.value = state.settings.openaiApiKey || '';
+            oApiKey.addEventListener('change', (e) => { state.settings.openaiApiKey = e.target.value; saveSettings(); });
+        }
+        if(aApiKey) {
+            aApiKey.value = state.settings.anthropicApiKey || '';
+            aApiKey.addEventListener('change', (e) => { state.settings.anthropicApiKey = e.target.value; saveSettings(); });
+        }
+
+        const apiProvSelect = document.getElementById('api-provider');
+        if(apiProvSelect) {
+            const updateKeyVisibility = () => {
+                const p = apiProvSelect.value;
+                document.getElementById('gemini-api-key-container')?.classList.toggle('hidden', p !== 'gemini');
+                document.getElementById('zai-api-key-container')?.classList.toggle('hidden', p !== 'zai');
+                document.getElementById('openrouter-api-key-container')?.classList.toggle('hidden', p !== 'openrouter');
+                document.getElementById('bedrock-api-key-container')?.classList.toggle('hidden', p !== 'bedrock');
+                document.getElementById('openai-api-key-container')?.classList.toggle('hidden', p !== 'openai');
+                document.getElementById('anthropic-api-key-container')?.classList.toggle('hidden', p !== 'anthropic');
+            };
+            apiProvSelect.addEventListener('change', updateKeyVisibility);
+            setTimeout(updateKeyVisibility, 500); 
+        }
+
+        const renderCustomModels = () => {
+            const models = state.settings.customModels || [];
+            if(customGroup) customGroup.innerHTML = '';
+            const listUi = document.getElementById('custom-model-list');
+            if(listUi) listUi.innerHTML = '';
+            
+            if(models.length === 0 && listUi) {
+                listUi.innerHTML = '<li style="font-size: 12px; color: var(--text-secondary); padding: 5px;">まだ登録されていません。</li>';
+            }
+
+            models.forEach((cm, i) => {
+                if(customGroup) {
+                    const opt = document.createElement('option');
+                    opt.value = cm.id;
+                    opt.textContent = `${cm.id} (${cm.provider})`;
+                    customGroup.appendChild(opt);
+                }
+                if(listUi) {
+                    const li = document.createElement('li');
+                    li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; font-size: 13px; padding: 5px; border-bottom: 1px solid var(--border-color);';
+                    li.innerHTML = `<span><b>${cm.id}</b> <span style="color:var(--text-secondary)">[${cm.provider}]</span></span>
+                        <button class="icon-button" style="color:var(--bg-button-delete)" title="削除">✖</button>`;
+                    li.querySelector('button').addEventListener('click', () => {
+                        state.settings.customModels.splice(i, 1);
+                        saveSettings();
+                        renderCustomModels();
+                        apiProvSelect?.dispatchEvent(new Event('change'));
+                    });
+                    listUi.appendChild(li);
+                }
+            });
+        };
+
+        const addBtn = document.getElementById('add-custom-model-btn');
+        if(addBtn) {
+            addBtn.addEventListener('click', () => {
+                const id = document.getElementById('custom-model-id').value.trim();
+                const prov = document.getElementById('custom-model-provider').value;
+                if(!id) return alert("モデル名を入力してください");
+                state.settings.customModels = state.settings.customModels || [];
+                if(state.settings.customModels.some(m => m.id === id)) return alert("既に登録されています");
+                state.settings.customModels.push({id, provider: prov});
+                saveSettings();
+                renderCustomModels();
+                document.getElementById('custom-model-id').value = '';
+                // Trigger change to update header sync
+                apiProvSelect?.dispatchEvent(new Event('change'));
+            });
+        }
+        
+        if(mainSelect && apiProvSelect) {
+            mainSelect.addEventListener('change', (e) => {
+                const sel = e.target.value;
+                const models = state.settings.customModels || [];
+                const matched = models.find(m => m.id === sel);
+                if(matched) {
+                    state.settings.apiProvider = matched.provider;
+                    apiProvSelect.value = matched.provider;
+                    apiProvSelect.dispatchEvent(new Event('change'));
+                    saveSettings();
+                }
+            });
+        }
+
+        renderCustomModels();
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(initPhase6, 1200));
+    } else {
+        setTimeout(initPhase6, 1200);
+    }
+
+    // 2. Intercept API Calls for OpenAI/Anthropic Support
+    if(oCallApi && window.appLogic) {
+        window.appLogic.callApi = async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
+            const provider = state.settings.apiProvider || 'gemini';
+            
+            if (provider === 'openai') {
+                return await callOpenAIApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+            } else if (provider === 'anthropic') {
+                return await callAnthropicApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+            } else {
+                return await oCallApi.call(this, messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+            }
+        };
+    }
+
+    async function callOpenAIApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
+        const apiKey = state.settings.openaiApiKey;
+        if (!apiKey) throw new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。");
+        
+        const requestBody = {
+            model: state.settings.modelName || 'gpt-4o',
+            messages: [],
+            temperature: config.temperature ?? 0.7,
+            max_tokens: config.maxOutputTokens ?? 4000,
+            top_p: config.topP ?? 1.0,
+            stream: false
+        };
+
+        if (systemInstruction) {
+            requestBody.messages.push({ role: 'system', content: systemInstruction });
+        }
+        messages.forEach(msg => {
+            const role = msg.role === 'model' ? 'assistant' : msg.role;
+            requestBody.messages.push({ role, content: msg.content });
+        });
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({}));
+            throw new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
+        }
+        const data = await response.json();
+        return {
+            text: data.choices[0].message.content,
+            finishReason: data.choices[0].finish_reason === 'stop' ? 'STOP' : data.choices[0].finish_reason,
+            functionCalls: null
+        };
+    }
+
+    async function callAnthropicApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
+        const apiKey = state.settings.anthropicApiKey;
+        if (!apiKey) throw new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。");
+        
+        const requestBody = {
+            model: state.settings.modelName || 'claude-3-5-sonnet-20241022',
+            messages: [],
+            max_tokens: config.maxOutputTokens ?? 4000,
+            temperature: config.temperature ?? 0.7,
+        };
+
+        if (systemInstruction) {
+            requestBody.system = systemInstruction;
+        }
+
+        messages.forEach(msg => {
+            const role = msg.role === 'model' ? 'assistant' : msg.role;
+            // Claude API does not allow consecutive messages from the same role, but we hope the frontend structured it correctly.
+            // Also system role is passed via the 'system' top-level parameter, which we handled above.
+            if(role !== 'system') {
+                requestBody.messages.push({ role, content: msg.content });
+            }
+        });
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({}));
+            throw new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
+        }
+        const data = await response.json();
+        let outText = "";
+        if(data.content && data.content.length > 0) {
+            outText = data.content.map(c => c.text).join('');
+        }
+        return {
+            text: outText,
+            finishReason: 'STOP',
+            functionCalls: null
+        };
+    }
+})();
