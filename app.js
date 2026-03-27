@@ -2632,7 +2632,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.messageOpacitySlider) elements.messageOpacitySlider.value = msgPercent;
         if (elements.messageOpacityValue)  elements.messageOpacityValue.textContent = `${msgPercent}%`;
         document.documentElement.style.setProperty('--message-bubble-opacity', String(state.settings.messageOpacity ?? 1));
-        document.getElementById('allow-prompt-ui-changes').checked = state.settings.allowPromptUiChanges;
+        const promptUiCb = document.getElementById('allow-prompt-ui-changes');
+        if (promptUiCb) promptUiCb.checked = state.settings.allowPromptUiChanges;
         elements.forceFunctionCallingToggle.checked = state.settings.forceFunctionCalling;
         elements.autoScrollToggle.checked = state.settings.autoScroll;
         elements.enableWideModeToggle.checked = state.settings.enableWideMode; 
