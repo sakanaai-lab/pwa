@@ -12780,7 +12780,31 @@ window.dbUtils = dbUtils;
         }
 
         const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic'];
+        const defaultModelLists = {
+            gemini: 'gemini-2.0-flash, gemini-2.0-flash-lite-preview-02-05, gemini-2.0-pro-exp-02-05, gemini-1.5-pro, gemini-1.5-flash',
+            openai: 'gpt-4o, gpt-4o-mini, o1, o1-mini, o3-mini',
+            anthropic: 'claude-3-7-sonnet-20250219, claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022',
+            zai: 'deepseek-v3, deepseek-r1',
+            openrouter: 'deepseek/deepseek-chat, deepseek/deepseek-r1, google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet',
+            bedrock: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0, us.anthropic.claude-3-5-haiku-20241022-v1:0'
+        };
+
         state.settings.customModelsText = state.settings.customModelsText || {};
+        // Fill defaults for empty providers and persist
+        let defaultsApplied = false;
+        providers.forEach(prov => {
+            if (!state.settings.customModelsText[prov] && defaultModelLists[prov]) {
+                state.settings.customModelsText[prov] = defaultModelLists[prov];
+                defaultsApplied = true;
+            }
+        });
+
+        if (defaultsApplied && window.state.activeProfile) {
+            window.state.activeProfile.settings.customModelsText = state.settings.customModelsText;
+            if (window.dbUtils && typeof window.dbUtils.updateProfile === 'function') {
+                window.dbUtils.updateProfile(window.state.activeProfile);
+            }
+        }
 
         // Migrate old array logic to textareas if necessary
         if (state.settings.customModels && Array.isArray(state.settings.customModels)) {
@@ -12916,7 +12940,7 @@ window.dbUtils = dbUtils;
         if (!apiKey) throw new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。");
         
         const requestBody = {
-            model: state.settings.modelName || 'claude-3-5-sonnet-20241022',
+            model: state.settings.modelName || 'claude-3-7-sonnet-20250219',
             messages: [],
             max_tokens: config.maxOutputTokens ?? 4000,
             temperature: config.temperature ?? 0.7,
