@@ -29,6 +29,10 @@ const TEXTAREA_MAX_HEIGHT = 120;
 const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 const ZAI_API_BASE_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
 const OPENROUTER_API_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const GROQ_API_BASE_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com/chat/completions';
+const XAI_API_BASE_URL = 'https://api.x.ai/v1/chat/completions';
+const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1/chat/completions';
 const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
@@ -71,6 +75,59 @@ const BEDROCK_MODELS = [
 
 const DEFAULT_BEDROCK_MODEL = 'jp.anthropic.claude-sonnet-4-5-20250929-v1:0';
 const DEFAULT_BEDROCK_REGION = 'us-east-1';
+
+const OPENAI_MODELS = [
+    { value: 'gpt-4o', label: 'GPT-4o' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
+    { value: 'gpt-4.1', label: 'GPT-4.1' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+    { value: 'o3', label: 'o3', group: '推論モデル' },
+    { value: 'o4-mini', label: 'o4-mini', group: '推論モデル' },
+];
+const DEFAULT_OPENAI_MODEL = 'gpt-4o';
+
+const ANTHROPIC_MODELS = [
+    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
+    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
+    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
+    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+];
+const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
+
+const GROQ_MODELS = [
+    { value: 'moonshotai/kimi-k2-instruct', label: 'Kimi K2 Instruct' },
+    { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B' },
+    { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B' },
+    { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
+    { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
+    { value: 'qwen/qwen3-32b', label: 'Qwen3 32B' },
+    { value: 'gemma2-9b-it', label: 'Gemma 2 9B' },
+];
+const DEFAULT_GROQ_MODEL = 'moonshotai/kimi-k2-instruct';
+
+const DEEPSEEK_MODELS = [
+    { value: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
+];
+const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
+
+const XAI_MODELS = [
+    { value: 'grok-4', label: 'Grok 4' },
+    { value: 'grok-3', label: 'Grok 3' },
+    { value: 'grok-3-mini', label: 'Grok 3 Mini' },
+    { value: 'grok-2-1212', label: 'Grok 2' },
+];
+const DEFAULT_XAI_MODEL = 'grok-4';
+
+const MISTRAL_MODELS = [
+    { value: 'mistral-large-latest', label: 'Mistral Large (latest)' },
+    { value: 'mistral-medium-latest', label: 'Mistral Medium (latest)' },
+    { value: 'mistral-small-latest', label: 'Mistral Small (latest)' },
+    { value: 'codestral-latest', label: 'Codestral (latest)' },
+    { value: 'open-mistral-nemo', label: 'Mistral Nemo' },
+];
+const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
     "1.12": [
@@ -288,6 +345,18 @@ try {
         bedrockSecretKeyInput: document.getElementById('bedrock-secret-key'),
         bedrockRegionSelect: document.getElementById('bedrock-region'),
         bedrockApiKeyContainer: document.getElementById('bedrock-api-key-container'),
+        openaiApiKeyInput: document.getElementById('openai-api-key'),
+        openaiApiKeyContainer: document.getElementById('openai-api-key-container'),
+        anthropicApiKeyInput: document.getElementById('anthropic-api-key'),
+        anthropicApiKeyContainer: document.getElementById('anthropic-api-key-container'),
+        groqApiKeyInput: document.getElementById('groq-api-key'),
+        groqApiKeyContainer: document.getElementById('groq-api-key-container'),
+        deepseekApiKeyInput: document.getElementById('deepseek-api-key'),
+        deepseekApiKeyContainer: document.getElementById('deepseek-api-key-container'),
+        xaiApiKeyInput: document.getElementById('xai-api-key'),
+        xaiApiKeyContainer: document.getElementById('xai-api-key-container'),
+        mistralApiKeyInput: document.getElementById('mistral-api-key'),
+        mistralApiKeyContainer: document.getElementById('mistral-api-key-container'),
         modelNameSelect: document.getElementById('model-name'),
         modelNameLabel: document.getElementById('model-name-label'),
         userDefinedModelsGroup: document.getElementById('user-defined-models-group'),
@@ -522,13 +591,19 @@ const state = {
     videoUrlCache: new Map(),
     imageUrlCache: new Map(),
     settings: {
-        apiProvider: 'gemini', // 'gemini' | 'zai' | 'bedrock' | 'openrouter'
+        apiProvider: 'gemini',
         apiKey: '',
         zaiApiKey: '',
         openrouterApiKey: '',
         bedrockAccessKey: '',
         bedrockSecretKey: '',
         bedrockRegion: DEFAULT_BEDROCK_REGION,
+        openaiApiKey: '',
+        anthropicApiKey: '',
+        groqApiKey: '',
+        deepseekApiKey: '',
+        xaiApiKey: '',
+        mistralApiKey: '',
         modelName: DEFAULT_MODEL,
         systemPrompt: '',
         temperature: null,
@@ -2545,22 +2620,10 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
     applySettingsToUI() {
         // プロバイダーとAPIキーの設定（要素が存在する場合のみ）
         if (elements.apiProviderSelect) {
-            let provider = state.settings.apiProvider || 'gemini';
-            const isDebugOnlyProvider = provider === 'zai' || provider === 'openrouter' || provider === 'bedrock';
-            if (!state.settings.debugMode && isDebugOnlyProvider) {
-                provider = 'gemini';
-                state.settings.apiProvider = provider;
-                if (state.activeProfile && state.activeProfile.settings) {
-                    state.activeProfile.settings.apiProvider = provider;
-                    dbUtils.updateProfile(state.activeProfile)
-                        .then(() => appLogic.markAsDirtyAndSchedulePush('structural'))
-                        .catch(error => console.error("[Settings] APIプロバイダーの同期更新に失敗しました:", error));
-                }
-            }
+            const provider = state.settings.apiProvider || 'gemini';
             elements.apiProviderSelect.value = provider;
-            const shouldShowProviderSelect = state.settings.debugMode === true;
             if (elements.apiProviderRow) {
-                elements.apiProviderRow.classList.toggle('hidden', !shouldShowProviderSelect);
+                elements.apiProviderRow.classList.remove('hidden');
             }
             appLogic.updateProviderUI(provider);
             appLogic.updateModelOptions(provider);
@@ -2580,6 +2643,24 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         }
         if (elements.bedrockRegionSelect) {
             elements.bedrockRegionSelect.value = state.settings.bedrockRegion || DEFAULT_BEDROCK_REGION;
+        }
+        if (elements.openaiApiKeyInput) {
+            elements.openaiApiKeyInput.value = state.settings.openaiApiKey || '';
+        }
+        if (elements.anthropicApiKeyInput) {
+            elements.anthropicApiKeyInput.value = state.settings.anthropicApiKey || '';
+        }
+        if (elements.groqApiKeyInput) {
+            elements.groqApiKeyInput.value = state.settings.groqApiKey || '';
+        }
+        if (elements.deepseekApiKeyInput) {
+            elements.deepseekApiKeyInput.value = state.settings.deepseekApiKey || '';
+        }
+        if (elements.xaiApiKeyInput) {
+            elements.xaiApiKeyInput.value = state.settings.xaiApiKey || '';
+        }
+        if (elements.mistralApiKeyInput) {
+            elements.mistralApiKeyInput.value = state.settings.mistralApiKey || '';
         }
         elements.modelNameSelect.value = state.settings.modelName || DEFAULT_MODEL;
         elements.systemPromptDefaultTextarea.value = state.settings.systemPrompt || '';
@@ -5008,7 +5089,7 @@ const appLogic = {
 
     getCurrentUiSettings() {
         const settings = {};
-        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
+        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
         const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
@@ -5434,21 +5515,30 @@ const appLogic = {
         const isZai = provider === 'zai';
         const isOpenRouter = provider === 'openrouter';
         const isBedrock = provider === 'bedrock';
-        
+        const isOpenAI = provider === 'openai';
+        const isAnthropic = provider === 'anthropic';
+        const isGroq = provider === 'groq';
+        const isDeepSeek = provider === 'deepseek';
+        const isXAI = provider === 'xai';
+        const isMistral = provider === 'mistral';
+
         // APIキー入力欄の表示/非表示
-        if (elements.geminiApiKeyContainer) {
-            elements.geminiApiKeyContainer.classList.toggle('hidden', !isGemini);
-        }
-        if (elements.zaiApiKeyContainer) {
-            elements.zaiApiKeyContainer.classList.toggle('hidden', !isZai);
-        }
-        if (elements.openrouterApiKeyContainer) {
-            elements.openrouterApiKeyContainer.classList.toggle('hidden', !isOpenRouter);
-        }
-        if (elements.bedrockApiKeyContainer) {
-            elements.bedrockApiKeyContainer.classList.toggle('hidden', !isBedrock);
-        }
-        
+        const containers = [
+            [elements.geminiApiKeyContainer, isGemini],
+            [elements.zaiApiKeyContainer, isZai],
+            [elements.openrouterApiKeyContainer, isOpenRouter],
+            [elements.bedrockApiKeyContainer, isBedrock],
+            [elements.openaiApiKeyContainer, isOpenAI],
+            [elements.anthropicApiKeyContainer, isAnthropic],
+            [elements.groqApiKeyContainer, isGroq],
+            [elements.deepseekApiKeyContainer, isDeepSeek],
+            [elements.xaiApiKeyContainer, isXAI],
+            [elements.mistralApiKeyContainer, isMistral],
+        ];
+        containers.forEach(([el, show]) => {
+            if (el) el.classList.toggle('hidden', !show);
+        });
+
         // モデル選択UIの表示/非表示（OpenRouterはテキスト入力、その他はセレクトボックス）
         if (elements.modelNameLabel) {
             elements.modelNameLabel.classList.toggle('hidden', isOpenRouter);
@@ -5459,25 +5549,6 @@ const appLogic = {
         if (elements.openrouterModelInputContainer) {
             elements.openrouterModelInputContainer.classList.toggle('hidden', !isOpenRouter);
         }
-        
-        // デバッグモード専用プロバイダーのチェック
-        const isDebugOnlyProvider = isZai || isOpenRouter || isBedrock;
-        if (!state.settings.debugMode && isDebugOnlyProvider) {
-            // デバッグモードOFFならGeminiに戻す
-            state.settings.apiProvider = 'gemini';
-            if (state.activeProfile && state.activeProfile.settings) {
-                state.activeProfile.settings.apiProvider = 'gemini';
-                dbUtils.updateProfile(state.activeProfile)
-                    .then(() => this.markAsDirtyAndSchedulePush('structural'))
-                    .catch(error => console.error("[Settings] APIプロバイダーの同期更新に失敗しました:", error));
-            }
-            this.updateProviderUI('gemini');
-            this.updateModelOptions('gemini');
-            uiUtils.showCustomAlert("デバッグモードを無効にしたため、APIプロバイダーをGeminiに戻しました。");
-        }
-        
-        // プロバイダー固有の設定項目の表示/非表示
-        // Gemini専用機能（グラウンディング、Function Callingなど）の表示制御は後で実装
     },
 
     // プロバイダーに応じたモデルリストの更新
@@ -5519,6 +5590,18 @@ const appLogic = {
             models = ZAI_MODELS;
         } else if (provider === 'bedrock') {
             models = BEDROCK_MODELS;
+        } else if (provider === 'openai') {
+            models = OPENAI_MODELS;
+        } else if (provider === 'anthropic') {
+            models = ANTHROPIC_MODELS;
+        } else if (provider === 'groq') {
+            models = GROQ_MODELS;
+        } else if (provider === 'deepseek') {
+            models = DEEPSEEK_MODELS;
+        } else if (provider === 'xai') {
+            models = XAI_MODELS;
+        } else if (provider === 'mistral') {
+            models = MISTRAL_MODELS;
         } else {
             models = GEMINI_MODELS;
         }
@@ -5565,6 +5648,18 @@ const appLogic = {
                 defaultModel = DEFAULT_OPENROUTER_MODEL;
             } else if (provider === 'bedrock') {
                 defaultModel = DEFAULT_BEDROCK_MODEL;
+            } else if (provider === 'openai') {
+                defaultModel = DEFAULT_OPENAI_MODEL;
+            } else if (provider === 'anthropic') {
+                defaultModel = DEFAULT_ANTHROPIC_MODEL;
+            } else if (provider === 'groq') {
+                defaultModel = DEFAULT_GROQ_MODEL;
+            } else if (provider === 'deepseek') {
+                defaultModel = DEFAULT_DEEPSEEK_MODEL;
+            } else if (provider === 'xai') {
+                defaultModel = DEFAULT_XAI_MODEL;
+            } else if (provider === 'mistral') {
+                defaultModel = DEFAULT_MISTRAL_MODEL;
             } else {
                 defaultModel = DEFAULT_MODEL;
             }
@@ -6666,28 +6761,10 @@ const appLogic = {
 
         
         const settingsMap = {
-            apiProvider: { 
-                element: elements.apiProviderSelect, 
+            apiProvider: {
+                element: elements.apiProviderSelect,
                 event: 'change',
                 onUpdate: (value) => {
-                    const isDebugOnlyProvider = value === 'zai' || value === 'openrouter' || value === 'bedrock';
-                    if (!state.settings.debugMode && isDebugOnlyProvider) {
-                        const fallbackProvider = 'gemini';
-                        state.settings.apiProvider = fallbackProvider;
-                        if (state.activeProfile && state.activeProfile.settings) {
-                            state.activeProfile.settings.apiProvider = fallbackProvider;
-                            dbUtils.updateProfile(state.activeProfile)
-                                .then(() => this.markAsDirtyAndSchedulePush('structural'))
-                                .catch(error => console.error("[Settings] デバッグモードOFF中にデバッグ専用プロバイダーが選択されましたがGeminiへ戻す際の保存に失敗しました:", error));
-                        }
-                        if (elements.apiProviderSelect) {
-                            elements.apiProviderSelect.value = fallbackProvider;
-                        }
-                        this.updateProviderUI(fallbackProvider);
-                        this.updateModelOptions(fallbackProvider);
-                        uiUtils.showCustomAlert("デバッグモードが無効のため、このプロバイダーは選択できません。Geminiに戻しました。");
-                        return;
-                    }
                     this.updateProviderUI(value);
                     this.updateModelOptions(value);
                 }
@@ -6698,6 +6775,12 @@ const appLogic = {
             bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: 'input' },
             bedrockSecretKey: { element: elements.bedrockSecretKeyInput, event: 'input' },
             bedrockRegion: { element: elements.bedrockRegionSelect, event: 'change' },
+            openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
+            anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
+            groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
+            deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
+            xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
+            mistralApiKey: { element: elements.mistralApiKeyInput, event: 'input' },
             modelName: { 
                 element: elements.modelNameSelect, 
                 event: 'change', 
@@ -6736,32 +6819,6 @@ const appLogic = {
             debugMode: { element: elements.debugModeToggle, event: 'change', onUpdate: (value) => {
                 DebugLogger.init();
                 this.toggleDebugLogButtonVisibility(value);
-
-                if (elements.apiProviderRow) {
-                    elements.apiProviderRow.classList.toggle('hidden', !value);
-                }
-
-                const isDebugOnlyProvider = state.settings.apiProvider === 'zai' || state.settings.apiProvider === 'openrouter' || state.settings.apiProvider === 'bedrock';
-                if (!value && isDebugOnlyProvider) {
-                    const fallbackProvider = 'gemini';
-                    state.settings.apiProvider = fallbackProvider;
-                    if (state.activeProfile && state.activeProfile.settings) {
-                        state.activeProfile.settings.apiProvider = fallbackProvider;
-                        dbUtils.updateProfile(state.activeProfile)
-                            .then(() => this.markAsDirtyAndSchedulePush('structural'))
-                            .catch(error => console.error("[Settings] デバッグモードOFF時のAPIプロバイダー更新に失敗しました:", error));
-                    }
-                    if (elements.apiProviderSelect) {
-                        elements.apiProviderSelect.value = fallbackProvider;
-                    }
-                    this.updateProviderUI(fallbackProvider);
-                    this.updateModelOptions(fallbackProvider);
-                    uiUtils.showCustomAlert("デバッグモードを無効にしたため、APIプロバイダーをGeminiに戻しました。");
-                } else if (value) {
-                    const provider = state.settings.apiProvider || 'gemini';
-                    this.updateProviderUI(provider);
-                    this.updateModelOptions(provider);
-                }
             }},
             fontFamily: { element: elements.fontFamilyInput, event: 'input', onUpdate: () => uiUtils.applyFontFamily() },
             hideSystemPromptInChat: { element: elements.hideSystemPromptToggle, event: 'change', onUpdate: () => uiUtils.toggleSystemPromptVisibility() },
@@ -12765,9 +12822,6 @@ window.dbUtils = dbUtils;
             });
         }
 
-        // Settings Inputs
-        const oApiKey = document.getElementById('openai-api-key');
-        const aApiKey = document.getElementById('anthropic-api-key');
         const persistCustomSetting = async (key, value) => {
             state.settings[key] = value;
             if (window.state.activeProfile) {
@@ -12781,35 +12835,19 @@ window.dbUtils = dbUtils;
             }
         };
 
-        if(oApiKey) {
-            oApiKey.value = state.settings.openaiApiKey || '';
-            oApiKey.addEventListener('change', async (e) => { 
-                await persistCustomSetting('openaiApiKey', e.target.value);
-            });
-        }
-        if(aApiKey) {
-            aApiKey.value = state.settings.anthropicApiKey || '';
-            aApiKey.addEventListener('change', async (e) => { 
-                await persistCustomSetting('anthropicApiKey', e.target.value);
-            });
-        }
-
         const apiProvSelect = document.getElementById('api-provider');
         if(apiProvSelect) {
             const updateKeyVisibility = () => {
                 const p = apiProvSelect.value;
-                document.getElementById('gemini-api-key-container')?.classList.toggle('hidden', p !== 'gemini');
-                document.getElementById('zai-api-key-container')?.classList.toggle('hidden', p !== 'zai');
-                document.getElementById('openrouter-api-key-container')?.classList.toggle('hidden', p !== 'openrouter');
-                document.getElementById('bedrock-api-key-container')?.classList.toggle('hidden', p !== 'bedrock');
-                document.getElementById('openai-api-key-container')?.classList.toggle('hidden', p !== 'openai');
-                document.getElementById('anthropic-api-key-container')?.classList.toggle('hidden', p !== 'anthropic');
+                ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'].forEach(prov => {
+                    document.getElementById(`${prov}-api-key-container`)?.classList.toggle('hidden', p !== prov);
+                });
             };
             apiProvSelect.addEventListener('change', updateKeyVisibility);
-            setTimeout(updateKeyVisibility, 500); 
+            setTimeout(updateKeyVisibility, 500);
         }
 
-        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic'];
+        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'];
         const defaultModelLists = {
             gemini: 'gemini-2.0-flash, gemini-2.0-flash-lite-preview-02-05, gemini-2.0-pro-exp-02-05, gemini-1.5-pro, gemini-1.5-flash',
             openai: 'gpt-4o, gpt-4o-mini, o1, o1-mini, o3-mini',
@@ -12918,15 +12956,23 @@ window.dbUtils = dbUtils;
         setTimeout(initPhase7, 1200);
     }
 
-    // 2. Intercept API Calls for OpenAI/Anthropic Support
+    // 2. Intercept API Calls for multi-provider support
     if(oCallApi && window.appLogic) {
         window.appLogic.callApi = async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
             const provider = state.settings.apiProvider || 'gemini';
-            
+
             if (provider === 'openai') {
                 return await callOpenAIApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
             } else if (provider === 'anthropic') {
                 return await callAnthropicApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+            } else if (provider === 'groq') {
+                return await callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, 'Groq', messagesForApi, config, systemInstruction, signal);
+            } else if (provider === 'deepseek') {
+                return await callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, 'DeepSeek', messagesForApi, config, systemInstruction, signal);
+            } else if (provider === 'xai') {
+                return await callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, 'xAI', messagesForApi, config, systemInstruction, signal);
+            } else if (provider === 'mistral') {
+                return await callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, 'Mistral', messagesForApi, config, systemInstruction, signal);
             } else {
                 return await oCallApi.call(this, messagesForApi, config, systemInstruction, tools, forceCalling, signal);
             }
@@ -13021,6 +13067,45 @@ window.dbUtils = dbUtils;
         return {
             text: outText,
             finishReason: 'STOP',
+            functionCalls: null
+        };
+    }
+
+    async function callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
+        if (!apiKey) throw new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`);
+
+        const requestBody = {
+            model: state.settings.modelName,
+            messages: [],
+            temperature: config.temperature ?? 0.7,
+            max_tokens: config.maxOutputTokens ?? 4000,
+            top_p: config.topP ?? 1.0,
+            stream: false
+        };
+
+        if (systemInstruction) {
+            requestBody.messages.push({ role: 'system', content: systemInstruction });
+        }
+        messages.forEach(msg => {
+            const role = msg.role === 'model' ? 'assistant' : msg.role;
+            requestBody.messages.push({ role, content: msg.content });
+        });
+
+        const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
+        }
+        const data = await response.json();
+        return {
+            text: data.choices[0].message.content,
+            finishReason: data.choices[0].finish_reason === 'stop' ? 'STOP' : data.choices[0].finish_reason,
             functionCalls: null
         };
     }
