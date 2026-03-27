@@ -1,4 +1,19 @@
-# Gemini PWA Client Mk-II
+# Gemini PWA Client Mk-II（個人カスタマイズ版）
+
+> [!NOTE]
+> これは [kinkan04/Gemini-PWA-Mk-II](https://github.com/kinkan04/Gemini-PWA-Mk-II) を個人用にフォーク・改造したものです。
+> 本家の機能はそのままに、以下の変更を加えています。
+
+### 🔧 改造箇所
+| 項目 | 内容 |
+|------|------|
+| **カラーテーマ** | ライトモードのカラーパレットを水色・ブルーグリーン系の「Aquarium」テーマに差し替え |
+| **マルチプロバイダー対応** | OpenAI (ChatGPT) と Anthropic (Claude) のAPIをネイティブサポート追加 |
+| **カスタムモデル登録** | 各プロバイダーの設定内にカンマ区切りで任意のモデルIDを追加できるテキストエリアを配置 |
+| **設定画面UI** | アコーディオン（折りたたみ）形式に再構築、保存ボタンをヘッダー右上に固定 |
+| **画像生成機能** | Stable Diffusion連携を削除（個人環境では不使用のため） |
+
+---
 
 [本家PWA](https://github.com/ona-oni/geminipwa/)をベースに、独自の機能を追加したカスタマイズ版です。
 
