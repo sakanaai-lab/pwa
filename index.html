@@ -241,6 +241,8 @@
                         <option value="zai">Z.ai</option>
                         <option value="openrouter">OpenRouter</option>
                         <option value="bedrock">Amazon Bedrock</option>
+                        <option value="openai">OpenAI (ChatGPT)</option>
+                        <option value="anthropic">Anthropic (Claude)</option>
                     </select>
 
                     <div id="gemini-api-key-container">
@@ -280,6 +282,16 @@
                             ※ Amazon Bedrockはデバッグモード専用です。認証情報は安全に管理してください。<br>
                             ※ IAM Access Key/Secret Keyが必要です。Bedrock APIへのアクセス権限を持つキーを使用してください。
                         </p>
+                    </div>
+
+                    <div id="openai-api-key-container" class="hidden">
+                        <label for="openai-api-key">OpenAI APIキー:</label>
+                        <input type="password" autocomplete="new-password" id="openai-api-key" placeholder="sk-proj-..." aria-label="OpenAI APIキー">
+                    </div>
+
+                    <div id="anthropic-api-key-container" class="hidden">
+                        <label for="anthropic-api-key">Anthropic APIキー:</label>
+                        <input type="password" autocomplete="new-password" id="anthropic-api-key" placeholder="sk-ant-..." aria-label="Anthropic APIキー">
                     </div>
 
                     <label for="model-name" id="model-name-label">モデル名:</label>
@@ -471,6 +483,34 @@
                     </div>
                 </div>
                 
+                <div class="settings-group" id="custom-model-group">
+                    <h3>カスタムモデル管理</h3>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+                        OpenAIやAnthropicの最新モデル、Z.AI等で提供されている新規追加のモデルを手動で登録できます。
+                    </p>
+                    <label for="custom-model-id">モデル名 (例: gpt-4o, claude-3-5-sonnet-20241022):</label>
+                    <input type="text" id="custom-model-id" placeholder="モデルのIDを入力" class="settings-input">
+                    
+                    <label for="custom-model-provider" style="margin-top: 10px;">プロバイダー:</label>
+                    <select id="custom-model-provider" class="settings-input">
+                        <option value="openai">OpenAI (ChatGPT系)</option>
+                        <option value="anthropic">Anthropic (Claude系)</option>
+                        <option value="gemini">Gemini (Google)</option>
+                        <option value="openrouter">OpenRouter</option>
+                        <option value="zai">Z.AI</option>
+                        <option value="bedrock">Amazon Bedrock</option>
+                    </select>
+
+                    <button type="button" id="add-custom-model-btn" class="settings-action-button" style="margin-top: 15px;">リストに追加</button>
+
+                    <div style="margin-top: 20px;">
+                        <label>登録済みカスタムモデル:</label>
+                        <ul id="custom-model-list" class="history-list" style="max-height: 150px; overflow-y: auto; background: var(--bg-tertiary); padding: 5px; border-radius: 5px;">
+                            <li style="font-size: 12px; color: var(--text-secondary); padding: 5px;">まだ登録されていません。</li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div class="settings-group" id="data-sync-group">
                     <div class="sync-header">
                         <h3>
