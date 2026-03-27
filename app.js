@@ -12458,17 +12458,47 @@ window.dbUtils = dbUtils;
 
         headerSelect.addEventListener('change', async (e) => {
             const newModel = e.target.value;
+            const selectedOpt = headerSelect.options[headerSelect.selectedIndex];
+            
             if (window.state && window.state.settings) {
                 window.state.settings.modelName = newModel;
                 mainSelect.value = newModel;
+
+                // Sync API Provider if data-provider exists
+                if (selectedOpt && selectedOpt.dataset.provider) {
+                    const provider = selectedOpt.dataset.provider;
+                    const apiProvSelect = document.getElementById('api-provider');
+                    if (apiProvSelect && window.state.settings.apiProvider !== provider) {
+                        window.state.settings.apiProvider = provider;
+                        apiProvSelect.value = provider;
+                        apiProvSelect.dispatchEvent(new Event('change'));
+                        
+                        // Sync to active profile
+                        if (window.state.activeProfile) {
+                            window.state.activeProfile.settings.apiProvider = provider;
+                            if (window.dbUtils && typeof window.dbUtils.updateProfile === 'function') {
+                                await window.dbUtils.updateProfile(window.state.activeProfile);
+                            }
+                        }
+                    }
+                } else if (newModel.startsWith('gemini-')) {
+                    // Fallback for standard Gemini models
+                    const apiProvSelect = document.getElementById('api-provider');
+                    if (apiProvSelect && window.state.settings.apiProvider !== 'gemini') {
+                        window.state.settings.apiProvider = 'gemini';
+                        apiProvSelect.value = 'gemini';
+                        apiProvSelect.dispatchEvent(new Event('change'));
+                    }
+                }
                 
                 if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
-                    await window.dbUtils.saveSettings({ modelName: newModel });
+                    await window.dbUtils.saveSettings({ modelName: newModel, apiProvider: window.state.settings.apiProvider });
                 }
                 if (window.state.activeProfileId && window.dbUtils && typeof window.dbUtils.updateProfileField === 'function') {
                     await window.dbUtils.updateProfileField(window.state.activeProfileId, 'modelName', newModel);
+                    await window.dbUtils.updateProfileField(window.state.activeProfileId, 'apiProvider', window.state.settings.apiProvider);
                 }
-                console.log(`[Model Switcher] Model changed to: ${newModel}`);
+                console.log(`[Model Switcher] Model changed to: ${newModel} (Provider: ${window.state.settings.apiProvider})`);
             }
         });
     }
@@ -12861,8 +12891,16 @@ window.dbUtils = dbUtils;
         if(mainSelect && apiProvSelect) {
             mainSelect.addEventListener('change', async (e) => {
                 const selectedOpt = mainSelect.options[mainSelect.selectedIndex];
+                const newModel = mainSelect.value;
+                
+                let provider = null;
                 if (selectedOpt && selectedOpt.dataset.provider) {
-                    const provider = selectedOpt.dataset.provider;
+                    provider = selectedOpt.dataset.provider;
+                } else if (newModel.startsWith('gemini-')) {
+                    provider = 'gemini';
+                }
+
+                if (provider && state.settings.apiProvider !== provider) {
                     state.settings.apiProvider = provider;
                     apiProvSelect.value = provider;
                     apiProvSelect.dispatchEvent(new Event('change'));
