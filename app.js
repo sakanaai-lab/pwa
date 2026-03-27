@@ -12709,6 +12709,17 @@ window.dbUtils = dbUtils;
         const saveBtn = document.getElementById('save-settings-btn');
         if (saveBtn) {
             saveBtn.addEventListener('click', async () => {
+                // Ensure custom fields are synced to active profile before saving
+                if (window.state.activeProfile) {
+                    window.state.activeProfile.settings.openaiApiKey = state.settings.openaiApiKey;
+                    window.state.activeProfile.settings.anthropicApiKey = state.settings.anthropicApiKey;
+                    window.state.activeProfile.settings.customModelsText = state.settings.customModelsText;
+                    
+                    if (window.dbUtils && typeof window.dbUtils.updateProfile === 'function') {
+                        await window.dbUtils.updateProfile(window.state.activeProfile);
+                    }
+                }
+
                 if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
                     await window.dbUtils.saveSettings(window.state.settings);
                 }
@@ -12727,13 +12738,30 @@ window.dbUtils = dbUtils;
         // Settings Inputs
         const oApiKey = document.getElementById('openai-api-key');
         const aApiKey = document.getElementById('anthropic-api-key');
+        const persistCustomSetting = async (key, value) => {
+            state.settings[key] = value;
+            if (window.state.activeProfile) {
+                window.state.activeProfile.settings[key] = value;
+                if (window.dbUtils && typeof window.dbUtils.updateProfile === 'function') {
+                    await window.dbUtils.updateProfile(window.state.activeProfile);
+                }
+            }
+            if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
+                await window.dbUtils.saveSettings(window.state.settings);
+            }
+        };
+
         if(oApiKey) {
             oApiKey.value = state.settings.openaiApiKey || '';
-            oApiKey.addEventListener('change', async (e) => { state.settings.openaiApiKey = e.target.value; if(window.dbUtils) await window.dbUtils.saveSettings(window.state.settings); });
+            oApiKey.addEventListener('change', async (e) => { 
+                await persistCustomSetting('openaiApiKey', e.target.value);
+            });
         }
         if(aApiKey) {
             aApiKey.value = state.settings.anthropicApiKey || '';
-            aApiKey.addEventListener('change', async (e) => { state.settings.anthropicApiKey = e.target.value; if(window.dbUtils) await window.dbUtils.saveSettings(window.state.settings); });
+            aApiKey.addEventListener('change', async (e) => { 
+                await persistCustomSetting('anthropicApiKey', e.target.value);
+            });
         }
 
         const apiProvSelect = document.getElementById('api-provider');
@@ -12797,9 +12825,9 @@ window.dbUtils = dbUtils;
                 }
                 
                 // Update state on change
-                textarea.addEventListener('change', (e) => {
+                textarea.addEventListener('change', async (e) => {
                     state.settings.customModelsText[prov] = e.target.value;
-                    if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') window.dbUtils.saveSettings(window.state.settings);
+                    await persistCustomSetting('customModelsText', state.settings.customModelsText);
                     renderCustomModels();
                     apiProvSelect?.dispatchEvent(new Event('change'));
                 });
@@ -12807,13 +12835,14 @@ window.dbUtils = dbUtils;
         });
 
         if(mainSelect && apiProvSelect) {
-            mainSelect.addEventListener('change', (e) => {
+            mainSelect.addEventListener('change', async (e) => {
                 const selectedOpt = mainSelect.options[mainSelect.selectedIndex];
                 if (selectedOpt && selectedOpt.dataset.provider) {
-                    state.settings.apiProvider = selectedOpt.dataset.provider;
-                    apiProvSelect.value = selectedOpt.dataset.provider;
+                    const provider = selectedOpt.dataset.provider;
+                    state.settings.apiProvider = provider;
+                    apiProvSelect.value = provider;
                     apiProvSelect.dispatchEvent(new Event('change'));
-                    if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') window.dbUtils.saveSettings(window.state.settings);
+                    await persistCustomSetting('apiProvider', provider);
                 }
             });
         }
