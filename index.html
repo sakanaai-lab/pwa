@@ -236,11 +236,15 @@
                         <label for="api-provider">使用するAPIプロバイダー:</label>
                         <select id="api-provider" aria-label="APIプロバイダー">
                             <option value="gemini">Gemini</option>
-                            <option value="zai">Z.ai</option>
-                            <option value="openrouter">OpenRouter</option>
-                            <option value="bedrock">Amazon Bedrock</option>
                             <option value="openai">OpenAI (ChatGPT)</option>
                             <option value="anthropic">Anthropic (Claude)</option>
+                            <option value="groq">Groq</option>
+                            <option value="deepseek">DeepSeek</option>
+                            <option value="xai">xAI (Grok)</option>
+                            <option value="mistral">Mistral</option>
+                            <option value="openrouter">OpenRouter</option>
+                            <option value="zai">Z.ai</option>
+                            <option value="bedrock">Amazon Bedrock</option>
                         </select>
                         <div id="api-usage-container" class="api-usage-container hidden" style="margin-top:10px;">
                             <p id="api-usage-text" class="api-usage-text"></p>
@@ -271,7 +275,6 @@
                             <label for="openrouter-api-key">OpenRouter APIキー:</label>
                             <input type="password" autocomplete="new-password" id="openrouter-api-key" placeholder="OpenRouter APIキーを入力" aria-label="OpenRouter APIキー">
                             <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                                ※ OpenRouterはデバッグモード専用です。<br>
                                 ※ APIキーは <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer">OpenRouter</a> から取得できます。
                             </p>
                             <label for="openrouter-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
@@ -311,6 +314,46 @@
                             <input type="password" autocomplete="new-password" id="anthropic-api-key" placeholder="sk-ant-..." aria-label="Anthropic APIキー">
                             <label for="anthropic-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
                             <textarea id="anthropic-custom-models" placeholder="例: claude-3-7-sonnet-20250219, claude-3-5-sonnet-20241022"></textarea>
+                        </div>
+
+                        <div id="groq-api-key-container" class="hidden">
+                            <label for="groq-api-key">Groq APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="groq-api-key" placeholder="gsk_..." aria-label="Groq APIキー">
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ APIキーは <a href="https://console.groq.com/keys" target="_blank" rel="noopener noreferrer">Groq Console</a> から取得できます。
+                            </p>
+                            <label for="groq-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="groq-custom-models" placeholder="例: llama-3.3-70b-versatile"></textarea>
+                        </div>
+
+                        <div id="deepseek-api-key-container" class="hidden">
+                            <label for="deepseek-api-key">DeepSeek APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="deepseek-api-key" placeholder="sk-..." aria-label="DeepSeek APIキー">
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ APIキーは <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener noreferrer">DeepSeek Platform</a> から取得できます。
+                            </p>
+                            <label for="deepseek-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="deepseek-custom-models" placeholder="例: deepseek-chat"></textarea>
+                        </div>
+
+                        <div id="xai-api-key-container" class="hidden">
+                            <label for="xai-api-key">xAI APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="xai-api-key" placeholder="xai-..." aria-label="xAI APIキー">
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ APIキーは <a href="https://console.x.ai/" target="_blank" rel="noopener noreferrer">xAI Console</a> から取得できます。
+                            </p>
+                            <label for="xai-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="xai-custom-models" placeholder="例: grok-4"></textarea>
+                        </div>
+
+                        <div id="mistral-api-key-container" class="hidden">
+                            <label for="mistral-api-key">Mistral APIキー:</label>
+                            <input type="password" autocomplete="new-password" id="mistral-api-key" placeholder="..." aria-label="Mistral APIキー">
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                                ※ APIキーは <a href="https://console.mistral.ai/api-keys/" target="_blank" rel="noopener noreferrer">Mistral Console</a> から取得できます。
+                            </p>
+                            <label for="mistral-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
+                            <textarea id="mistral-custom-models" placeholder="例: mistral-large-latest"></textarea>
                         </div>
 
                         <div style="border-top: 1px dashed var(--border-color); padding-top: 15px; margin-top: 15px;">
