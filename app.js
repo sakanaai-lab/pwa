@@ -5635,9 +5635,13 @@ const appLogic = {
             modelSelect.appendChild(userDefinedGroup);
         }
         
-        // 現在の値が新しいリストに含まれているか確認
-        const availableValues = models.map(m => m.value);
-        if (availableValues.includes(currentValue)) {
+        // 現在の値が新しいリストに含まれているか確認（標準モデル＋ユーザー指定モデル両方チェック）
+        const standardValues = models.map(m => m.value);
+        const userDefinedValues = userDefinedGroup
+            ? Array.from(userDefinedGroup.querySelectorAll('option')).map(o => o.value)
+            : [];
+        const allAvailableValues = [...standardValues, ...userDefinedValues];
+        if (allAvailableValues.includes(currentValue)) {
             modelSelect.value = currentValue;
         } else {
             // デフォルトモデルを設定
