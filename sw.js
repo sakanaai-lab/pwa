@@ -69,7 +69,8 @@ self.addEventListener('fetch', (event) => {
           }
         ).catch(error => {
           console.error('SW: Fetch failed for:', event.request.url, error);
-          if (event.request.headers.get('accept').includes('application/json')) {
+          const acceptHeader = event.request.headers.get('accept') || '';
+          if (acceptHeader.includes('application/json')) {
             return new Response(JSON.stringify({ error: 'Offline or network error' }), {
               status: 503,
               headers: { 'Content-Type': 'application/json' }
