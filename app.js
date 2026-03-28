@@ -13036,14 +13036,20 @@ window.dbUtils = dbUtils;
         const apiKey = state.settings.openaiApiKey;
         if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
         
+        const model = state.settings.modelName || 'gpt-4o';
+        const isReasoningModel = /^o\d/i.test(model);
         const requestBody = {
-            model: state.settings.modelName || 'gpt-4o',
+            model,
             messages: [],
-            temperature: config.temperature ?? 0.7,
-            max_tokens: config.maxOutputTokens ?? 4000,
-            top_p: config.topP ?? 1.0,
             stream: false
         };
+        if (isReasoningModel) {
+            requestBody.max_completion_tokens = config.maxOutputTokens ?? 4000;
+        } else {
+            requestBody.temperature = config.temperature ?? 0.7;
+            requestBody.max_tokens = config.maxOutputTokens ?? 4000;
+            requestBody.top_p = config.topP ?? 1.0;
+        }
 
         if (systemInstruction) {
             requestBody.messages.push({ role: 'system', content: systemInstruction });
