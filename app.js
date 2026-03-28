@@ -5635,8 +5635,15 @@ const appLogic = {
             modelSelect.appendChild(userDefinedGroup);
         }
         
-        // 現在の値が新しいリストに含まれているか確認（標準モデル＋ユーザー指定モデル両方チェック）
+        // 標準モデルと重複するユーザー指定モデルを非表示（同じ値を2回選択できない問題を防止）
         const standardValues = models.map(m => m.value);
+        if (userDefinedGroup) {
+            Array.from(userDefinedGroup.querySelectorAll('option')).forEach(opt => {
+                opt.hidden = standardValues.includes(opt.value);
+            });
+        }
+
+        // 現在の値が新しいリストに含まれているか確認（標準モデル＋ユーザー指定モデル両方チェック）
         const userDefinedValues = userDefinedGroup
             ? Array.from(userDefinedGroup.querySelectorAll('option')).map(o => o.value)
             : [];
@@ -6785,12 +6792,25 @@ const appLogic = {
             deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
             xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
             mistralApiKey: { element: elements.mistralApiKeyInput, event: 'input' },
-            modelName: { 
-                element: elements.modelNameSelect, 
-                event: 'change', 
+            modelName: {
+                element: elements.modelNameSelect,
+                event: 'change',
                 onUpdate: () => {
                     uiUtils.updateModelWarningMessage();
-                    this.updateApiUsageUI(); // onUpdateに統合
+                    this.updateApiUsageUI();
+                    // ユーザー指定モデルを選択した場合、プロバイダーを自動切り替え
+                    const sel = elements.modelNameSelect;
+                    if (sel) {
+                        const opt = sel.options[sel.selectedIndex];
+                        if (opt && opt.dataset.provider && opt.dataset.provider !== state.settings.apiProvider) {
+                            const newProvider = opt.dataset.provider;
+                            state.settings.apiProvider = newProvider;
+                            if (elements.apiProviderSelect) {
+                                elements.apiProviderSelect.value = newProvider;
+                                elements.apiProviderSelect.dispatchEvent(new Event('change'));
+                            }
+                        }
+                    }
                 },
                 getValue: () => {
                     // OpenRouter選択時はテキスト入力から取得
