@@ -12902,6 +12902,7 @@ window.dbUtils = dbUtils;
                         opt.textContent = `${id} (${prov})`;
                         // We attach dataset provider because we need to know the origin when selected
                         opt.dataset.provider = prov;
+                        opt.dataset.userDefined = 'true';
                         customGroup.appendChild(opt);
                     }
                 });
@@ -12957,26 +12958,32 @@ window.dbUtils = dbUtils;
     }
 
     // 2. Intercept API Calls for multi-provider support
-    if(oCallApi && window.appLogic) {
-        window.appLogic.callApi = async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
-            const provider = state.settings.apiProvider || 'gemini';
+    const oApiUtilsCallApi = apiUtils.callApi;
 
-            if (provider === 'openai') {
-                return await callOpenAIApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-            } else if (provider === 'anthropic') {
-                return await callAnthropicApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-            } else if (provider === 'groq') {
-                return await callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, 'Groq', messagesForApi, config, systemInstruction, signal);
-            } else if (provider === 'deepseek') {
-                return await callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, 'DeepSeek', messagesForApi, config, systemInstruction, signal);
-            } else if (provider === 'xai') {
-                return await callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, 'xAI', messagesForApi, config, systemInstruction, signal);
-            } else if (provider === 'mistral') {
-                return await callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, 'Mistral', messagesForApi, config, systemInstruction, signal);
-            } else {
-                return await oCallApi.call(this, messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-            }
-        };
+    const multiProviderCallApi = async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
+        const provider = state.settings.apiProvider || 'gemini';
+
+        if (provider === 'openai') {
+            return await callOpenAIApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+        } else if (provider === 'anthropic') {
+            return await callAnthropicApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+        } else if (provider === 'groq') {
+            return await callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, 'Groq', messagesForApi, config, systemInstruction, signal);
+        } else if (provider === 'deepseek') {
+            return await callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, 'DeepSeek', messagesForApi, config, systemInstruction, signal);
+        } else if (provider === 'xai') {
+            return await callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, 'xAI', messagesForApi, config, systemInstruction, signal);
+        } else if (provider === 'mistral') {
+            return await callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, 'Mistral', messagesForApi, config, systemInstruction, signal);
+        } else {
+            return await oApiUtilsCallApi.call(this, messagesForApi, config, systemInstruction, tools, forceCalling, signal);
+        }
+    };
+
+    // Patch both apiUtils.callApi (used by callApiWithRetry) and window.appLogic.callApi
+    apiUtils.callApi = multiProviderCallApi;
+    if (window.appLogic) {
+        window.appLogic.callApi = multiProviderCallApi;
     }
 
     async function callOpenAIApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
