@@ -13034,7 +13034,7 @@ window.dbUtils = dbUtils;
 
     async function callOpenAIApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
         const apiKey = state.settings.openaiApiKey;
-        if (!apiKey) throw new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。");
+        if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
         
         const requestBody = {
             model: state.settings.modelName || 'gpt-4o',
@@ -13062,7 +13062,9 @@ window.dbUtils = dbUtils;
 
         if (!response.ok) {
             const err = await response.json().catch(()=>({}));
-            throw new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
+            const e = new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
         }
         const data = await response.json();
         return {
@@ -13074,7 +13076,7 @@ window.dbUtils = dbUtils;
 
     async function callAnthropicApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
         const apiKey = state.settings.anthropicApiKey;
-        if (!apiKey) throw new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。");
+        if (!apiKey) { const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
         
         const requestBody = {
             model: state.settings.modelName || 'claude-3-7-sonnet-20250219',
@@ -13110,7 +13112,9 @@ window.dbUtils = dbUtils;
 
         if (!response.ok) {
             const err = await response.json().catch(()=>({}));
-            throw new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
+            const e = new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
         }
         const data = await response.json();
         let outText = "";
@@ -13125,7 +13129,7 @@ window.dbUtils = dbUtils;
     }
 
     async function callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
-        if (!apiKey) throw new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`);
+        if (!apiKey) { const e = new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`); e.status = 401; throw e; }
 
         const requestBody = {
             model: state.settings.modelName,
@@ -13153,7 +13157,9 @@ window.dbUtils = dbUtils;
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
-            throw new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
+            const e = new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
         }
         const data = await response.json();
         return {
