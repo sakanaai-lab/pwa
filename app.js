@@ -12647,7 +12647,7 @@ window.dbUtils = dbUtils;
             // Patch saveChat to inject activeProjectId
             const originalSaveChat = window.dbUtils.saveChat;
             window.dbUtils.saveChat = async function(chatData) {
-                if (!chatData.projectId && window.state.activeProjectId) {
+                if (chatData && !chatData.projectId && window.state.activeProjectId) {
                     chatData.projectId = window.state.activeProjectId;
                 }
                 return await originalSaveChat.call(this, chatData);
