@@ -13041,13 +13041,11 @@ window.dbUtils = dbUtils;
         const requestBody = {
             model,
             messages: [],
+            max_completion_tokens: config.maxOutputTokens ?? 4000,
             stream: false
         };
-        if (isReasoningModel) {
-            requestBody.max_completion_tokens = config.maxOutputTokens ?? 4000;
-        } else {
+        if (!isReasoningModel) {
             requestBody.temperature = config.temperature ?? 0.7;
-            requestBody.max_tokens = config.maxOutputTokens ?? 4000;
             requestBody.top_p = config.topP ?? 1.0;
         }
 
