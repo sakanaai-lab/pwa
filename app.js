@@ -5635,11 +5635,24 @@ const appLogic = {
             modelSelect.appendChild(userDefinedGroup);
         }
         
-        // 標準モデルと重複するユーザー指定モデルを非表示（同じ値を2回選択できない問題を防止）
+        // ユーザー指定グループを再構築（標準モデルと重複するものを除外して hidden 問題を回避）
         const standardValues = models.map(m => m.value);
         if (userDefinedGroup) {
-            Array.from(userDefinedGroup.querySelectorAll('option')).forEach(opt => {
-                opt.hidden = standardValues.includes(opt.value);
+            userDefinedGroup.innerHTML = '';
+            const udProviders = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'];
+            const customText = (state.settings && state.settings.customModelsText) || {};
+            udProviders.forEach(prov => {
+                const ids = (customText[prov] || '').split(',').map(s => s.trim()).filter(Boolean);
+                ids.forEach(id => {
+                    if (!standardValues.includes(id)) {
+                        const opt = document.createElement('option');
+                        opt.value = id;
+                        opt.textContent = `${id} (${prov})`;
+                        opt.dataset.provider = prov;
+                        opt.dataset.userDefined = 'true';
+                        userDefinedGroup.appendChild(opt);
+                    }
+                });
             });
         }
 
