@@ -13054,10 +13054,8 @@ window.dbUtils = dbUtils;
         if (systemInstruction) {
             requestBody.messages.push({ role: 'system', content: systemInstruction });
         }
-        messages.forEach(msg => {
-            const role = msg.role === 'model' ? 'assistant' : msg.role;
-            requestBody.messages.push({ role, content: msg.content });
-        });
+        const convertedMsgs = apiUtils.convertGeminiToOpenAIFormat(messages);
+        convertedMsgs.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -13153,10 +13151,8 @@ window.dbUtils = dbUtils;
         if (systemInstruction) {
             requestBody.messages.push({ role: 'system', content: systemInstruction });
         }
-        messages.forEach(msg => {
-            const role = msg.role === 'model' ? 'assistant' : msg.role;
-            requestBody.messages.push({ role, content: msg.content });
-        });
+        const convertedMsgs = apiUtils.convertGeminiToOpenAIFormat(messages);
+        convertedMsgs.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch(baseUrl, {
             method: 'POST',
