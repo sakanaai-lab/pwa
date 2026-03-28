@@ -898,7 +898,6 @@ window.functionDeclarations = [
     {
         "function_declarations": [
           {
-            {
                 "name": "calculate",
                 "description": "ユーザーから与えられた数学的な計算式（四則演算）を評価し、その正確な結果を返します。複雑な計算や、信頼性が求められる計算の場合に必ず使用してください。",
                 "parameters": {
