@@ -13032,10 +13032,17 @@ window.dbUtils = dbUtils;
         window.appLogic.callApi = multiProviderCallApi;
     }
 
+    function extractSystemText(systemInstruction) {
+        if (!systemInstruction) return null;
+        if (typeof systemInstruction === 'string') return systemInstruction;
+        if (systemInstruction.parts) return systemInstruction.parts.map(p => p.text || '').join('');
+        return null;
+    }
+
     async function callOpenAIApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
         const apiKey = state.settings.openaiApiKey;
         if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
-        
+
         const model = state.settings.modelName || 'gpt-4o';
         const isReasoningModel = /^o\d/i.test(model);
         const requestBody = {
@@ -13049,11 +13056,9 @@ window.dbUtils = dbUtils;
             requestBody.top_p = config.topP ?? 1.0;
         }
 
-        if (systemInstruction) {
-            requestBody.messages.push({ role: 'system', content: systemInstruction });
-        }
-        const convertedMsgs = apiUtils.convertGeminiToOpenAIFormat(messages);
-        convertedMsgs.forEach(msg => requestBody.messages.push(msg));
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
+        apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
@@ -13069,17 +13074,14 @@ window.dbUtils = dbUtils;
             throw e;
         }
         const data = await response.json();
-        return {
-            text: data.choices[0].message.content,
-            finishReason: data.choices[0].finish_reason === 'stop' ? 'STOP' : data.choices[0].finish_reason,
-            functionCalls: null
-        };
+        const geminiFormat = apiUtils.convertOpenAIToGeminiFormat(data);
+        return { ok: true, status: 200, json: async () => geminiFormat };
     }
 
     async function callAnthropicApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
         const apiKey = state.settings.anthropicApiKey;
         if (!apiKey) { const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
-        
+
         const requestBody = {
             model: state.settings.modelName || 'claude-3-7-sonnet-20250219',
             messages: [],
@@ -13087,23 +13089,17 @@ window.dbUtils = dbUtils;
             temperature: config.temperature ?? 0.7,
         };
 
-        if (systemInstruction) {
-            requestBody.system = systemInstruction;
-        }
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) requestBody.system = systemText;
 
-        messages.forEach(msg => {
-            const role = msg.role === 'model' ? 'assistant' : msg.role;
-            // Claude API does not allow consecutive messages from the same role, but we hope the frontend structured it correctly.
-            // Also system role is passed via the 'system' top-level parameter, which we handled above.
-            if(role !== 'system') {
-                requestBody.messages.push({ role, content: msg.content });
-            }
+        apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
+            if (msg.role !== 'system') requestBody.messages.push(msg);
         });
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json', 
+            headers: {
+                'Content-Type': 'application/json',
                 'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01',
                 'anthropic-dangerous-direct-browser-access': 'true'
@@ -13119,15 +13115,14 @@ window.dbUtils = dbUtils;
             throw e;
         }
         const data = await response.json();
-        let outText = "";
-        if(data.content && data.content.length > 0) {
-            outText = data.content.map(c => c.text).join('');
-        }
-        return {
-            text: outText,
-            finishReason: 'STOP',
-            functionCalls: null
+        const text = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+        const geminiFormat = {
+            candidates: [{
+                content: { parts: [{ text }] },
+                finishReason: 'STOP'
+            }]
         };
+        return { ok: true, status: 200, json: async () => geminiFormat };
     }
 
     async function callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
@@ -13146,11 +13141,9 @@ window.dbUtils = dbUtils;
             requestBody.top_p = config.topP ?? 1.0;
         }
 
-        if (systemInstruction) {
-            requestBody.messages.push({ role: 'system', content: systemInstruction });
-        }
-        const convertedMsgs = apiUtils.convertGeminiToOpenAIFormat(messages);
-        convertedMsgs.forEach(msg => requestBody.messages.push(msg));
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
+        apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch(baseUrl, {
             method: 'POST',
@@ -13166,10 +13159,7 @@ window.dbUtils = dbUtils;
             throw e;
         }
         const data = await response.json();
-        return {
-            text: data.choices[0].message.content,
-            finishReason: data.choices[0].finish_reason === 'stop' ? 'STOP' : data.choices[0].finish_reason,
-            functionCalls: null
-        };
+        const geminiFormat = apiUtils.convertOpenAIToGeminiFormat(data);
+        return { ok: true, status: 200, json: async () => geminiFormat };
     }
 })();
