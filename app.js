@@ -12687,15 +12687,15 @@ window.dbUtils = dbUtils;
             };
         }
 
-        // Patch resetChat for New Chat behavior
-        if (window.uiUtils && window.uiUtils.resetChat) {
-            const originalResetChat = window.uiUtils.resetChat;
-            window.uiUtils.resetChat = function(isNew) {
-                originalResetChat.call(this, isNew);
-                if (isNew && window.state.activeProjectId) {
+        // Patch startNewChat for New Chat behavior
+        if (window.appLogic && window.appLogic.startNewChat) {
+            const originalStartNewChat = window.appLogic.startNewChat;
+            window.appLogic.startNewChat = function() {
+                originalStartNewChat.call(this);
+                if (window.state.activeProjectId) {
                     const activeP = projectsCache.find(p => p.id === window.state.activeProjectId);
                     if (activeP && activeP.systemPrompt) {
-                        window.state.settings.systemPrompt = activeP.systemPrompt;
+                        window.state.currentSystemPrompt = activeP.systemPrompt;
                         const editor = document.getElementById('system-prompt-editor');
                         if (editor) editor.value = activeP.systemPrompt;
                     }
@@ -12782,9 +12782,9 @@ window.dbUtils = dbUtils;
                 await window.uiUtils.loadHistoryList();
             }
             
-            // If we are currently starting a new chat or in an empty context, reset chat to apply project prompt immediately
-            if (!window.state.currentChatId && window.uiUtils && window.uiUtils.resetChat) {
-                window.uiUtils.resetChat(true);
+            // If we are currently on a new/empty chat, apply project prompt immediately
+            if (!window.state.currentChatId && window.appLogic && window.appLogic.startNewChat) {
+                window.appLogic.startNewChat();
             }
         });
 
