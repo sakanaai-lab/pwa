@@ -10173,9 +10173,9 @@ const appLogic = {
                     }
 
                     // テキストコンテンツの処理
-                    // thoughtSignatureを持つがfunctionCallを持たないパートもここで処理
+                    // thought:true または thoughtSignature を持つパートは思考プロセス
                     else if (part.text) {
-                        if (part.thought === true) {
+                        if (part.thought === true || part.thoughtSignature) {
                             finalThoughtSummary += part.text;
                         } else {
                             finalContent += part.text;
