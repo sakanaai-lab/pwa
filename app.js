@@ -3498,15 +3498,27 @@ const apiUtils = {
     convertOpenAIToGeminiFormat(openAIResponse) {
         // OpenAI形式のレスポンスをGemini形式に変換
         const candidates = [];
-        
+
         if (openAIResponse.choices && openAIResponse.choices.length > 0) {
             for (const choice of openAIResponse.choices) {
                 const parts = [];
                 const message = choice.message;
-                
+
+                // reasoning_content (DeepSeek-R1等) を思考プロセスとして追加
+                if (message.reasoning_content) {
+                    parts.push({ text: message.reasoning_content, thought: true });
+                }
+
                 if (message.content) {
                     if (typeof message.content === 'string') {
-                        parts.push({ text: message.content });
+                        // <think>タグで囲まれた思考プロセスを分離
+                        const thinkMatch = message.content.match(/^<think>([\s\S]*?)<\/think>\s*([\s\S]*)$/);
+                        if (thinkMatch) {
+                            if (thinkMatch[1].trim()) parts.push({ text: thinkMatch[1].trim(), thought: true });
+                            if (thinkMatch[2].trim()) parts.push({ text: thinkMatch[2].trim() });
+                        } else {
+                            parts.push({ text: message.content });
+                        }
                     } else if (Array.isArray(message.content)) {
                         for (const contentItem of message.content) {
                             if (contentItem.type === 'text') {
@@ -13115,10 +13127,17 @@ window.dbUtils = dbUtils;
             throw e;
         }
         const data = await response.json();
-        const text = (data.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+        const parts = [];
+        for (const block of (data.content || [])) {
+            if (block.type === 'thinking' && block.thinking) {
+                parts.push({ text: block.thinking, thought: true });
+            } else if (block.type === 'text' && block.text) {
+                parts.push({ text: block.text });
+            }
+        }
         const geminiFormat = {
             candidates: [{
-                content: { parts: [{ text }] },
+                content: { parts: parts.length > 0 ? parts : [{ text: '' }] },
                 finishReason: 'STOP'
             }]
         };
