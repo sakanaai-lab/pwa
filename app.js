@@ -12632,6 +12632,7 @@ window.dbUtils = dbUtils;
 // --- Phase 4: Project Management Hook ---
 (function() {
     window.state.activeProjectId = null;
+    window.state.activeProjectKnowledge = [];
     let projectsCache = [];
 
     async function initProjectManager() {
@@ -12666,6 +12667,14 @@ window.dbUtils = dbUtils;
                     req.onerror = () => reject(req.error);
                 });
             };
+            window.dbUtils.updateProject = async (project) => {
+                const db = await window.dbUtils.openDB();
+                return new Promise((resolve, reject) => {
+                    const req = db.transaction('projects', 'readwrite').objectStore('projects').put(project);
+                    req.onsuccess = () => resolve();
+                    req.onerror = () => reject(req.error);
+                });
+            };
             
             // Patch getAllChats to filter by activeProjectId
             const originalGetAllChats = window.dbUtils.getAllChats;
@@ -12694,18 +12703,23 @@ window.dbUtils = dbUtils;
                 originalStartNewChat.call(this);
                 if (window.state.activeProjectId) {
                     const activeP = projectsCache.find(p => p.id === window.state.activeProjectId);
-                    if (activeP && activeP.systemPrompt) {
-                        window.state.currentSystemPrompt = activeP.systemPrompt;
-                        const editor = document.getElementById('system-prompt-editor');
-                        if (editor) editor.value = activeP.systemPrompt;
-                    }
-                    if (activeP && activeP.defaultModel) {
-                        const headerModelSelect = document.getElementById('header-model-select');
-                        if (headerModelSelect) {
-                            headerModelSelect.value = activeP.defaultModel;
-                            headerModelSelect.dispatchEvent(new Event('change'));
+                    if (activeP) {
+                        if (activeP.systemPrompt) {
+                            window.state.currentSystemPrompt = activeP.systemPrompt;
+                            const editor = document.getElementById('system-prompt-editor');
+                            if (editor) editor.value = activeP.systemPrompt;
+                        }
+                        window.state.activeProjectKnowledge = activeP.knowledgeFiles || [];
+                        if (activeP.defaultModel) {
+                            const headerModelSelect = document.getElementById('header-model-select');
+                            if (headerModelSelect) {
+                                headerModelSelect.value = activeP.defaultModel;
+                                headerModelSelect.dispatchEvent(new Event('change'));
+                            }
                         }
                     }
+                } else {
+                    window.state.activeProjectKnowledge = [];
                 }
             };
         }
@@ -12754,6 +12768,44 @@ window.dbUtils = dbUtils;
                    pre.textContent = p.systemPrompt;
                    div.appendChild(pre);
                 }
+
+                // Knowledge files section
+                const kSection = document.createElement('div');
+                kSection.style.cssText = 'margin-top:8px; border-top:1px solid rgba(128,128,128,0.2); padding-top:8px;';
+                const kHeader = document.createElement('div');
+                kHeader.style.cssText = 'display:flex; align-items:center; justify-content:space-between; font-size:0.82em; color:var(--text-secondary, #888);';
+                const kLabel = document.createElement('span');
+                kLabel.textContent = `ナレッジ (${(p.knowledgeFiles || []).length}件)`;
+                const kAddBtn = document.createElement('button');
+                kAddBtn.className = 'add-knowledge-btn';
+                kAddBtn.dataset.id = p.id;
+                kAddBtn.title = 'ファイルを追加';
+                kAddBtn.style.cssText = 'background:none; border:none; cursor:pointer; padding:2px; color:inherit; display:flex; align-items:center;';
+                kAddBtn.innerHTML = '<span class="material-symbols-outlined" style="font-size:16px;">attach_file</span>';
+                kHeader.appendChild(kLabel);
+                kHeader.appendChild(kAddBtn);
+                kSection.appendChild(kHeader);
+
+                const kList = document.createElement('div');
+                kList.style.cssText = 'margin-top:4px;';
+                (p.knowledgeFiles || []).forEach(f => {
+                    const fDiv = document.createElement('div');
+                    fDiv.style.cssText = 'display:flex; align-items:center; justify-content:space-between; font-size:0.8em; padding:2px 0;';
+                    const fName = document.createElement('span');
+                    fName.textContent = `📄 ${f.name}`;
+                    fName.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;';
+                    const fDel = document.createElement('button');
+                    fDel.className = 'delete-knowledge-btn';
+                    fDel.dataset.projectId = p.id;
+                    fDel.dataset.fileName = f.name;
+                    fDel.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center; flex-shrink:0;';
+                    fDel.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">close</span>';
+                    fDiv.appendChild(fName);
+                    fDiv.appendChild(fDel);
+                    kList.appendChild(fDiv);
+                });
+                kSection.appendChild(kList);
+                div.appendChild(kSection);
                 listContainer.appendChild(div);
             });
 
@@ -12769,6 +12821,49 @@ window.dbUtils = dbUtils;
                     }
                 };
             });
+
+            listContainer.querySelectorAll('.add-knowledge-btn').forEach(btn => {
+                btn.onclick = () => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.multiple = true;
+                    input.accept = '.txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml,.toml,.log,.sh';
+                    input.onchange = async (e) => {
+                        const projectId = parseInt(btn.dataset.id, 10);
+                        const project = projectsCache.find(p => p.id === projectId);
+                        if (!project) return;
+                        const knowledgeFiles = project.knowledgeFiles ? [...project.knowledgeFiles] : [];
+                        for (const file of Array.from(e.target.files)) {
+                            const content = await file.text();
+                            const idx = knowledgeFiles.findIndex(f => f.name === file.name);
+                            const entry = { name: file.name, content, addedAt: Date.now() };
+                            if (idx >= 0) knowledgeFiles[idx] = entry;
+                            else knowledgeFiles.push(entry);
+                        }
+                        project.knowledgeFiles = knowledgeFiles;
+                        await window.dbUtils.updateProject(project);
+                        if (window.state.activeProjectId === projectId) {
+                            window.state.activeProjectKnowledge = knowledgeFiles;
+                        }
+                        await loadProjects();
+                    };
+                    input.click();
+                };
+            });
+
+            listContainer.querySelectorAll('.delete-knowledge-btn').forEach(btn => {
+                btn.onclick = async () => {
+                    const projectId = parseInt(btn.dataset.projectId, 10);
+                    const project = projectsCache.find(p => p.id === projectId);
+                    if (!project) return;
+                    project.knowledgeFiles = (project.knowledgeFiles || []).filter(f => f.name !== btn.dataset.fileName);
+                    await window.dbUtils.updateProject(project);
+                    if (window.state.activeProjectId === projectId) {
+                        window.state.activeProjectKnowledge = project.knowledgeFiles;
+                    }
+                    await loadProjects();
+                };
+            });
         }
 
         headerSelect.addEventListener('change', async (e) => {
@@ -12778,10 +12873,12 @@ window.dbUtils = dbUtils;
                 return;
             }
             window.state.activeProjectId = e.target.value ? parseInt(e.target.value, 10) : null;
+            const switchedP = window.state.activeProjectId ? projectsCache.find(p => p.id === window.state.activeProjectId) : null;
+            window.state.activeProjectKnowledge = switchedP ? (switchedP.knowledgeFiles || []) : [];
             if (window.uiUtils && typeof window.uiUtils.loadHistoryList === 'function') {
                 await window.uiUtils.loadHistoryList();
             }
-            
+
             // If we are currently on a new/empty chat, apply project prompt immediately
             if (!window.state.currentChatId && window.appLogic && window.appLogic.startNewChat) {
                 window.appLogic.startNewChat();
@@ -13027,6 +13124,17 @@ window.dbUtils = dbUtils;
     const oApiUtilsCallApi = apiUtils.callApi;
 
     const multiProviderCallApi = async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
+        // Inject project knowledge files into system instruction
+        const knowledge = window.state.activeProjectKnowledge;
+        if (knowledge && knowledge.length > 0) {
+            const knowledgeText = knowledge.map(f => `### ${f.name}\n${f.content}`).join('\n\n---\n\n');
+            const existingText = extractSystemText(systemInstruction) || '';
+            const combined = existingText
+                ? `${existingText}\n\n---\n## ナレッジ\n\n${knowledgeText}`
+                : `## ナレッジ\n\n${knowledgeText}`;
+            systemInstruction = { parts: [{ text: combined }] };
+        }
+
         const provider = state.settings.apiProvider || 'gemini';
 
         if (provider === 'openai') {
