@@ -10159,6 +10159,12 @@ const appLogic = {
                 let finalToolCalls = [];
                 let finalThoughtParts = [];
 
+                console.log('[Thinking Debug] candidate keys:', Object.keys(candidate));
+                console.log('[Thinking Debug] parts count:', parts.length);
+                parts.forEach((part, i) => {
+                    console.log(`[Thinking Debug] part[${i}] keys:`, Object.keys(part), '| thought:', part.thought, '| hasThoughtSig:', !!part.thoughtSignature, '| hasText:', !!part.text);
+                });
+
                 parts.forEach(part => {
                     // Thought Signature + Function Call の検出 (Gemini 3の関数呼び出し)
                     // thoughtSignature と functionCall の両方を持つパートのみ特別扱い
