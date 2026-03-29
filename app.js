@@ -614,7 +614,7 @@ const state = {
         thinkingBudget: null,
         includeThoughts: false,
         enableThoughtTranslation: true, // 思考プロセスの翻訳を有効にするか
-        thoughtTranslationModel: 'gemini-2.5-flash-lite',
+        thoughtTranslationModel: 'gemini-flash-latest',
         dummyUser: '',
         applyDummyToProofread: false,
         applyDummyToTranslate: false,
@@ -4000,7 +4000,7 @@ const apiUtils = {
 
         console.log("--- 思考プロセスの翻訳処理開始 ---");
         
-        const modelToUse = translationModelName || 'gemini-2.5-flash-lite';
+        const modelToUse = translationModelName || 'gemini-flash-latest';
         const apiKey = state.settings.apiKey;
         if (!apiKey) {
             console.warn("翻訳スキップ: APIキーが設定されていません。");
