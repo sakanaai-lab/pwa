@@ -4021,6 +4021,7 @@ const apiUtils = {
             systemInstruction,
             generationConfig: {
                 temperature: 0.1,
+                thinkingConfig: { thinkingBudget: 0 }
             },
             safetySettings: [
                 { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
@@ -4089,10 +4090,10 @@ const apiUtils = {
                 }
 
                 const responseData = await response.json();
-                if (responseData.candidates?.[0]?.content?.parts?.[0]?.text) {
-                    const translatedText = responseData.candidates[0].content.parts[0].text;
+                const translatedPart = responseData.candidates?.[0]?.content?.parts?.find(p => !p.thought && p.text);
+                if (translatedPart) {
                     console.log("--- 翻訳処理成功 ---");
-                    return translatedText;
+                    return translatedPart.text;
                 } else {
                     console.warn("翻訳APIの応答形式が不正、またはコンテンツが空です。", responseData);
                     if(responseData.promptFeedback) {
