@@ -13101,12 +13101,22 @@ window.dbUtils = dbUtils;
         const apiKey = state.settings.anthropicApiKey;
         if (!apiKey) { const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
 
+        const useThinking = state.settings.includeThoughts || state.settings.thinkingBudget !== null;
+        const budgetTokens = state.settings.thinkingBudget ?? 8000;
+        const maxTokens = Math.max(config.maxOutputTokens ?? 4000, budgetTokens + 1000);
+
         const requestBody = {
-            model: state.settings.modelName || 'claude-3-7-sonnet-20250219',
+            model: state.settings.modelName || 'claude-opus-4-6',
             messages: [],
-            max_tokens: config.maxOutputTokens ?? 4000,
-            temperature: config.temperature ?? 0.7,
+            max_tokens: maxTokens,
         };
+
+        if (useThinking) {
+            requestBody.thinking = { type: 'enabled', budget_tokens: budgetTokens };
+            requestBody.temperature = 1;
+        } else {
+            requestBody.temperature = config.temperature ?? 0.7;
+        }
 
         const systemText = extractSystemText(systemInstruction);
         if (systemText) requestBody.system = systemText;
