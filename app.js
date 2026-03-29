@@ -12822,19 +12822,54 @@ window.dbUtils = dbUtils;
                 };
             });
 
+
+            async function extractPdfText(file) {
+                if (!window.pdfjsLib) {
+                    await new Promise((resolve, reject) => {
+                        const s = document.createElement('script');
+                        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                        s.onload = resolve;
+                        s.onerror = reject;
+                        document.head.appendChild(s);
+                    });
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                }
+                const buf = await file.arrayBuffer();
+                const pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+                let text = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(' ');
+                    text += `[Page ${i}]\n${pageText}\n\n`;
+                }
+                return text.trim();
+            }
+
             listContainer.querySelectorAll('.add-knowledge-btn').forEach(btn => {
                 btn.onclick = () => {
                     const input = document.createElement('input');
                     input.type = 'file';
                     input.multiple = true;
-                    input.accept = '.txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml,.toml,.log,.sh';
+                    input.accept = '.txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml,.toml,.log,.sh,.pdf';
                     input.onchange = async (e) => {
                         const projectId = parseInt(btn.dataset.id, 10);
                         const project = projectsCache.find(p => p.id === projectId);
                         if (!project) return;
                         const knowledgeFiles = project.knowledgeFiles ? [...project.knowledgeFiles] : [];
                         for (const file of Array.from(e.target.files)) {
-                            const content = await file.text();
+                            let content;
+                            try {
+                                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                                    content = await extractPdfText(file);
+                                } else {
+                                    content = await file.text();
+                                }
+                            } catch (err) {
+                                alert(`${file.name} の読み込みに失敗しました: ${err.message}`);
+                                continue;
+                            }
                             const idx = knowledgeFiles.findIndex(f => f.name === file.name);
                             const entry = { name: file.name, content, addedAt: Date.now() };
                             if (idx >= 0) knowledgeFiles[idx] = entry;
