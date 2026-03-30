@@ -7245,7 +7245,7 @@ const appLogic = {
         // --- データ同期 (OAuth) ---
         elements.dropboxAuthBtn.addEventListener('click', async () => {
             try {
-                const APP_KEY = 'tzq2d3onnfa630w';
+                const APP_KEY = 'wed7l1d3azzuvlj';
                 // 重要: このURIはDropbox App Consoleで設定したものと完全に一致させる必要があります
                 const REDIRECT_URI = window.location.origin + window.location.pathname;
 
