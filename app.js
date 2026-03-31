@@ -12985,7 +12985,98 @@ window.dbUtils = dbUtils;
     const initPhase7 = () => {
         const customGroup = document.getElementById('user-defined-models-group');
         const mainSelect = document.getElementById('model-name');
-        
+
+        // Fetch All Models Button
+        const fetchModelsBtn = document.getElementById('fetch-all-models-btn');
+        if (fetchModelsBtn) {
+            fetchModelsBtn.addEventListener('click', async () => {
+                fetchModelsBtn.disabled = true;
+                fetchModelsBtn.textContent = '取得中...';
+                const results = [];
+
+                function mergeModels(provider, newModels) {
+                    if (!newModels.length) return;
+                    const current = (state.settings.customModelsText[provider] || '')
+                        .split(',').map(s => s.trim()).filter(Boolean);
+                    const merged = [...new Set([...current, ...newModels])].join(', ');
+                    state.settings.customModelsText[provider] = merged;
+                    const ta = document.getElementById(`${provider}-custom-models`);
+                    if (ta) { ta.value = merged; ta.dispatchEvent(new Event('change')); }
+                }
+
+                async function fetchOpenAICompat(url, apiKey, provider, filter) {
+                    try {
+                        const r = await fetch(url, { headers: { 'Authorization': `Bearer ${apiKey}` } });
+                        if (!r.ok) { results.push(`${provider}: HTTP ${r.status}`); return; }
+                        const d = await r.json();
+                        const models = (d.data || []).map(m => m.id).filter(id => id && (!filter || filter(id)));
+                        mergeModels(provider, models);
+                        results.push(`${provider}: ${models.length}件`);
+                    } catch(e) { results.push(`${provider}: エラー (${e.message})`); }
+                }
+
+                // Gemini
+                if (state.settings.apiKey) {
+                    try {
+                        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.apiKey}&pageSize=100`);
+                        if (r.ok) {
+                            const d = await r.json();
+                            const models = (d.models || [])
+                                .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+                                .map(m => m.name.replace('models/', ''))
+                                .filter(id => id.includes('gemini'));
+                            mergeModels('gemini', models);
+                            results.push(`Gemini: ${models.length}件`);
+                        } else { results.push(`Gemini: HTTP ${r.status}`); }
+                    } catch(e) { results.push(`Gemini: エラー`); }
+                }
+
+                // Anthropic
+                if (state.settings.anthropicApiKey) {
+                    try {
+                        const r = await fetch('https://api.anthropic.com/v1/models?limit=100', {
+                            headers: { 'x-api-key': state.settings.anthropicApiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }
+                        });
+                        if (r.ok) {
+                            const d = await r.json();
+                            const models = (d.data || []).map(m => m.id);
+                            mergeModels('anthropic', models);
+                            results.push(`Anthropic: ${models.length}件`);
+                        } else { results.push(`Anthropic: HTTP ${r.status}`); }
+                    } catch(e) { results.push(`Anthropic: エラー`); }
+                }
+
+                // OpenAI
+                if (state.settings.openaiApiKey) {
+                    await fetchOpenAICompat('https://api.openai.com/v1/models', state.settings.openaiApiKey, 'openai',
+                        id => /^(gpt|o\d|chatgpt)/i.test(id));
+                }
+
+                // OpenAI-compatible providers
+                const compatList = [
+                    { key: 'groq',     url: 'https://api.groq.com/openai/v1/models',    apiKey: state.settings.groqApiKey },
+                    { key: 'deepseek', url: 'https://api.deepseek.com/v1/models',        apiKey: state.settings.deepseekApiKey },
+                    { key: 'xai',      url: 'https://api.x.ai/v1/models',               apiKey: state.settings.xaiApiKey },
+                    { key: 'mistral',  url: 'https://api.mistral.ai/v1/models',          apiKey: state.settings.mistralApiKey },
+                ];
+                for (const p of compatList) {
+                    if (p.apiKey) await fetchOpenAICompat(p.url, p.apiKey, p.key, null);
+                }
+
+                // Refresh model dropdown
+                const apiProvSelect = document.getElementById('api-provider');
+                if (apiProvSelect) apiProvSelect.dispatchEvent(new Event('change'));
+
+                fetchModelsBtn.disabled = false;
+                fetchModelsBtn.textContent = '🔄 全プロバイダーの最新モデルを取得';
+                if (results.length) {
+                    alert('モデル取得完了:\n' + results.join('\n'));
+                } else {
+                    alert('APIキーが設定されているプロバイダーが見つかりませんでした。');
+                }
+            });
+        }
+
         // Save Settings Button
         const saveBtn = document.getElementById('save-settings-btn');
         if (saveBtn) {
