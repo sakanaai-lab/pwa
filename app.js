@@ -5648,14 +5648,17 @@ const appLogic = {
         if (userDefinedGroup && userDefinedGroup.parentNode !== modelSelect) {
             modelSelect.appendChild(userDefinedGroup);
         }
-        
-        // ユーザー指定グループを再構築（現在のプロバイダーのカスタムモデルのみ表示）
+
+        // ユーザー指定グループを再構築（手動追加 + API取得）
         const standardValues = models.map(m => m.value);
         if (userDefinedGroup) {
             userDefinedGroup.innerHTML = '';
             const customText = (state.settings && state.settings.customModelsText) || {};
-            const ids = (customText[provider] || '').split(',').map(s => s.trim()).filter(Boolean);
-            ids.forEach(id => {
+            const fetchedModels = (state.settings && state.settings.fetchedModels) || {};
+
+            // 手動追加モデル
+            const manualIds = (customText[provider] || '').split(',').map(s => s.trim()).filter(Boolean);
+            manualIds.forEach(id => {
                 if (!standardValues.includes(id)) {
                     const opt = document.createElement('option');
                     opt.value = id;
@@ -5665,6 +5668,22 @@ const appLogic = {
                     userDefinedGroup.appendChild(opt);
                 }
             });
+
+            // API取得モデル（標準・手動追加と重複しないもの）
+            const allExisting = new Set([...standardValues, ...manualIds]);
+            const fetchedIds = (fetchedModels[provider] || []).filter(id => !allExisting.has(id));
+            if (fetchedIds.length > 0) {
+                const fetchedGroup = document.createElement('optgroup');
+                fetchedGroup.label = 'API取得モデル';
+                fetchedIds.forEach(id => {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = id;
+                    opt.dataset.provider = provider;
+                    fetchedGroup.appendChild(opt);
+                });
+                modelSelect.appendChild(fetchedGroup);
+            }
         }
 
         // 現在の値が新しいリストに含まれているか確認（標準モデル＋ユーザー指定モデル両方チェック）
@@ -12993,12 +13012,9 @@ window.dbUtils = dbUtils;
 
                 function mergeModels(provider, newModels) {
                     if (!newModels.length) return;
-                    const current = (state.settings.customModelsText[provider] || '')
-                        .split(',').map(s => s.trim()).filter(Boolean);
-                    const merged = [...new Set([...current, ...newModels])].join(', ');
-                    state.settings.customModelsText[provider] = merged;
-                    const ta = document.getElementById(`${provider}-custom-models`);
-                    if (ta) { ta.value = merged; ta.dispatchEvent(new Event('change')); }
+                    if (!state.settings.fetchedModels) state.settings.fetchedModels = {};
+                    // Replace (not merge) so deprecated models disappear automatically
+                    state.settings.fetchedModels[provider] = newModels;
                 }
 
                 async function fetchOpenAICompat(url, apiKey, provider, filter) {
@@ -13060,7 +13076,10 @@ window.dbUtils = dbUtils;
                     if (p.apiKey) await fetchOpenAICompat(p.url, p.apiKey, p.key, null);
                 }
 
-                // Refresh model dropdown
+                // Persist fetchedModels and refresh dropdown
+                if (window.dbUtils && typeof window.dbUtils.saveSetting === 'function') {
+                    window.dbUtils.saveSetting('fetchedModels', state.settings.fetchedModels).catch(() => {});
+                }
                 const apiProvSelect = document.getElementById('api-provider');
                 if (apiProvSelect) apiProvSelect.dispatchEvent(new Event('change'));
 
@@ -13144,6 +13163,7 @@ window.dbUtils = dbUtils;
         };
 
         state.settings.customModelsText = state.settings.customModelsText || {};
+        state.settings.fetchedModels = state.settings.fetchedModels || {};
         // Fill defaults for empty providers and persist
         let defaultsApplied = false;
         providers.forEach(prov => {
