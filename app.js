@@ -5649,24 +5649,21 @@ const appLogic = {
             modelSelect.appendChild(userDefinedGroup);
         }
         
-        // ユーザー指定グループを再構築（標準モデルと重複するものを除外して hidden 問題を回避）
+        // ユーザー指定グループを再構築（現在のプロバイダーのカスタムモデルのみ表示）
         const standardValues = models.map(m => m.value);
         if (userDefinedGroup) {
             userDefinedGroup.innerHTML = '';
-            const udProviders = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'];
             const customText = (state.settings && state.settings.customModelsText) || {};
-            udProviders.forEach(prov => {
-                const ids = (customText[prov] || '').split(',').map(s => s.trim()).filter(Boolean);
-                ids.forEach(id => {
-                    if (!standardValues.includes(id)) {
-                        const opt = document.createElement('option');
-                        opt.value = id;
-                        opt.textContent = `${id} (${prov})`;
-                        opt.dataset.provider = prov;
-                        opt.dataset.userDefined = 'true';
-                        userDefinedGroup.appendChild(opt);
-                    }
-                });
+            const ids = (customText[provider] || '').split(',').map(s => s.trim()).filter(Boolean);
+            ids.forEach(id => {
+                if (!standardValues.includes(id)) {
+                    const opt = document.createElement('option');
+                    opt.value = id;
+                    opt.textContent = id;
+                    opt.dataset.provider = provider;
+                    opt.dataset.userDefined = 'true';
+                    userDefinedGroup.appendChild(opt);
+                }
             });
         }
 
