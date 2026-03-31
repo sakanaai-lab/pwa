@@ -1562,6 +1562,9 @@ body.dark-mode #assetConflictDialog .dialog-actions-main .dialog-button {
 #memoryManagementDialog {
     width: 90%;
     max-width: 600px;
+}
+
+#memoryManagementDialog[open] {
     max-height: 85vh;
     display: flex;
     flex-direction: column;
