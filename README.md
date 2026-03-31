@@ -666,10 +666,10 @@ AIがユーザーの意図を汲み取り、事前に用意された「ツール
 
 # 便利なリンク集
 
-## API料金・使用量の確認
+## API使用量・料金の確認
 
-| サービス | 料金ページ |
+| サービス | ページ |
 |---|---|
-| **OpenAI (ChatGPT)** | [Pricing](https://openai.com/api/pricing/) |
-| **Google (Gemini)** | [Pricing](https://ai.google.dev/pricing) |
-| **Anthropic (Claude)** | [Pricing](https://www.anthropic.com/pricing) |
+| **OpenAI (ChatGPT)** | [使用量](https://platform.openai.com/account/usage) |
+| **Google (Gemini)** | [使用量](https://aistudio.google.com/usage) |
+| **Anthropic (Claude)** | [料金](https://platform.claude.com/docs/en/build-with-claude/usage-cost-api) |
