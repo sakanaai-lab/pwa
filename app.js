@@ -419,6 +419,7 @@ try {
         proofreadingModelNameSelect: document.getElementById('proofreading-model-name'),
         proofreadingSystemInstructionTextarea: document.getElementById('proofreading-system-instruction'),
         attachFileBtn: document.getElementById('attach-file-btn'),
+        copyInputBtn: document.getElementById('copy-input-btn'),
         fileUploadDialog: document.getElementById('fileUploadDialog'),
         fileInput: document.getElementById('file-input'),
         selectFilesBtn: document.getElementById('select-files-btn'),
@@ -2333,11 +2334,26 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             editButton.onclick = () => appLogic.startEditMessage(index, messageDiv);
             actionsDiv.appendChild(editButton);
             const deleteButton = document.createElement('button');
-            deleteButton.innerHTML = '<span class="material-symbols-outlined">delete</span> 削除'; 
-            deleteButton.title = 'この会話ターンを削除'; 
+            deleteButton.innerHTML = '<span class="material-symbols-outlined">delete</span> 削除';
+            deleteButton.title = 'この会話ターンを削除';
             deleteButton.classList.add('js-delete-btn');
             deleteButton.onclick = () => appLogic.deleteMessage(index);
             actionsDiv.appendChild(deleteButton);
+            const copyButton = document.createElement('button');
+            copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
+            copyButton.title = 'メッセージをコピー';
+            copyButton.classList.add('js-copy-btn');
+            copyButton.onclick = () => {
+                const msg = state.currentMessages[index];
+                if (!msg) return;
+                navigator.clipboard.writeText(msg.content || '').then(() => {
+                    copyButton.innerHTML = '<span class="material-symbols-outlined">check</span> コピー済';
+                    setTimeout(() => {
+                        copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
+                    }, 1500);
+                });
+            };
+            actionsDiv.appendChild(copyButton);
             if (role === 'user') {
                 const retryButton = document.createElement('button');
                 retryButton.innerHTML = '<span class="material-symbols-outlined">replay</span> 再生成'; 
@@ -7050,6 +7066,15 @@ const appLogic = {
         }
         
         elements.attachFileBtn.addEventListener('click', () => uiUtils.showFileUploadDialog());
+        elements.copyInputBtn.addEventListener('click', () => {
+            const text = elements.userInput.value;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                const icon = elements.copyInputBtn.querySelector('.material-symbols-outlined');
+                icon.textContent = 'check';
+                setTimeout(() => { icon.textContent = 'content_copy'; }, 1500);
+            });
+        });
     
         elements.selectFilesBtn.addEventListener('click', () => {
             const fileInput = document.createElement('input');
