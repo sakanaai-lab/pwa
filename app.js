@@ -10,7 +10,7 @@ import("https://esm.run/@google/genai").then(module => {
 
 // --- 定数 ---
 const DB_NAME = 'GeminiPWA_DB';
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 const PROJECTS_STORE = 'projects'; 
 const SETTINGS_STORE = 'settings';
 const PROFILES_STORE = 'profiles';
@@ -1066,6 +1066,14 @@ const dbUtils = {
                         }
                     });
                 }
+
+                if (event.oldVersion < 15) {
+                    console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
+                    if (!db.objectStoreNames.contains('projects_temp')) {
+                        db.createObjectStore('projects_temp', { keyPath: 'id' });
+                        console.log("[DB Migration] 'projects_temp' store created.");
+                    }
+                }
             };
         });
     },
@@ -1607,7 +1615,7 @@ const dbUtils = {
         console.log("[DB Import V2] 安全なデータインポート処理を開始します。");
         uiUtils.showProgressDialog('データベースを準備中...');
 
-        const { profiles, chats, memories, assets, settings } = data;
+        const { profiles, chats, memories, projects, assets, settings } = data;
         
         const allAvailableAssets = new Map([...localAssetsBeforeClear, ...downloadedAssets]);
         console.log(`[DB Import V2] 利用可能なアセットの完全なマップを作成しました: ${allAvailableAssets.size}件`);
@@ -1666,11 +1674,11 @@ const dbUtils = {
         
         const tempStoreNames = [
             `${PROFILES_STORE}_temp`, `${CHATS_STORE}_temp`, `${SETTINGS_STORE}_temp`,
-            `${IMAGE_STORE}_temp`, 'image_assets_temp', 'memory_store_temp'
+            `${IMAGE_STORE}_temp`, 'image_assets_temp', 'memory_store_temp', 'projects_temp'
         ];
         const mainStoreNames = [
             PROFILES_STORE, CHATS_STORE, SETTINGS_STORE,
-            IMAGE_STORE, 'image_assets', 'memory_store'
+            IMAGE_STORE, 'image_assets', 'memory_store', PROJECTS_STORE
         ];
 
         const currentTokens = await dbUtils.getSetting('dropboxTokens');
@@ -1682,6 +1690,7 @@ const dbUtils = {
                 'profiles_temp': profilesWithBlobs,
                 'chats_temp': chats || [],
                 'memory_store_temp': memories || [],
+                'projects_temp': projects || [],
                 'image_assets_temp': assetsWithBlobs,
                 'image_store_temp': imagesWithBlobs,
                 'settings_temp': settings || []
@@ -11823,10 +11832,11 @@ const appLogic = {
      async _prepareExportData() {
         try {
             // ディープコピーの対象を、Blobを含まないメタデータのみに限定する
-            const [profiles, chats, memories, allSettings] = await Promise.all([
+            const [profiles, chats, memories, projects, allSettings] = await Promise.all([
                 dbUtils.getAllProfiles().then(data => JSON.parse(JSON.stringify(data))),
                 dbUtils.getAllChats().then(data => JSON.parse(JSON.stringify(data))),
                 dbUtils.getAllMemories().then(data => JSON.parse(JSON.stringify(data))),
+                window.dbUtils.getAllProjects().then(data => JSON.parse(JSON.stringify(data))),
                 new Promise((res, rej) => {
                     const store = dbUtils._getStore(SETTINGS_STORE);
                     const request = store.getAll();
@@ -12002,6 +12012,7 @@ const appLogic = {
                     profiles,
                     chats,
                     memories,
+                    projects,
                     assets: imageAssets.map(a => ({ name: a.name, assetId: a.assetId, createdAt: a.createdAt })),
                     settings: settingsForExport
                 }
@@ -12832,18 +12843,71 @@ window.dbUtils = dbUtils;
                 kList.style.cssText = 'margin-top:4px;';
                 (p.knowledgeFiles || []).forEach(f => {
                     const fDiv = document.createElement('div');
-                    fDiv.style.cssText = 'display:flex; align-items:center; justify-content:space-between; font-size:0.8em; padding:2px 0;';
+                    fDiv.style.cssText = 'font-size:0.8em; padding:2px 0;';
+
+                    const fRow = document.createElement('div');
+                    fRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between;';
                     const fName = document.createElement('span');
                     fName.textContent = `📄 ${f.name}`;
-                    fName.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;';
+                    fName.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;';
+                    const fBtns = document.createElement('div');
+                    fBtns.style.cssText = 'display:flex; align-items:center; flex-shrink:0;';
+                    const fEdit = document.createElement('button');
+                    fEdit.className = 'edit-knowledge-btn';
+                    fEdit.dataset.projectId = p.id;
+                    fEdit.dataset.fileName = f.name;
+                    fEdit.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center;';
+                    fEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">edit</span>';
                     const fDel = document.createElement('button');
                     fDel.className = 'delete-knowledge-btn';
                     fDel.dataset.projectId = p.id;
                     fDel.dataset.fileName = f.name;
-                    fDel.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center; flex-shrink:0;';
+                    fDel.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center;';
                     fDel.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">close</span>';
-                    fDiv.appendChild(fName);
-                    fDiv.appendChild(fDel);
+                    fBtns.appendChild(fEdit);
+                    fBtns.appendChild(fDel);
+                    fRow.appendChild(fName);
+                    fRow.appendChild(fBtns);
+
+                    const fEditArea = document.createElement('div');
+                    fEditArea.style.cssText = 'display:none; margin-top:4px;';
+                    const fTextarea = document.createElement('textarea');
+                    fTextarea.value = f.content || '';
+                    fTextarea.style.cssText = 'width:100%; height:120px; font-size:0.9em; box-sizing:border-box; resize:vertical;';
+                    const fSaveBtn = document.createElement('button');
+                    fSaveBtn.textContent = '保存';
+                    fSaveBtn.style.cssText = 'margin-top:4px; margin-right:4px; font-size:0.85em;';
+                    const fCancelBtn = document.createElement('button');
+                    fCancelBtn.textContent = 'キャンセル';
+                    fCancelBtn.style.cssText = 'margin-top:4px; font-size:0.85em;';
+                    fEditArea.appendChild(fTextarea);
+                    fEditArea.appendChild(document.createElement('br'));
+                    fEditArea.appendChild(fSaveBtn);
+                    fEditArea.appendChild(fCancelBtn);
+
+                    fEdit.onclick = () => {
+                        fTextarea.value = f.content || '';
+                        fEditArea.style.display = fEditArea.style.display === 'none' ? 'block' : 'none';
+                    };
+                    fCancelBtn.onclick = () => { fEditArea.style.display = 'none'; };
+                    fSaveBtn.onclick = async () => {
+                        const projectId = parseInt(fSaveBtn.closest('[data-pid]')?.dataset.pid || fEdit.dataset.projectId, 10);
+                        const project = projectsCache.find(proj => proj.id === parseInt(fEdit.dataset.projectId, 10));
+                        if (!project) return;
+                        const idx = (project.knowledgeFiles || []).findIndex(kf => kf.name === f.name);
+                        if (idx >= 0) {
+                            project.knowledgeFiles[idx] = { ...project.knowledgeFiles[idx], content: fTextarea.value };
+                            await window.dbUtils.updateProject(project);
+                            if (window.state.activeProjectId === project.id) {
+                                window.state.activeProjectKnowledge = project.knowledgeFiles;
+                            }
+                            f.content = fTextarea.value;
+                            fEditArea.style.display = 'none';
+                        }
+                    };
+
+                    fDiv.appendChild(fRow);
+                    fDiv.appendChild(fEditArea);
                     kList.appendChild(fDiv);
                 });
                 kSection.appendChild(kList);
