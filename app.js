@@ -3881,7 +3881,8 @@ const apiUtils = {
             await appLogic._updateApiUsageCount(state.activeProfileId); 
         }
 
-        const isImageGenModel = model === 'gemini-2.5-flash-image-preview';
+        const isImageGenModel = model === 'gemini-2.5-flash-image-preview' ||
+            model.includes('image-generation') || model.includes('imagen');
 
         const endpointMethod = 'generateContent?';
 
@@ -3899,9 +3900,9 @@ const apiUtils = {
             delete finalGenerationConfig.temperature;
 
         } else {
-            if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+            if ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts) {
                 generationConfig.thinkingConfig = {};
-                if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                 if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
             }
         }
@@ -8727,9 +8728,9 @@ const appLogic = {
             if (state.settings.maxTokens !== null) generationConfig.maxOutputTokens = state.settings.maxTokens;
             if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
             if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
-            if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+            if ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts) {
                 generationConfig.thinkingConfig = {};
-                if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                 if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
             }
 
