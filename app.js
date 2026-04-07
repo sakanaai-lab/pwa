@@ -13254,10 +13254,10 @@ window.dbUtils = dbUtils;
                 // Show a brief visual confirmation without alert that requires interaction
                 const originalText = saveBtn.innerText;
                 saveBtn.innerText = "✓ 保存しました";
-                saveBtn.style.backgroundColor = "#2E7D32";
+                saveBtn.style.backgroundColor = "#1a6b7a";
                 setTimeout(() => {
                     saveBtn.innerText = "設定を保存";
-                    saveBtn.style.backgroundColor = "#4CAF50";
+                    saveBtn.style.backgroundColor = "#2196a8";
                 }, 2000);
             });
         }
