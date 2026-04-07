@@ -12816,17 +12816,58 @@ window.dbUtils = dbUtils;
                     <div class="project-item-header">
                         <span class="project-item-title">${p.name}</span>
                         <div class="project-item-actions">
+                            <button class="edit-prompt-btn" data-id="${p.id}" title="指示を編集"><span class="material-symbols-outlined">edit</span></button>
                             <button class="delete-project-btn" data-id="${p.id}" title="削除"><span class="material-symbols-outlined">delete</span></button>
                         </div>
                     </div>
                 `;
-                // To avoid escape issues, textContent is safer for system prompt
-                if (p.systemPrompt) {
-                   const pre = document.createElement('div');
-                   pre.className = 'project-item-system-prompt';
-                   pre.textContent = p.systemPrompt;
-                   div.appendChild(pre);
-                }
+                // System prompt preview + edit area
+                const promptPreview = document.createElement('div');
+                promptPreview.className = 'project-item-system-prompt';
+                promptPreview.textContent = p.systemPrompt || '（指示なし）';
+                promptPreview.style.cssText = p.systemPrompt ? '' : 'color:var(--text-secondary,#888); font-style:italic;';
+                div.appendChild(promptPreview);
+
+                const promptEditArea = document.createElement('div');
+                promptEditArea.style.cssText = 'display:none; margin-top:6px;';
+                const promptTextarea = document.createElement('textarea');
+                promptTextarea.value = p.systemPrompt || '';
+                promptTextarea.placeholder = 'このプロジェクトのシステムプロンプトを入力...';
+                promptTextarea.style.cssText = 'width:100%; height:100px; font-size:0.9em; box-sizing:border-box; resize:vertical;';
+                const promptSaveBtn = document.createElement('button');
+                promptSaveBtn.textContent = '保存';
+                promptSaveBtn.style.cssText = 'margin-top:4px; margin-right:4px; font-size:0.85em;';
+                const promptCancelBtn = document.createElement('button');
+                promptCancelBtn.textContent = 'キャンセル';
+                promptCancelBtn.style.cssText = 'margin-top:4px; font-size:0.85em;';
+                promptEditArea.appendChild(promptTextarea);
+                promptEditArea.appendChild(document.createElement('br'));
+                promptEditArea.appendChild(promptSaveBtn);
+                promptEditArea.appendChild(promptCancelBtn);
+                div.appendChild(promptEditArea);
+
+                div.querySelector('.edit-prompt-btn').onclick = () => {
+                    const isOpen = promptEditArea.style.display !== 'none';
+                    promptEditArea.style.display = isOpen ? 'none' : 'block';
+                    if (!isOpen) {
+                        promptTextarea.value = p.systemPrompt || '';
+                        promptTextarea.focus();
+                    }
+                };
+                promptCancelBtn.onclick = () => { promptEditArea.style.display = 'none'; };
+                promptSaveBtn.onclick = async () => {
+                    const newPrompt = promptTextarea.value.trim();
+                    p.systemPrompt = newPrompt;
+                    await window.dbUtils.updateProject(p);
+                    promptPreview.textContent = newPrompt || '（指示なし）';
+                    promptPreview.style.cssText = newPrompt ? '' : 'color:var(--text-secondary,#888); font-style:italic;';
+                    promptEditArea.style.display = 'none';
+                    if (window.state.activeProjectId === p.id) {
+                        window.state.currentSystemPrompt = newPrompt;
+                        const editor = document.getElementById('system-prompt-editor');
+                        if (editor) editor.value = newPrompt;
+                    }
+                };
 
                 // Knowledge files section
                 const kSection = document.createElement('div');
