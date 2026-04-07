@@ -6581,11 +6581,17 @@ const appLogic = {
             console.log(`[Sync Pull V2] Cloud syncId: ${cloudSyncId}, Local lastSyncId: ${state.sync.lastSyncId}`);
 
             if (cloudSyncId !== state.sync.lastSyncId) {
-                if (state.sync.isDirty) {
+                const localChats = await dbUtils.getAllChats();
+                const localHasData = localChats.length > 0;
+                if (state.sync.isDirty || localHasData) {
                     if (isManual) uiUtils.hideProgressDialog();
+                    const isDirtyMsg = state.sync.isDirty
+                        ? "このデバイスには未同期の変更があります。\n\n"
+                        : "このデバイスにはローカルのデータが存在します。\n\n";
                     const confirmed = await uiUtils.showCustomConfirm(
                         "【警告：データの同期に関する重要な確認】\n\n" +
                         "クラウド上に、このデバイスとは異なるデータが見つかりました。\n\n" +
+                        isDirtyMsg +
                         "同期を実行すると、このデバイスの全てのデータ（チャット、プロファイル等）が完全に削除され、クラウド上のデータで置き換えられます。\n" +
                         "（データが統合・マージされるわけではありません）\n\n" +
                         "このデバイスのデータを残したい場合は、一度「キャンセル」を押し、履歴画面から各チャットを個別に出力してバックアップを作成してください。\n\n" +
