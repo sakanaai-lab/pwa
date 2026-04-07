@@ -5677,6 +5677,7 @@ const appLogic = {
         const standardValues = models.map(m => m.value);
         if (userDefinedGroup) {
             userDefinedGroup.innerHTML = '';
+            userDefinedGroup.disabled = false;
             const customText = (state.settings && state.settings.customModelsText) || {};
             const fetchedModels = (state.settings && state.settings.fetchedModels) || {};
 
