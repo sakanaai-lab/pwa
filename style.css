@@ -433,8 +433,11 @@ body.dark-mode #chat-overlay {
     border-radius: 0;
     box-shadow: none;
     max-width: 95%;
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: calc(var(--spacing-unit) * 0.5);
+    padding-right: calc(var(--spacing-unit) * 0.5);
+    padding-top: 0;
+    padding-bottom: calc(var(--spacing-unit) * 3);
+    border-bottom: 1px solid var(--border-primary);
 }
 .message.error {
     background-color: var(--bg-error-message);
