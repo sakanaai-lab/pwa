@@ -428,10 +428,13 @@ body.dark-mode #chat-overlay {
     border-bottom-right-radius: var(--border-radius-sm);
 }
 .message.model {
-    background-color: color-mix(in srgb, var(--bg-model-message) calc(var(--message-bubble-opacity, 1) * 100%), transparent);
+    background-color: transparent;
     align-self: flex-start;
-    border-bottom-left-radius: var(--border-radius-sm);
-    max-width: 90%;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 95%;
+    padding-left: 0;
+    padding-right: 0;
 }
 .message.error {
     background-color: var(--bg-error-message);
