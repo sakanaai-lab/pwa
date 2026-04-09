@@ -8728,7 +8728,8 @@ const appLogic = {
             if (state.settings.maxTokens !== null) generationConfig.maxOutputTokens = state.settings.maxTokens;
             if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
             if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
-            if ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts) {
+            if ((state.settings.apiProvider || 'gemini') === 'gemini' &&
+                    ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts)) {
                 generationConfig.thinkingConfig = {};
                 if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                 if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
@@ -9712,9 +9713,10 @@ const appLogic = {
                 if (state.settings.maxTokens !== null) generationConfig.maxOutputTokens = state.settings.maxTokens;
                 if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
                 if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
-                 if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+                if ((state.settings.apiProvider || 'gemini') === 'gemini' &&
+                        ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts)) {
                     generationConfig.thinkingConfig = {};
-                    if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                    if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                     if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
                 }
                 const systemInstruction = state.currentSystemPrompt?.trim() ? { role: "system", parts: [{ text: state.currentSystemPrompt.trim() }] } : null;
