@@ -13502,6 +13502,7 @@ window.dbUtils = dbUtils;
             model: state.settings.modelName || 'claude-opus-4-6',
             messages: [],
             max_tokens: maxTokens,
+            cache_control: { type: "ephemeral" },
         };
 
         if (useThinking) {
@@ -13512,7 +13513,15 @@ window.dbUtils = dbUtils;
         }
 
         const systemText = extractSystemText(systemInstruction);
-        if (systemText) requestBody.system = systemText;
+        if (systemText) {
+            requestBody.system = [
+                {
+                    type: "text",
+                    text: systemText,
+                    cache_control: { type: "ephemeral" }
+                }
+            ];
+        }
 
         apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
             if (msg.role !== 'system') requestBody.messages.push(msg);
