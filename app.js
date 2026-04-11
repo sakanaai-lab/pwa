@@ -6377,7 +6377,7 @@ const appLogic = {
                         両方残す（推奨）<br><span style="font-size:0.8em;opacity:0.85;">両デバイスのチャット・プロジェクトをまとめる</span>
                     </button>
                     <button data-result="overwrite" style="padding:10px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
-                        クラウドを上書き<br><span style="font-size:0.8em;opacity:0.85;">⚠️ このブラウザのログは全て消えます</span>
+                        クラウドに合わせる<br><span style="font-size:0.8em;opacity:0.85;">⚠️ このブラウザのログは全て消えます</span>
                     </button>
                     <button data-result="cancel" style="padding:10px 14px;background:transparent;color:var(--text-primary);border:1px solid var(--border-primary);border-radius:8px;cursor:pointer;font-size:0.9em;">キャンセル</button>
                 </div>`;
