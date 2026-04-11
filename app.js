@@ -6361,6 +6361,121 @@ const appLogic = {
 
 
     /**
+     * 同期競合時の3択ダイアログ（マージ / クラウドで上書き / キャンセル）
+     * @private
+     */
+    _showSyncConflictDialog(isDirty) {
+        return new Promise(resolve => {
+            const dialog = document.createElement('dialog');
+            dialog.style.cssText = 'padding:20px;max-width:420px;width:90%;border-radius:12px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;';
+            const subMsg = isDirty ? 'このデバイスには未同期の変更があります。' : 'このデバイスにもローカルのデータが存在します。';
+            dialog.innerHTML = `
+                <div style="font-weight:bold;margin-bottom:10px;font-size:1.05em;">【データの競合】</div>
+                <p style="font-size:0.9em;margin-bottom:16px;line-height:1.6;">クラウドに別のデバイスで更新されたデータがあります。<br>${subMsg}</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button data-result="merge" style="padding:10px 14px;background:#2196a8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        📋 マージ（推奨）<br><span style="font-size:0.8em;opacity:0.85;">両デバイスのチャット・プロジェクトを全て残す</span>
+                    </button>
+                    <button data-result="overwrite" style="padding:10px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        ⚠️ クラウドで上書き<br><span style="font-size:0.8em;opacity:0.85;">このデバイスのデータを全て削除してクラウドに合わせる</span>
+                    </button>
+                    <button data-result="cancel" style="padding:10px 14px;background:transparent;color:var(--text-primary);border:1px solid var(--border-primary);border-radius:8px;cursor:pointer;font-size:0.9em;">キャンセル</button>
+                </div>`;
+            document.body.appendChild(dialog);
+            dialog.showModal();
+            const cleanup = (result) => { dialog.close(); document.body.removeChild(dialog); resolve(result); };
+            dialog.addEventListener('click', e => { const btn = e.target.closest('[data-result]'); if (btn) cleanup(btn.dataset.result); });
+            dialog.addEventListener('cancel', () => cleanup('cancel'));
+        });
+    },
+
+    /**
+     * ローカルとクラウドのデータをマージしてインポートし、マージ結果をCloudにPushする
+     * @private
+     */
+    async _mergeAndSyncWithCloud(cloudMetadataString, isManual) {
+        const cloudParsed = JSON.parse(cloudMetadataString);
+        if (cloudParsed.version !== "2.0" || !cloudParsed.data) throw new Error("クラウドデータの形式が無効です。");
+        const cloudData = cloudParsed.data;
+
+        if (isManual) uiUtils.showProgressDialog('ローカルデータを収集中...');
+        const { metadataJson } = await this._prepareExportData();
+        const localData = JSON.parse(metadataJson).data;
+
+        if (isManual) uiUtils.updateProgressMessage('データをマージ中...');
+
+        // チャット: ID単位でマージ、updatedAtが新しい方を優先
+        const chatMap = new Map();
+        [...(localData.chats || []), ...(cloudData.chats || [])].forEach(chat => {
+            const existing = chatMap.get(chat.id);
+            if (!existing || (chat.updatedAt || 0) > (existing.updatedAt || 0)) chatMap.set(chat.id, chat);
+        });
+
+        // プロジェクト: ID単位でマージ、新しい方を優先
+        const projectMap = new Map();
+        [...(localData.projects || []), ...(cloudData.projects || [])].forEach(p => {
+            const existing = projectMap.get(p.id);
+            if (!existing || (p.updatedAt || 0) > (existing.updatedAt || 0)) projectMap.set(p.id, p);
+        });
+
+        // メモリ: profileId単位でマージ、itemsを統合
+        const memoryMap = new Map();
+        [...(localData.memories || []), ...(cloudData.memories || [])].forEach(m => {
+            const existing = memoryMap.get(m.profileId);
+            if (!existing) { memoryMap.set(m.profileId, { ...m }); }
+            else { existing.items = [...new Set([...(existing.items || []), ...(m.items || [])])]; }
+        });
+
+        // プロファイル: ID単位でマージ（クラウド優先で初期設定を保持）
+        const profileMap = new Map();
+        [...(cloudData.profiles || []), ...(localData.profiles || [])].forEach(p => {
+            if (!profileMap.has(p.id)) profileMap.set(p.id, p);
+        });
+
+        // アセット: union
+        const assetMap = new Map();
+        [...(cloudData.assets || []), ...(localData.assets || [])].forEach(a => {
+            if (a.assetId && !assetMap.has(a.assetId)) assetMap.set(a.assetId, a);
+        });
+
+        // 設定: ローカルを維持（デバイス固有の設定を守る）
+        const mergedMetadata = {
+            version: "2.0",
+            exportedAt: new Date().toISOString(),
+            syncId: 'sync_merge_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+            data: {
+                profiles: Array.from(profileMap.values()),
+                chats: Array.from(chatMap.values()),
+                memories: Array.from(memoryMap.values()),
+                projects: Array.from(projectMap.values()),
+                assets: Array.from(assetMap.values()),
+                settings: localData.settings
+            }
+        };
+
+        if (isManual) uiUtils.updateProgressMessage('マージデータをインポート中...');
+        await this.importDataFromString(JSON.stringify(mergedMetadata));
+
+        // _doPushの競合検知を通過させるため、lastSyncIdをクラウドのsyncIdに合わせる
+        state.sync.lastSyncId = cloudParsed.syncId;
+        await dbUtils.saveSetting('lastSyncId', cloudParsed.syncId);
+        state.sync.isDirty = true;
+        await dbUtils.saveSetting('syncIsDirty', true);
+        state.sync.isSyncing = false;
+
+        if (isManual) uiUtils.showProgressDialog('マージ結果をクラウドにアップロード中...');
+        await this._doPush(isManual);
+
+        const localCnt = (localData.chats || []).length;
+        const cloudCnt = (cloudData.chats || []).length;
+        await uiUtils.showCustomAlert(
+            `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
+        );
+        sessionStorage.setItem('isSyncReload', 'true');
+        window.location.reload();
+    },
+
+    /**
      * [V2 Core Push] 実際にアップロード処理を行うコア関数
      * @private
      */
@@ -6587,26 +6702,21 @@ const appLogic = {
                 const localHasData = localChats.length > 0;
                 if (state.sync.isDirty || localHasData) {
                     if (isManual) uiUtils.hideProgressDialog();
-                    const isDirtyMsg = state.sync.isDirty
-                        ? "このデバイスには未同期の変更があります。\n\n"
-                        : "このデバイスにはローカルのデータが存在します。\n\n";
-                    const confirmed = await uiUtils.showCustomConfirm(
-                        "【警告：データの同期に関する重要な確認】\n\n" +
-                        "クラウド上に、このデバイスとは異なるデータが見つかりました。\n\n" +
-                        isDirtyMsg +
-                        "同期を実行すると、このデバイスの全てのデータ（チャット、プロファイル等）が完全に削除され、クラウド上のデータで置き換えられます。\n" +
-                        "（データが統合・マージされるわけではありません）\n\n" +
-                        "このデバイスのデータを残したい場合は、一度「キャンセル」を押し、履歴画面から各チャットを個別に出力してバックアップを作成してください。\n\n" +
-                        "クラウドのデータで同期を開始してもよろしいですか？"
-                    );
-                    if (!confirmed) {
-                        console.log("[Sync Pull] ユーザーが上書きをキャンセルしました。");
+                    const choice = await this._showSyncConflictDialog(state.sync.isDirty);
+                    if (choice === 'cancel') {
+                        console.log("[Sync Pull] ユーザーがキャンセルしました。");
                         this.updateSyncStatusUI('dirty');
                         if (isManual) uiUtils.showCustomAlert("同期がキャンセルされました。");
                         state.sync.isSyncing = false;
                         await window.dropboxApi.deleteLockFile();
                         return;
                     }
+                    if (choice === 'merge') {
+                        console.log("[Sync Pull] マージを実行します。");
+                        await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+                        return; // 内部でreloadされる
+                    }
+                    // choice === 'overwrite': 以降の上書きインポートへ続行
                     if (isManual) uiUtils.showProgressDialog('同期を再開しています...');
                 }
 
