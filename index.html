@@ -314,6 +314,12 @@
                             <input type="password" autocomplete="new-password" id="anthropic-api-key" placeholder="sk-ant-..." aria-label="Anthropic APIキー">
                             <label for="anthropic-custom-models" style="margin-top: 15px;">▼ 追加モデル (カンマ区切り):</label>
                             <textarea id="anthropic-custom-models" placeholder="例: claude-3-7-sonnet-20250219, claude-3-5-sonnet-20241022"></textarea>
+                            <label for="anthropic-cache-ttl" style="margin-top: 15px;">プロンプトキャッシュ保持時間:</label>
+                            <select id="anthropic-cache-ttl">
+                                <option value="5m">5分（デフォルト・低コスト）</option>
+                                <option value="1h">1時間（長い会話向け）</option>
+                            </select>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">※ 1時間TTLはキャッシュ書き込みコストが2倍になりますが、5分以上間隔が空く会話で有効です。</p>
                         </div>
 
                         <div id="groq-api-key-container" class="hidden">
