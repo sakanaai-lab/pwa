@@ -8736,21 +8736,27 @@ const appLogic = {
             }
 
             const summaryText = this._buildSummaryForPrompt();
-            let finalSystemPrompt = state.currentSystemPrompt?.trim() || '';
-            if (summaryText) {
-                finalSystemPrompt += `\n\n${summaryText}`;
-            }
+            const staticText = state.currentSystemPrompt?.trim() || '';
+            const dynamicParts = [];
+            if (summaryText) dynamicParts.push(summaryText);
 
             if (state.settings.enableMemory && state.isMemoryEnabledForChat && state.activeProfileId) {
                 const memoryData = await dbUtils.getMemory(state.activeProfileId);
                 if (memoryData && memoryData.items && memoryData.items.length > 0) {
-                    const memoryBlock = `[長期記憶]\n- ${memoryData.items.join('\n- ')}\n---\n\n`;
-                    finalSystemPrompt = memoryBlock + finalSystemPrompt;
+                    const memoryBlock = `[長期記憶]\n- ${memoryData.items.join('\n- ')}\n---`;
+                    dynamicParts.unshift(memoryBlock);
                     console.log("長期記憶をシステムプロンプトに挿入しました。");
                 }
             }
 
-            const systemInstruction = finalSystemPrompt ? { role: "system", parts: [{ text: finalSystemPrompt }] } : null;
+            const dynamicText = dynamicParts.join('\n\n');
+            const finalSystemPrompt = [dynamicText, staticText].filter(Boolean).join('\n\n');
+            const systemInstruction = finalSystemPrompt ? {
+                role: "system",
+                parts: [{ text: finalSystemPrompt }],
+                _staticText: staticText,
+                _dynamicText: dynamicText
+            } : null;
 
             const historyForApi = this._prepareApiHistory(baseHistory);
             const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
@@ -13412,11 +13418,19 @@ window.dbUtils = dbUtils;
         const knowledge = window.state.activeProjectKnowledge;
         if (knowledge && knowledge.length > 0) {
             const knowledgeText = knowledge.map(f => `### ${f.name}\n${f.content}`).join('\n\n---\n\n');
-            const existingText = extractSystemText(systemInstruction) || '';
-            const combined = existingText
-                ? `${existingText}\n\n---\n## ナレッジ\n\n${knowledgeText}`
+            const prevStatic = systemInstruction?._staticText !== undefined
+                ? systemInstruction._staticText
+                : (extractSystemText(systemInstruction) || '');
+            const prevDynamic = systemInstruction?._dynamicText || '';
+            const newStaticText = prevStatic
+                ? `${prevStatic}\n\n---\n## ナレッジ\n\n${knowledgeText}`
                 : `## ナレッジ\n\n${knowledgeText}`;
-            systemInstruction = { parts: [{ text: combined }] };
+            const combined = [prevDynamic, newStaticText].filter(Boolean).join('\n\n');
+            systemInstruction = {
+                parts: [{ text: combined }],
+                _staticText: newStaticText,
+                _dynamicText: prevDynamic
+            };
         }
 
         const provider = state.settings.apiProvider || 'gemini';
@@ -13512,15 +13526,17 @@ window.dbUtils = dbUtils;
             requestBody.temperature = config.temperature ?? 0.7;
         }
 
-        const systemText = extractSystemText(systemInstruction);
-        if (systemText) {
-            requestBody.system = [
-                {
-                    type: "text",
-                    text: systemText,
-                    cache_control: { type: "ephemeral" }
-                }
-            ];
+        const _staticText = systemInstruction?._staticText;
+        const _dynamicText = systemInstruction?._dynamicText;
+        if (_staticText !== undefined || _dynamicText !== undefined) {
+            // 静的部分（システムプロンプト・ナレッジ）をキャッシュ、動的部分（記憶・サマリー）はキャッシュ対象外
+            const blocks = [];
+            if (_staticText) blocks.push({ type: "text", text: _staticText, cache_control: { type: "ephemeral" } });
+            if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
+            if (blocks.length > 0) requestBody.system = blocks;
+        } else {
+            const systemText = extractSystemText(systemInstruction);
+            if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: { type: "ephemeral" } }];
         }
 
         apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
