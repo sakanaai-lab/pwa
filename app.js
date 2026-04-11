@@ -350,6 +350,7 @@ try {
         openaiApiKeyContainer: document.getElementById('openai-api-key-container'),
         anthropicApiKeyInput: document.getElementById('anthropic-api-key'),
         anthropicApiKeyContainer: document.getElementById('anthropic-api-key-container'),
+        anthropicCacheTTLSelect: document.getElementById('anthropic-cache-ttl'),
         groqApiKeyInput: document.getElementById('groq-api-key'),
         groqApiKeyContainer: document.getElementById('groq-api-key-container'),
         deepseekApiKeyInput: document.getElementById('deepseek-api-key'),
@@ -601,6 +602,7 @@ const state = {
         bedrockRegion: DEFAULT_BEDROCK_REGION,
         openaiApiKey: '',
         anthropicApiKey: '',
+        anthropicCacheTTL: '5m',
         groqApiKey: '',
         deepseekApiKey: '',
         xaiApiKey: '',
@@ -2674,6 +2676,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         }
         if (elements.anthropicApiKeyInput) {
             elements.anthropicApiKeyInput.value = state.settings.anthropicApiKey || '';
+        }
+        if (elements.anthropicCacheTTLSelect) {
+            elements.anthropicCacheTTLSelect.value = state.settings.anthropicCacheTTL || '5m';
         }
         if (elements.groqApiKeyInput) {
             elements.groqApiKeyInput.value = state.settings.groqApiKey || '';
@@ -5128,7 +5133,7 @@ const appLogic = {
 
     getCurrentUiSettings() {
         const settings = {};
-        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
+        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
         const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
@@ -6973,6 +6978,7 @@ const appLogic = {
             bedrockRegion: { element: elements.bedrockRegionSelect, event: 'change' },
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
+            anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
             deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
             xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
@@ -13622,11 +13628,16 @@ window.dbUtils = dbUtils;
         const budgetTokens = state.settings.thinkingBudget ?? 8000;
         const maxTokens = Math.max(config.maxOutputTokens ?? 4000, budgetTokens + 1000);
 
+        const cacheTTL = state.settings.anthropicCacheTTL || '5m';
+        const cacheControl = cacheTTL === '1h'
+            ? { type: "ephemeral", ttl: "1h" }
+            : { type: "ephemeral" };
+
         const requestBody = {
             model: state.settings.modelName || 'claude-opus-4-6',
             messages: [],
             max_tokens: maxTokens,
-            cache_control: { type: "ephemeral" },
+            cache_control: cacheControl,
         };
 
         if (useThinking) {
@@ -13641,12 +13652,12 @@ window.dbUtils = dbUtils;
         if (_staticText !== undefined || _dynamicText !== undefined) {
             // 静的部分（システムプロンプト・ナレッジ）をキャッシュ、動的部分（記憶・サマリー）はキャッシュ対象外
             const blocks = [];
-            if (_staticText) blocks.push({ type: "text", text: _staticText, cache_control: { type: "ephemeral" } });
+            if (_staticText) blocks.push({ type: "text", text: _staticText, cache_control: cacheControl });
             if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
             if (blocks.length > 0) requestBody.system = blocks;
         } else {
             const systemText = extractSystemText(systemInstruction);
-            if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: { type: "ephemeral" } }];
+            if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: cacheControl }];
         }
 
         apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
