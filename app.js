@@ -2761,7 +2761,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.floatingPanelBehaviorSelect.value = state.settings.floatingPanelBehavior || 'on-click';
         elements.dropboxSyncFrequencySelect.value = state.settings.dropboxSyncFrequency || 'instant';
 
-        const defaultHeaderColor = state.settings.darkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+        const defaultHeaderColor = state.settings.darkMode ? '#007aff' : '#7faab6';
         elements.headerColorInput.value = state.settings.headerColor || defaultHeaderColor;
 
         this.updateUserModelOptions();
@@ -6978,7 +6978,7 @@ const appLogic = {
             bedrockRegion: { element: elements.bedrockRegionSelect, event: 'change' },
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
-            anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change' },
+            anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
             deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
             xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
@@ -7164,7 +7164,7 @@ const appLogic = {
         
         elements.resetHeaderColorBtn.addEventListener('click', () => {
             state.settings.headerColor = '';
-            elements.headerColorInput.value = state.settings.darkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+            elements.headerColorInput.value = state.settings.darkMode ? '#007aff' : '#7faab6';
             const event = new Event('input', { bubbles: true });
             elements.headerColorInput.dispatchEvent(event);
         });
