@@ -12725,17 +12725,34 @@ const appLogic = {
 
     callNovelAIApi: async function(args) {
         const endpoint = 'https://image.novelai.net/ai/generate-image';
+        const model = state.settings.novelaiModel || 'nai-diffusion-4-5-curated';
+        // v4/v4.5モデルはparams_version:3が必要
+        const isV4 = model.includes('4');
         const payload = {
             input: args.prompt,
-            model: state.settings.novelaiModel || 'nai-diffusion-4-5-curated',
+            model: model,
             action: 'generate',
             parameters: {
+                params_version: isV4 ? 3 : 1,
                 width: args.width || 832,
                 height: args.height || 1216,
+                scale: 6,
+                sampler: 'k_euler',
                 steps: 28,
                 n_samples: 1,
+                ucPreset: 0,
+                qualityToggle: false,
+                sm: false,
+                sm_dyn: false,
+                dynamic_thresholding: false,
+                cfg_rescale: 0,
+                noise_schedule: 'native',
+                legacy: false,
+                legacy_v3_extend: false,
                 negative_prompt: args.negative_prompt || 'lowres, bad anatomy, bad hands, text, error, worst quality',
-                seed: Math.floor(Math.random() * 4294967295)
+                seed: Math.floor(Math.random() * 4294967295),
+                reference_image_multiple: [],
+                reference_strength_multiple: []
             }
         };
         const response = await fetch(endpoint, {
