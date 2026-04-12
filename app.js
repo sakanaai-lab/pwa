@@ -13808,9 +13808,93 @@ window.dbUtils = dbUtils;
             if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: cacheControl }];
         }
 
-        apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
-            if (msg.role !== 'system') requestBody.messages.push(msg);
-        });
+        // Add tools in Anthropic format (input_schema instead of parameters)
+        if (tools && tools.length > 0) {
+            const convertTypes = (schema) => {
+                if (!schema || typeof schema !== 'object') return schema;
+                if (Array.isArray(schema)) return schema.map(convertTypes);
+                const result = {};
+                for (const [key, val] of Object.entries(schema)) {
+                    if (key === 'type' && typeof val === 'string') {
+                        result[key] = val.toLowerCase();
+                    } else if (val && typeof val === 'object') {
+                        result[key] = convertTypes(val);
+                    } else {
+                        result[key] = val;
+                    }
+                }
+                return result;
+            };
+            const anthropicTools = [];
+            for (const toolGroup of tools) {
+                for (const decl of (toolGroup.function_declarations || [])) {
+                    anthropicTools.push({
+                        name: decl.name,
+                        description: decl.description || '',
+                        input_schema: convertTypes(decl.parameters) || { type: 'object', properties: {} }
+                    });
+                }
+            }
+            if (anthropicTools.length > 0) {
+                requestBody.tools = anthropicTools;
+                // thinking有効時はtool_choice強制不可
+                if (forceCalling && !useThinking) {
+                    requestBody.tool_choice = { type: 'any' };
+                }
+            }
+        }
+
+        // Convert Gemini-format messages to Anthropic format
+        for (const geminiMsg of messages) {
+            const msgParts = geminiMsg.parts || [];
+            if (geminiMsg.role === 'tool') {
+                // Tool results → user message with tool_result content blocks
+                const toolResultBlocks = [];
+                for (const part of msgParts) {
+                    if (part.functionResponse) {
+                        const toolUseId = part.functionResponse._toolCallId || part.functionResponse.name;
+                        const content = typeof part.functionResponse.response === 'string'
+                            ? part.functionResponse.response
+                            : JSON.stringify(part.functionResponse.response);
+                        toolResultBlocks.push({ type: 'tool_result', tool_use_id: toolUseId, content });
+                    }
+                }
+                if (toolResultBlocks.length > 0) {
+                    requestBody.messages.push({ role: 'user', content: toolResultBlocks });
+                }
+            } else {
+                const role = geminiMsg.role === 'model' ? 'assistant' : 'user';
+                const contentBlocks = [];
+                for (const part of msgParts) {
+                    if (part.text && part.thought !== true) {
+                        // 思考ブロックはsignatureなしでは再送できないためスキップ
+                        contentBlocks.push({ type: 'text', text: part.text });
+                    } else if (part.functionCall) {
+                        contentBlocks.push({
+                            type: 'tool_use',
+                            id: part.functionCall._toolCallId || `toolu_${Date.now()}`,
+                            name: part.functionCall.name,
+                            input: part.functionCall.args || {}
+                        });
+                    } else if (part.inlineData) {
+                        contentBlocks.push({
+                            type: 'image',
+                            source: {
+                                type: 'base64',
+                                media_type: part.inlineData.mimeType,
+                                data: part.inlineData.data
+                            }
+                        });
+                    }
+                }
+                if (contentBlocks.length > 0) {
+                    const content = contentBlocks.length === 1 && contentBlocks[0].type === 'text'
+                        ? contentBlocks[0].text
+                        : contentBlocks;
+                    requestBody.messages.push({ role, content });
+                }
+            }
+        }
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -13837,6 +13921,15 @@ window.dbUtils = dbUtils;
                 parts.push({ text: block.thinking, thought: true });
             } else if (block.type === 'text' && block.text) {
                 parts.push({ text: block.text });
+            } else if (block.type === 'tool_use') {
+                // Function call → Gemini functionCall format with _toolCallId
+                parts.push({
+                    functionCall: {
+                        name: block.name,
+                        args: block.input,
+                        _toolCallId: block.id
+                    }
+                });
             }
         }
         const geminiFormat = {
