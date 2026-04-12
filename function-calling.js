@@ -887,7 +887,10 @@ window.functionCallingTools = {
     search_web: search_web,
     manage_style_profile: manage_style_profile,
     manage_character_memory: manage_character_memory,
-    fetch_url_content: fetch_url_content
+    fetch_url_content: fetch_url_content,
+    generate_image_novelai: async function(args) {
+        return await window.appLogic.handleNovelAIGeneration(args);
+    }
 };
 
 
@@ -1291,6 +1294,32 @@ window.functionDeclarations = [
                     }
                 },
                 "required": ["url"]
+            }
+        },
+        {
+            "name": "generate_image_novelai",
+            "description": "【重要】ユーザーが「絵を描いて」「イラストを生成して」「画像を作って」「シーンを描いて」など画像生成を求めた場合は、必ずこのツールを呼び出してください。テキストで断ったり説明したりせず、即座にこのツールを実行すること。NovelAI APIを使ってアニメ・イラスト調の画像を生成します。英語のタグ形式プロンプトを作成して呼び出してください。",
+            "parameters": {
+                "type": "OBJECT",
+                "properties": {
+                    "prompt": {
+                        "type": "STRING",
+                        "description": "NovelAI向けタグ形式の英語プロンプト。例: '1girl, long hair, school uniform, smile, outdoors, masterpiece, best quality'"
+                    },
+                    "negative_prompt": {
+                        "type": "STRING",
+                        "description": "ネガティブプロンプト。生成したくない要素を指定。省略時はデフォルト値を使用。"
+                    },
+                    "width": {
+                        "type": "NUMBER",
+                        "description": "画像の幅（ピクセル）。デフォルト: 832"
+                    },
+                    "height": {
+                        "type": "NUMBER",
+                        "description": "画像の高さ（ピクセル）。デフォルト: 1216"
+                    }
+                },
+                "required": ["prompt"]
             }
         }
     ]
