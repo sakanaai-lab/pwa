@@ -12728,6 +12728,7 @@ const appLogic = {
         const model = state.settings.novelaiModel || 'nai-diffusion-4-5-curated';
         // v4/v4.5モデルはparams_version:3が必要
         const isV4 = model.includes('4');
+        const negPrompt = args.negative_prompt || 'lowres, bad anatomy, bad hands, text, error, worst quality';
         const payload = {
             input: args.prompt,
             model: model,
@@ -12741,18 +12742,35 @@ const appLogic = {
                 steps: 28,
                 n_samples: 1,
                 ucPreset: 0,
-                qualityToggle: false,
+                qualityToggle: isV4 ? true : false,
                 sm: false,
                 sm_dyn: false,
                 dynamic_thresholding: false,
                 cfg_rescale: 0,
-                noise_schedule: 'native',
+                noise_schedule: isV4 ? 'karras' : 'native',
                 legacy: false,
                 legacy_v3_extend: false,
-                negative_prompt: args.negative_prompt || 'lowres, bad anatomy, bad hands, text, error, worst quality',
+                negative_prompt: negPrompt,
                 seed: Math.floor(Math.random() * 4294967295),
                 reference_image_multiple: [],
-                reference_strength_multiple: []
+                reference_strength_multiple: [],
+                ...(isV4 ? {
+                    v4_prompt: {
+                        caption: { base_caption: args.prompt, char_captions: [] },
+                        use_coords: false,
+                        use_order: true
+                    },
+                    v4_negative_prompt: {
+                        caption: { base_caption: negPrompt, char_captions: [] },
+                        use_coords: false,
+                        use_order: true
+                    },
+                    characterPrompts: [],
+                    prefer_brownian: true,
+                    deliberate_euler_ancestral_bug: false,
+                    add_original_image: true,
+                    reference_information_extracted_multiple: []
+                } : {})
             }
         };
         const response = await fetch(endpoint, {
