@@ -13714,6 +13714,42 @@ window.dbUtils = dbUtils;
         if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
         apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
 
+        // Gemini形式のfunction_declarationsをOpenAI tools形式に変換
+        if (tools && tools.length > 0) {
+            const convertTypes = (schema) => {
+                if (!schema || typeof schema !== 'object') return schema;
+                if (Array.isArray(schema)) return schema.map(convertTypes);
+                const result = {};
+                for (const [key, val] of Object.entries(schema)) {
+                    if (key === 'type' && typeof val === 'string') {
+                        result[key] = val.toLowerCase();
+                    } else if (val && typeof val === 'object') {
+                        result[key] = convertTypes(val);
+                    } else {
+                        result[key] = val;
+                    }
+                }
+                return result;
+            };
+            const openAITools = [];
+            for (const toolGroup of tools) {
+                for (const decl of (toolGroup.function_declarations || [])) {
+                    openAITools.push({
+                        type: 'function',
+                        function: {
+                            name: decl.name,
+                            description: decl.description || '',
+                            parameters: convertTypes(decl.parameters) || { type: 'object', properties: {} }
+                        }
+                    });
+                }
+            }
+            if (openAITools.length > 0) {
+                requestBody.tools = openAITools;
+                if (forceCalling) requestBody.tool_choice = 'required';
+            }
+        }
+
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
