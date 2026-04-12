@@ -13845,6 +13845,23 @@ window.dbUtils = dbUtils;
         }
 
         // Convert Gemini-format messages to Anthropic format
+        // Anthropic requires strict user/assistant alternation, so consecutive user messages must be merged
+        const anthropicMessages = [];
+        const pushAnthropicMsg = (role, content) => {
+            const blocks = Array.isArray(content) ? content : [{ type: 'text', text: content }];
+            if (blocks.length === 0) return;
+            const last = anthropicMessages[anthropicMessages.length - 1];
+            if (last && last.role === role) {
+                // 同じロールが連続した場合はマージ（特にtool_result後のuserメッセージ）
+                if (!Array.isArray(last.content)) {
+                    last.content = [{ type: 'text', text: last.content }];
+                }
+                last.content = [...last.content, ...blocks];
+            } else {
+                anthropicMessages.push({ role, content: blocks.length === 1 && blocks[0].type === 'text' ? blocks[0].text : blocks });
+            }
+        };
+
         for (const geminiMsg of messages) {
             const msgParts = geminiMsg.parts || [];
             if (geminiMsg.role === 'tool') {
@@ -13859,9 +13876,7 @@ window.dbUtils = dbUtils;
                         toolResultBlocks.push({ type: 'tool_result', tool_use_id: toolUseId, content });
                     }
                 }
-                if (toolResultBlocks.length > 0) {
-                    requestBody.messages.push({ role: 'user', content: toolResultBlocks });
-                }
+                if (toolResultBlocks.length > 0) pushAnthropicMsg('user', toolResultBlocks);
             } else {
                 const role = geminiMsg.role === 'model' ? 'assistant' : 'user';
                 const contentBlocks = [];
@@ -13887,14 +13902,10 @@ window.dbUtils = dbUtils;
                         });
                     }
                 }
-                if (contentBlocks.length > 0) {
-                    const content = contentBlocks.length === 1 && contentBlocks[0].type === 'text'
-                        ? contentBlocks[0].text
-                        : contentBlocks;
-                    requestBody.messages.push({ role, content });
-                }
+                if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
             }
         }
+        anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
             method: 'POST',
@@ -13932,9 +13943,19 @@ window.dbUtils = dbUtils;
                 });
             }
         }
+        // Anthropicがコンテンツフィルタリング等で空レスポンスを返した場合（リトライ不要なので400扱い）
+        if (parts.length === 0) {
+            const stopReason = data.stop_reason || '';
+            const errMsg = stopReason === 'max_tokens'
+                ? 'Anthropic: トークン上限に達しました。会話履歴を短くするか、max_tokensを増やしてください。'
+                : 'Anthropic: 空の応答が返されました。会話内容がコンテンツポリシーに抵触しているか、Claudeがこのシーンに応じられない状態です。';
+            const e = new Error(errMsg);
+            e.status = 400;
+            throw e;
+        }
         const geminiFormat = {
             candidates: [{
-                content: { parts: parts.length > 0 ? parts : [{ text: '' }] },
+                content: { parts },
                 finishReason: 'STOP'
             }]
         };
