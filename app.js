@@ -12717,7 +12717,9 @@ const appLogic = {
             };
         } catch (error) {
             console.error("[NovelAI] 画像生成エラー:", error);
-            return { success: false, error: { message: `NovelAI画像生成エラー: ${error.message}` } };
+            const msg = error.message || String(error);
+            await uiUtils.showCustomAlert(`NovelAI画像生成エラー:\n${msg}`);
+            return { success: false, error: { message: `NovelAI画像生成エラー: ${msg}` } };
         }
     },
 
