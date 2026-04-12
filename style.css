@@ -1982,6 +1982,28 @@ body.dark-mode .dialog-delete-btn {
     background-color: var(--bg-primary); /* 背景色をラッパーに移動 */
 }
 
+.dialog-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+.dialog-header h2 {
+    margin: 0;
+}
+.dialog-close-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    box-shadow: none;
+    min-width: auto;
+}
+
 .profile-dialog-header {
     display: flex;
     align-items: center;
