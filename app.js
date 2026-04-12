@@ -10,7 +10,7 @@ import("https://esm.run/@google/genai").then(module => {
 
 // --- 定数 ---
 const DB_NAME = 'GeminiPWA_DB';
-const DB_VERSION = 14;
+const DB_VERSION = 15;
 const PROJECTS_STORE = 'projects'; 
 const SETTINGS_STORE = 'settings';
 const PROFILES_STORE = 'profiles';
@@ -54,7 +54,7 @@ const GEMINI_MODELS = [
     { value: 'gemini-2.5-flash-preview-09-2025', label: 'gemini-2.5-flash-preview-09-2025', group: 'プレビュー版' },
     { value: 'gemini-2.5-flash-lite-preview-09-2025', label: 'gemini-2.5-flash-lite-preview-09-2025', group: 'プレビュー版' },
     { value: 'gemini-2.5-flash-image-preview', label: 'gemini-2.5-flash-image-preview (Nano Banana)', group: 'プレビュー版' },
-    { value: 'gemini-3-pro-preview', label: 'gemini-3-pro-preview (廃止)', group: 'プレビュー版' },
+    { value: 'gemini-3-pro-preview', label: 'gemini-3-pro-preview', group: 'プレビュー版' },
     { value: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview', group: 'プレビュー版' }
 ];
 
@@ -350,6 +350,7 @@ try {
         openaiApiKeyContainer: document.getElementById('openai-api-key-container'),
         anthropicApiKeyInput: document.getElementById('anthropic-api-key'),
         anthropicApiKeyContainer: document.getElementById('anthropic-api-key-container'),
+        anthropicCacheTTLSelect: document.getElementById('anthropic-cache-ttl'),
         groqApiKeyInput: document.getElementById('groq-api-key'),
         groqApiKeyContainer: document.getElementById('groq-api-key-container'),
         deepseekApiKeyInput: document.getElementById('deepseek-api-key'),
@@ -601,6 +602,7 @@ const state = {
         bedrockRegion: DEFAULT_BEDROCK_REGION,
         openaiApiKey: '',
         anthropicApiKey: '',
+        anthropicCacheTTL: '5m',
         groqApiKey: '',
         deepseekApiKey: '',
         xaiApiKey: '',
@@ -1065,6 +1067,14 @@ const dbUtils = {
                             console.log(`[DB Migration] Temporary store '${storeInfo.name}' created.`);
                         }
                     });
+                }
+
+                if (event.oldVersion < 15) {
+                    console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
+                    if (!db.objectStoreNames.contains('projects_temp')) {
+                        db.createObjectStore('projects_temp', { keyPath: 'id' });
+                        console.log("[DB Migration] 'projects_temp' store created.");
+                    }
                 }
             };
         });
@@ -1607,7 +1617,7 @@ const dbUtils = {
         console.log("[DB Import V2] 安全なデータインポート処理を開始します。");
         uiUtils.showProgressDialog('データベースを準備中...');
 
-        const { profiles, chats, memories, assets, settings } = data;
+        const { profiles, chats, memories, projects, assets, settings } = data;
         
         const allAvailableAssets = new Map([...localAssetsBeforeClear, ...downloadedAssets]);
         console.log(`[DB Import V2] 利用可能なアセットの完全なマップを作成しました: ${allAvailableAssets.size}件`);
@@ -1666,11 +1676,11 @@ const dbUtils = {
         
         const tempStoreNames = [
             `${PROFILES_STORE}_temp`, `${CHATS_STORE}_temp`, `${SETTINGS_STORE}_temp`,
-            `${IMAGE_STORE}_temp`, 'image_assets_temp', 'memory_store_temp'
+            `${IMAGE_STORE}_temp`, 'image_assets_temp', 'memory_store_temp', 'projects_temp'
         ];
         const mainStoreNames = [
             PROFILES_STORE, CHATS_STORE, SETTINGS_STORE,
-            IMAGE_STORE, 'image_assets', 'memory_store'
+            IMAGE_STORE, 'image_assets', 'memory_store', PROJECTS_STORE
         ];
 
         const currentTokens = await dbUtils.getSetting('dropboxTokens');
@@ -1682,6 +1692,7 @@ const dbUtils = {
                 'profiles_temp': profilesWithBlobs,
                 'chats_temp': chats || [],
                 'memory_store_temp': memories || [],
+                'projects_temp': projects || [],
                 'image_assets_temp': assetsWithBlobs,
                 'image_store_temp': imagesWithBlobs,
                 'settings_temp': settings || []
@@ -2333,11 +2344,26 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             editButton.onclick = () => appLogic.startEditMessage(index, messageDiv);
             actionsDiv.appendChild(editButton);
             const deleteButton = document.createElement('button');
-            deleteButton.innerHTML = '<span class="material-symbols-outlined">delete</span> 削除'; 
-            deleteButton.title = 'この会話ターンを削除'; 
+            deleteButton.innerHTML = '<span class="material-symbols-outlined">delete</span> 削除';
+            deleteButton.title = 'この会話ターンを削除';
             deleteButton.classList.add('js-delete-btn');
             deleteButton.onclick = () => appLogic.deleteMessage(index);
             actionsDiv.appendChild(deleteButton);
+            const copyButton = document.createElement('button');
+            copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
+            copyButton.title = 'メッセージをコピー';
+            copyButton.classList.add('js-copy-btn');
+            copyButton.onclick = () => {
+                const msg = state.currentMessages[index];
+                if (!msg) return;
+                navigator.clipboard.writeText(msg.content || '').then(() => {
+                    copyButton.innerHTML = '<span class="material-symbols-outlined">check</span> コピー済';
+                    setTimeout(() => {
+                        copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
+                    }, 1500);
+                });
+            };
+            actionsDiv.appendChild(copyButton);
             if (role === 'user') {
                 const retryButton = document.createElement('button');
                 retryButton.innerHTML = '<span class="material-symbols-outlined">replay</span> 再生成'; 
@@ -2651,6 +2677,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.anthropicApiKeyInput) {
             elements.anthropicApiKeyInput.value = state.settings.anthropicApiKey || '';
         }
+        if (elements.anthropicCacheTTLSelect) {
+            elements.anthropicCacheTTLSelect.value = state.settings.anthropicCacheTTL || '5m';
+        }
         if (elements.groqApiKeyInput) {
             elements.groqApiKeyInput.value = state.settings.groqApiKey || '';
         }
@@ -2732,7 +2761,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.floatingPanelBehaviorSelect.value = state.settings.floatingPanelBehavior || 'on-click';
         elements.dropboxSyncFrequencySelect.value = state.settings.dropboxSyncFrequency || 'instant';
 
-        const defaultHeaderColor = state.settings.darkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+        const defaultHeaderColor = state.settings.darkMode ? '#007aff' : '#7faab6';
         elements.headerColorInput.value = state.settings.headerColor || defaultHeaderColor;
 
         this.updateUserModelOptions();
@@ -3857,7 +3886,8 @@ const apiUtils = {
             await appLogic._updateApiUsageCount(state.activeProfileId); 
         }
 
-        const isImageGenModel = model === 'gemini-2.5-flash-image-preview';
+        const isImageGenModel = model === 'gemini-2.5-flash-image-preview' ||
+            model.includes('image-generation') || model.includes('imagen');
 
         const endpointMethod = 'generateContent?';
 
@@ -3875,9 +3905,9 @@ const apiUtils = {
             delete finalGenerationConfig.temperature;
 
         } else {
-            if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+            if ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts) {
                 generationConfig.thinkingConfig = {};
-                if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                 if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
             }
         }
@@ -5103,7 +5133,7 @@ const appLogic = {
 
     getCurrentUiSettings() {
         const settings = {};
-        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
+        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
         const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
@@ -5653,6 +5683,7 @@ const appLogic = {
         const standardValues = models.map(m => m.value);
         if (userDefinedGroup) {
             userDefinedGroup.innerHTML = '';
+            userDefinedGroup.disabled = false;
             const customText = (state.settings && state.settings.customModelsText) || {};
             const fetchedModels = (state.settings && state.settings.fetchedModels) || {};
 
@@ -6335,6 +6366,121 @@ const appLogic = {
 
 
     /**
+     * 同期競合時の3択ダイアログ（マージ / クラウドで上書き / キャンセル）
+     * @private
+     */
+    _showSyncConflictDialog(isDirty) {
+        return new Promise(resolve => {
+            const dialog = document.createElement('dialog');
+            dialog.style.cssText = 'padding:20px;max-width:420px;width:90%;border-radius:12px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;';
+            const subMsg = isDirty ? 'このデバイスには未同期の変更があります。' : 'このデバイスにもローカルのデータが存在します。';
+            dialog.innerHTML = `
+                <div style="font-weight:bold;margin-bottom:10px;font-size:1.05em;">【データの競合】</div>
+                <p style="font-size:0.9em;margin-bottom:16px;line-height:1.6;">クラウドに別のデバイスで更新されたデータがあります。<br>${subMsg}</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button data-result="merge" style="padding:10px 14px;background:#2196a8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        両方残す（推奨）<br><span style="font-size:0.8em;opacity:0.85;">両デバイスのチャット・プロジェクトをまとめる</span>
+                    </button>
+                    <button data-result="overwrite" style="padding:10px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        クラウドに合わせる<br><span style="font-size:0.8em;opacity:0.85;">⚠️ このブラウザのログは全て消えます</span>
+                    </button>
+                    <button data-result="cancel" style="padding:10px 14px;background:transparent;color:var(--text-primary);border:1px solid var(--border-primary);border-radius:8px;cursor:pointer;font-size:0.9em;">キャンセル</button>
+                </div>`;
+            document.body.appendChild(dialog);
+            dialog.showModal();
+            const cleanup = (result) => { dialog.close(); document.body.removeChild(dialog); resolve(result); };
+            dialog.addEventListener('click', e => { const btn = e.target.closest('[data-result]'); if (btn) cleanup(btn.dataset.result); });
+            dialog.addEventListener('cancel', () => cleanup('cancel'));
+        });
+    },
+
+    /**
+     * ローカルとクラウドのデータをマージしてインポートし、マージ結果をCloudにPushする
+     * @private
+     */
+    async _mergeAndSyncWithCloud(cloudMetadataString, isManual) {
+        const cloudParsed = JSON.parse(cloudMetadataString);
+        if (cloudParsed.version !== "2.0" || !cloudParsed.data) throw new Error("クラウドデータの形式が無効です。");
+        const cloudData = cloudParsed.data;
+
+        if (isManual) uiUtils.showProgressDialog('ローカルデータを収集中...');
+        const { metadataJson } = await this._prepareExportData();
+        const localData = JSON.parse(metadataJson).data;
+
+        if (isManual) uiUtils.updateProgressMessage('データをマージ中...');
+
+        // チャット: ID単位でマージ、updatedAtが新しい方を優先
+        const chatMap = new Map();
+        [...(localData.chats || []), ...(cloudData.chats || [])].forEach(chat => {
+            const existing = chatMap.get(chat.id);
+            if (!existing || (chat.updatedAt || 0) > (existing.updatedAt || 0)) chatMap.set(chat.id, chat);
+        });
+
+        // プロジェクト: ID単位でマージ、新しい方を優先
+        const projectMap = new Map();
+        [...(localData.projects || []), ...(cloudData.projects || [])].forEach(p => {
+            const existing = projectMap.get(p.id);
+            if (!existing || (p.updatedAt || 0) > (existing.updatedAt || 0)) projectMap.set(p.id, p);
+        });
+
+        // メモリ: profileId単位でマージ、itemsを統合
+        const memoryMap = new Map();
+        [...(localData.memories || []), ...(cloudData.memories || [])].forEach(m => {
+            const existing = memoryMap.get(m.profileId);
+            if (!existing) { memoryMap.set(m.profileId, { ...m }); }
+            else { existing.items = [...new Set([...(existing.items || []), ...(m.items || [])])]; }
+        });
+
+        // プロファイル: ID単位でマージ（クラウド優先で初期設定を保持）
+        const profileMap = new Map();
+        [...(cloudData.profiles || []), ...(localData.profiles || [])].forEach(p => {
+            if (!profileMap.has(p.id)) profileMap.set(p.id, p);
+        });
+
+        // アセット: union
+        const assetMap = new Map();
+        [...(cloudData.assets || []), ...(localData.assets || [])].forEach(a => {
+            if (a.assetId && !assetMap.has(a.assetId)) assetMap.set(a.assetId, a);
+        });
+
+        // 設定: ローカルを維持（デバイス固有の設定を守る）
+        const mergedMetadata = {
+            version: "2.0",
+            exportedAt: new Date().toISOString(),
+            syncId: 'sync_merge_' + Date.now() + '_' + Math.random().toString(36).substring(2, 9),
+            data: {
+                profiles: Array.from(profileMap.values()),
+                chats: Array.from(chatMap.values()),
+                memories: Array.from(memoryMap.values()),
+                projects: Array.from(projectMap.values()),
+                assets: Array.from(assetMap.values()),
+                settings: localData.settings
+            }
+        };
+
+        if (isManual) uiUtils.updateProgressMessage('マージデータをインポート中...');
+        await this.importDataFromString(JSON.stringify(mergedMetadata));
+
+        // _doPushの競合検知を通過させるため、lastSyncIdをクラウドのsyncIdに合わせる
+        state.sync.lastSyncId = cloudParsed.syncId;
+        await dbUtils.saveSetting('lastSyncId', cloudParsed.syncId);
+        state.sync.isDirty = true;
+        await dbUtils.saveSetting('syncIsDirty', true);
+        state.sync.isSyncing = false;
+
+        if (isManual) uiUtils.showProgressDialog('マージ結果をクラウドにアップロード中...');
+        await this._doPush(isManual);
+
+        const localCnt = (localData.chats || []).length;
+        const cloudCnt = (cloudData.chats || []).length;
+        await uiUtils.showCustomAlert(
+            `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
+        );
+        sessionStorage.setItem('isSyncReload', 'true');
+        window.location.reload();
+    },
+
+    /**
      * [V2 Core Push] 実際にアップロード処理を行うコア関数
      * @private
      */
@@ -6557,24 +6703,25 @@ const appLogic = {
             console.log(`[Sync Pull V2] Cloud syncId: ${cloudSyncId}, Local lastSyncId: ${state.sync.lastSyncId}`);
 
             if (cloudSyncId !== state.sync.lastSyncId) {
-                if (state.sync.isDirty) {
+                const localChats = await dbUtils.getAllChats();
+                const localHasData = localChats.length > 0;
+                if (state.sync.isDirty || localHasData) {
                     if (isManual) uiUtils.hideProgressDialog();
-                    const confirmed = await uiUtils.showCustomConfirm(
-                        "【警告：データの同期に関する重要な確認】\n\n" +
-                        "クラウド上に、このデバイスとは異なるデータが見つかりました。\n\n" +
-                        "同期を実行すると、このデバイスの全てのデータ（チャット、プロファイル等）が完全に削除され、クラウド上のデータで置き換えられます。\n" +
-                        "（データが統合・マージされるわけではありません）\n\n" +
-                        "このデバイスのデータを残したい場合は、一度「キャンセル」を押し、履歴画面から各チャットを個別に出力してバックアップを作成してください。\n\n" +
-                        "クラウドのデータで同期を開始してもよろしいですか？"
-                    );
-                    if (!confirmed) {
-                        console.log("[Sync Pull] ユーザーが上書きをキャンセルしました。");
+                    const choice = await this._showSyncConflictDialog(state.sync.isDirty);
+                    if (choice === 'cancel') {
+                        console.log("[Sync Pull] ユーザーがキャンセルしました。");
                         this.updateSyncStatusUI('dirty');
                         if (isManual) uiUtils.showCustomAlert("同期がキャンセルされました。");
                         state.sync.isSyncing = false;
                         await window.dropboxApi.deleteLockFile();
                         return;
                     }
+                    if (choice === 'merge') {
+                        console.log("[Sync Pull] マージを実行します。");
+                        await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+                        return; // 内部でreloadされる
+                    }
+                    // choice === 'overwrite': 以降の上書きインポートへ続行
                     if (isManual) uiUtils.showProgressDialog('同期を再開しています...');
                 }
 
@@ -6831,6 +6978,7 @@ const appLogic = {
             bedrockRegion: { element: elements.bedrockRegionSelect, event: 'change' },
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
+            anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
             deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
             xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
@@ -7016,7 +7164,7 @@ const appLogic = {
         
         elements.resetHeaderColorBtn.addEventListener('click', () => {
             state.settings.headerColor = '';
-            elements.headerColorInput.value = state.settings.darkMode ? DARK_THEME_COLOR : LIGHT_THEME_COLOR;
+            elements.headerColorInput.value = state.settings.darkMode ? '#007aff' : '#7faab6';
             const event = new Event('input', { bubbles: true });
             elements.headerColorInput.dispatchEvent(event);
         });
@@ -8696,28 +8844,35 @@ const appLogic = {
             if (state.settings.maxTokens !== null) generationConfig.maxOutputTokens = state.settings.maxTokens;
             if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
             if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
-            if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+            if ((state.settings.apiProvider || 'gemini') === 'gemini' &&
+                    ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts)) {
                 generationConfig.thinkingConfig = {};
-                if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                 if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
             }
 
             const summaryText = this._buildSummaryForPrompt();
-            let finalSystemPrompt = state.currentSystemPrompt?.trim() || '';
-            if (summaryText) {
-                finalSystemPrompt += `\n\n${summaryText}`;
-            }
+            const staticText = state.currentSystemPrompt?.trim() || '';
+            const dynamicParts = [];
+            if (summaryText) dynamicParts.push(summaryText);
 
             if (state.settings.enableMemory && state.isMemoryEnabledForChat && state.activeProfileId) {
                 const memoryData = await dbUtils.getMemory(state.activeProfileId);
                 if (memoryData && memoryData.items && memoryData.items.length > 0) {
-                    const memoryBlock = `[長期記憶]\n- ${memoryData.items.join('\n- ')}\n---\n\n`;
-                    finalSystemPrompt = memoryBlock + finalSystemPrompt;
+                    const memoryBlock = `[長期記憶]\n- ${memoryData.items.join('\n- ')}\n---`;
+                    dynamicParts.unshift(memoryBlock);
                     console.log("長期記憶をシステムプロンプトに挿入しました。");
                 }
             }
 
-            const systemInstruction = finalSystemPrompt ? { role: "system", parts: [{ text: finalSystemPrompt }] } : null;
+            const dynamicText = dynamicParts.join('\n\n');
+            const finalSystemPrompt = [dynamicText, staticText].filter(Boolean).join('\n\n');
+            const systemInstruction = finalSystemPrompt ? {
+                role: "system",
+                parts: [{ text: finalSystemPrompt }],
+                _staticText: staticText,
+                _dynamicText: dynamicText
+            } : null;
 
             const historyForApi = this._prepareApiHistory(baseHistory);
             const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
@@ -9292,8 +9447,19 @@ const appLogic = {
         cancelButton.classList.add('cancel-edit-btn');
         cancelButton.onclick = () => this.cancelEditMessage(index, messageElement);
 
+        const copyEditButton = document.createElement('button');
+        copyEditButton.textContent = 'コピー';
+        copyEditButton.classList.add('copy-edit-btn');
+        copyEditButton.onclick = () => {
+            navigator.clipboard.writeText(textarea.value).then(() => {
+                copyEditButton.textContent = 'コピー済';
+                setTimeout(() => { copyEditButton.textContent = 'コピー'; }, 1500);
+            });
+        };
+
         actionsDiv.appendChild(saveButton);
         actionsDiv.appendChild(cancelButton);
+        actionsDiv.appendChild(copyEditButton);
         editArea.appendChild(textarea);
         editArea.appendChild(actionsDiv);
 
@@ -9669,9 +9835,10 @@ const appLogic = {
                 if (state.settings.maxTokens !== null) generationConfig.maxOutputTokens = state.settings.maxTokens;
                 if (state.settings.topK !== null) generationConfig.topK = state.settings.topK;
                 if (state.settings.topP !== null) generationConfig.topP = state.settings.topP;
-                 if (state.settings.thinkingBudget !== null || state.settings.includeThoughts) {
+                if ((state.settings.apiProvider || 'gemini') === 'gemini' &&
+                        ((state.settings.thinkingBudget > 0) || state.settings.includeThoughts)) {
                     generationConfig.thinkingConfig = {};
-                    if(state.settings.thinkingBudget !== null) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
+                    if(state.settings.thinkingBudget > 0) generationConfig.thinkingConfig.thinkingBudget = state.settings.thinkingBudget;
                     if(state.settings.includeThoughts) generationConfig.thinkingConfig.includeThoughts = true;
                 }
                 const systemInstruction = state.currentSystemPrompt?.trim() ? { role: "system", parts: [{ text: state.currentSystemPrompt.trim() }] } : null;
@@ -11797,10 +11964,11 @@ const appLogic = {
      async _prepareExportData() {
         try {
             // ディープコピーの対象を、Blobを含まないメタデータのみに限定する
-            const [profiles, chats, memories, allSettings] = await Promise.all([
+            const [profiles, chats, memories, projects, allSettings] = await Promise.all([
                 dbUtils.getAllProfiles().then(data => JSON.parse(JSON.stringify(data))),
                 dbUtils.getAllChats().then(data => JSON.parse(JSON.stringify(data))),
                 dbUtils.getAllMemories().then(data => JSON.parse(JSON.stringify(data))),
+                window.dbUtils.getAllProjects().then(data => JSON.parse(JSON.stringify(data))),
                 new Promise((res, rej) => {
                     const store = dbUtils._getStore(SETTINGS_STORE);
                     const request = store.getAll();
@@ -11976,6 +12144,7 @@ const appLogic = {
                     profiles,
                     chats,
                     memories,
+                    projects,
                     assets: imageAssets.map(a => ({ name: a.name, assetId: a.assetId, createdAt: a.createdAt })),
                     settings: settingsForExport
                 }
@@ -12773,17 +12942,58 @@ window.dbUtils = dbUtils;
                     <div class="project-item-header">
                         <span class="project-item-title">${p.name}</span>
                         <div class="project-item-actions">
+                            <button class="edit-prompt-btn" data-id="${p.id}" title="指示を編集"><span class="material-symbols-outlined">edit</span></button>
                             <button class="delete-project-btn" data-id="${p.id}" title="削除"><span class="material-symbols-outlined">delete</span></button>
                         </div>
                     </div>
                 `;
-                // To avoid escape issues, textContent is safer for system prompt
-                if (p.systemPrompt) {
-                   const pre = document.createElement('div');
-                   pre.className = 'project-item-system-prompt';
-                   pre.textContent = p.systemPrompt;
-                   div.appendChild(pre);
-                }
+                // System prompt preview + edit area
+                const promptPreview = document.createElement('div');
+                promptPreview.className = 'project-item-system-prompt';
+                promptPreview.textContent = p.systemPrompt || '（指示なし）';
+                promptPreview.style.cssText = p.systemPrompt ? '' : 'color:var(--text-secondary,#888); font-style:italic;';
+                div.appendChild(promptPreview);
+
+                const promptEditArea = document.createElement('div');
+                promptEditArea.style.cssText = 'display:none; margin-top:6px;';
+                const promptTextarea = document.createElement('textarea');
+                promptTextarea.value = p.systemPrompt || '';
+                promptTextarea.placeholder = 'このプロジェクトのシステムプロンプトを入力...';
+                promptTextarea.style.cssText = 'width:100%; height:100px; font-size:0.9em; box-sizing:border-box; resize:vertical;';
+                const promptSaveBtn = document.createElement('button');
+                promptSaveBtn.textContent = '保存';
+                promptSaveBtn.style.cssText = 'margin-top:4px; margin-right:4px; font-size:0.85em;';
+                const promptCancelBtn = document.createElement('button');
+                promptCancelBtn.textContent = 'キャンセル';
+                promptCancelBtn.style.cssText = 'margin-top:4px; font-size:0.85em;';
+                promptEditArea.appendChild(promptTextarea);
+                promptEditArea.appendChild(document.createElement('br'));
+                promptEditArea.appendChild(promptSaveBtn);
+                promptEditArea.appendChild(promptCancelBtn);
+                div.appendChild(promptEditArea);
+
+                div.querySelector('.edit-prompt-btn').onclick = () => {
+                    const isOpen = promptEditArea.style.display !== 'none';
+                    promptEditArea.style.display = isOpen ? 'none' : 'block';
+                    if (!isOpen) {
+                        promptTextarea.value = p.systemPrompt || '';
+                        promptTextarea.focus();
+                    }
+                };
+                promptCancelBtn.onclick = () => { promptEditArea.style.display = 'none'; };
+                promptSaveBtn.onclick = async () => {
+                    const newPrompt = promptTextarea.value.trim();
+                    p.systemPrompt = newPrompt;
+                    await window.dbUtils.updateProject(p);
+                    promptPreview.textContent = newPrompt || '（指示なし）';
+                    promptPreview.style.cssText = newPrompt ? '' : 'color:var(--text-secondary,#888); font-style:italic;';
+                    promptEditArea.style.display = 'none';
+                    if (window.state.activeProjectId === p.id) {
+                        window.state.currentSystemPrompt = newPrompt;
+                        const editor = document.getElementById('system-prompt-editor');
+                        if (editor) editor.value = newPrompt;
+                    }
+                };
 
                 // Knowledge files section
                 const kSection = document.createElement('div');
@@ -12806,18 +13016,71 @@ window.dbUtils = dbUtils;
                 kList.style.cssText = 'margin-top:4px;';
                 (p.knowledgeFiles || []).forEach(f => {
                     const fDiv = document.createElement('div');
-                    fDiv.style.cssText = 'display:flex; align-items:center; justify-content:space-between; font-size:0.8em; padding:2px 0;';
+                    fDiv.style.cssText = 'font-size:0.8em; padding:2px 0;';
+
+                    const fRow = document.createElement('div');
+                    fRow.style.cssText = 'display:flex; align-items:center; justify-content:space-between;';
                     const fName = document.createElement('span');
                     fName.textContent = `📄 ${f.name}`;
-                    fName.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:80%;';
+                    fName.style.cssText = 'overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:70%;';
+                    const fBtns = document.createElement('div');
+                    fBtns.style.cssText = 'display:flex; align-items:center; flex-shrink:0;';
+                    const fEdit = document.createElement('button');
+                    fEdit.className = 'edit-knowledge-btn';
+                    fEdit.dataset.projectId = p.id;
+                    fEdit.dataset.fileName = f.name;
+                    fEdit.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center;';
+                    fEdit.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">edit</span>';
                     const fDel = document.createElement('button');
                     fDel.className = 'delete-knowledge-btn';
                     fDel.dataset.projectId = p.id;
                     fDel.dataset.fileName = f.name;
-                    fDel.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center; flex-shrink:0;';
+                    fDel.style.cssText = 'background:none; border:none; cursor:pointer; padding:0 2px; color:inherit; display:flex; align-items:center;';
                     fDel.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;">close</span>';
-                    fDiv.appendChild(fName);
-                    fDiv.appendChild(fDel);
+                    fBtns.appendChild(fEdit);
+                    fBtns.appendChild(fDel);
+                    fRow.appendChild(fName);
+                    fRow.appendChild(fBtns);
+
+                    const fEditArea = document.createElement('div');
+                    fEditArea.style.cssText = 'display:none; margin-top:4px;';
+                    const fTextarea = document.createElement('textarea');
+                    fTextarea.value = f.content || '';
+                    fTextarea.style.cssText = 'width:100%; height:120px; font-size:0.9em; box-sizing:border-box; resize:vertical;';
+                    const fSaveBtn = document.createElement('button');
+                    fSaveBtn.textContent = '保存';
+                    fSaveBtn.style.cssText = 'margin-top:4px; margin-right:4px; font-size:0.85em;';
+                    const fCancelBtn = document.createElement('button');
+                    fCancelBtn.textContent = 'キャンセル';
+                    fCancelBtn.style.cssText = 'margin-top:4px; font-size:0.85em;';
+                    fEditArea.appendChild(fTextarea);
+                    fEditArea.appendChild(document.createElement('br'));
+                    fEditArea.appendChild(fSaveBtn);
+                    fEditArea.appendChild(fCancelBtn);
+
+                    fEdit.onclick = () => {
+                        fTextarea.value = f.content || '';
+                        fEditArea.style.display = fEditArea.style.display === 'none' ? 'block' : 'none';
+                    };
+                    fCancelBtn.onclick = () => { fEditArea.style.display = 'none'; };
+                    fSaveBtn.onclick = async () => {
+                        const projectId = parseInt(fSaveBtn.closest('[data-pid]')?.dataset.pid || fEdit.dataset.projectId, 10);
+                        const project = projectsCache.find(proj => proj.id === parseInt(fEdit.dataset.projectId, 10));
+                        if (!project) return;
+                        const idx = (project.knowledgeFiles || []).findIndex(kf => kf.name === f.name);
+                        if (idx >= 0) {
+                            project.knowledgeFiles[idx] = { ...project.knowledgeFiles[idx], content: fTextarea.value };
+                            await window.dbUtils.updateProject(project);
+                            if (window.state.activeProjectId === project.id) {
+                                window.state.activeProjectKnowledge = project.knowledgeFiles;
+                            }
+                            f.content = fTextarea.value;
+                            fEditArea.style.display = 'none';
+                        }
+                    };
+
+                    fDiv.appendChild(fRow);
+                    fDiv.appendChild(fEditArea);
                     kList.appendChild(fDiv);
                 });
                 kSection.appendChild(kList);
@@ -13115,10 +13378,10 @@ window.dbUtils = dbUtils;
                 // Show a brief visual confirmation without alert that requires interaction
                 const originalText = saveBtn.innerText;
                 saveBtn.innerText = "✓ 保存しました";
-                saveBtn.style.backgroundColor = "#2E7D32";
+                saveBtn.style.backgroundColor = "#1a6b7a";
                 setTimeout(() => {
                     saveBtn.innerText = "設定を保存";
-                    saveBtn.style.backgroundColor = "#4CAF50";
+                    saveBtn.style.backgroundColor = "#2196a8";
                 }, 2000);
             });
         }
@@ -13271,11 +13534,19 @@ window.dbUtils = dbUtils;
         const knowledge = window.state.activeProjectKnowledge;
         if (knowledge && knowledge.length > 0) {
             const knowledgeText = knowledge.map(f => `### ${f.name}\n${f.content}`).join('\n\n---\n\n');
-            const existingText = extractSystemText(systemInstruction) || '';
-            const combined = existingText
-                ? `${existingText}\n\n---\n## ナレッジ\n\n${knowledgeText}`
+            const prevStatic = systemInstruction?._staticText !== undefined
+                ? systemInstruction._staticText
+                : (extractSystemText(systemInstruction) || '');
+            const prevDynamic = systemInstruction?._dynamicText || '';
+            const newStaticText = prevStatic
+                ? `${prevStatic}\n\n---\n## ナレッジ\n\n${knowledgeText}`
                 : `## ナレッジ\n\n${knowledgeText}`;
-            systemInstruction = { parts: [{ text: combined }] };
+            const combined = [prevDynamic, newStaticText].filter(Boolean).join('\n\n');
+            systemInstruction = {
+                parts: [{ text: combined }],
+                _staticText: newStaticText,
+                _dynamicText: prevDynamic
+            };
         }
 
         const provider = state.settings.apiProvider || 'gemini';
@@ -13357,10 +13628,16 @@ window.dbUtils = dbUtils;
         const budgetTokens = state.settings.thinkingBudget ?? 8000;
         const maxTokens = Math.max(config.maxOutputTokens ?? 4000, budgetTokens + 1000);
 
+        const cacheTTL = state.settings.anthropicCacheTTL || '5m';
+        const cacheControl = cacheTTL === '1h'
+            ? { type: "ephemeral", ttl: "1h" }
+            : { type: "ephemeral" };
+
         const requestBody = {
             model: state.settings.modelName || 'claude-opus-4-6',
             messages: [],
             max_tokens: maxTokens,
+            cache_control: cacheControl,
         };
 
         if (useThinking) {
@@ -13370,8 +13647,18 @@ window.dbUtils = dbUtils;
             requestBody.temperature = config.temperature ?? 0.7;
         }
 
-        const systemText = extractSystemText(systemInstruction);
-        if (systemText) requestBody.system = systemText;
+        const _staticText = systemInstruction?._staticText;
+        const _dynamicText = systemInstruction?._dynamicText;
+        if (_staticText !== undefined || _dynamicText !== undefined) {
+            // 静的部分（システムプロンプト・ナレッジ）をキャッシュ、動的部分（記憶・サマリー）はキャッシュ対象外
+            const blocks = [];
+            if (_staticText) blocks.push({ type: "text", text: _staticText, cache_control: cacheControl });
+            if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
+            if (blocks.length > 0) requestBody.system = blocks;
+        } else {
+            const systemText = extractSystemText(systemInstruction);
+            if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: cacheControl }];
+        }
 
         apiUtils.convertGeminiToOpenAIFormat(messages).forEach(msg => {
             if (msg.role !== 'system') requestBody.messages.push(msg);
