@@ -351,6 +351,8 @@ try {
         anthropicApiKeyInput: document.getElementById('anthropic-api-key'),
         anthropicApiKeyContainer: document.getElementById('anthropic-api-key-container'),
         anthropicCacheTTLSelect: document.getElementById('anthropic-cache-ttl'),
+        novelaiApiKeyInput: document.getElementById('novelai-api-key'),
+        novelaiModelSelect: document.getElementById('novelai-model'),
         groqApiKeyInput: document.getElementById('groq-api-key'),
         groqApiKeyContainer: document.getElementById('groq-api-key-container'),
         deepseekApiKeyInput: document.getElementById('deepseek-api-key'),
@@ -603,6 +605,8 @@ const state = {
         openaiApiKey: '',
         anthropicApiKey: '',
         anthropicCacheTTL: '5m',
+        novelaiApiKey: '',
+        novelaiModel: 'nai-diffusion-4-5-curated',
         groqApiKey: '',
         deepseekApiKey: '',
         xaiApiKey: '',
@@ -2679,6 +2683,12 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         }
         if (elements.anthropicCacheTTLSelect) {
             elements.anthropicCacheTTLSelect.value = state.settings.anthropicCacheTTL || '5m';
+        }
+        if (elements.novelaiApiKeyInput) {
+            elements.novelaiApiKeyInput.value = state.settings.novelaiApiKey || '';
+        }
+        if (elements.novelaiModelSelect) {
+            elements.novelaiModelSelect.value = state.settings.novelaiModel || 'nai-diffusion-4-5-curated';
         }
         if (elements.groqApiKeyInput) {
             elements.groqApiKeyInput.value = state.settings.groqApiKey || '';
@@ -5133,7 +5143,7 @@ const appLogic = {
 
     getCurrentUiSettings() {
         const settings = {};
-        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
+        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'novelaiApiKey', 'novelaiModel', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
         const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
@@ -6979,6 +6989,8 @@ const appLogic = {
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
             anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
+            novelaiApiKey: { element: elements.novelaiApiKeyInput, event: 'input' },
+            novelaiModel: { element: elements.novelaiModelSelect, event: 'change', getValue: () => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : 'nai-diffusion-4-5-curated' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
             deepseekApiKey: { element: elements.deepseekApiKeyInput, event: 'input' },
             xaiApiKey: { element: elements.xaiApiKeyInput, event: 'input' },
@@ -8570,6 +8582,8 @@ const appLogic = {
                 
                 if (functionName === 'generate_image_stable_diffusion') {
                     uiUtils.setLoadingIndicatorText('SDで画像生成中...');
+                } else if (functionName === 'generate_image_novelai') {
+                    uiUtils.setLoadingIndicatorText('NovelAIで画像生成中...');
                 } else if (functionName === 'run_quality_checker') {
                     uiUtils.setLoadingIndicatorText('品質チェック中...');
                 } else {
@@ -8588,11 +8602,8 @@ const appLogic = {
                     toolResult = { error: { message: `ツール実行中に予期せぬエラーが発生しました: ${toolError.message}` } };
                 }
 
-                if (['generate_image', 'generate_image_stable_diffusion', 'generate_video', 'edit_image', 'display_layered_image'].includes(functionName)) {
+                if (['generate_image', 'generate_image_stable_diffusion', 'generate_image_novelai', 'generate_video', 'edit_image', 'display_layered_image'].includes(functionName)) {
                     containsTerminalAction = true;
-                    console.log(`[Function Calling] 終端アクション (${functionName}) を検出しました。`);
-                } else if (['generate_image', 'generate_video', 'edit_image', 'display_layered_image'].includes(functionName)) {
-                    containsTerminalAction = true; 
                     console.log(`[Function Calling] 終端アクション (${functionName}) を検出しました。`);
                 }
 
@@ -9216,7 +9227,8 @@ const appLogic = {
     // アプリを更新 (キャッシュクリア)
     async updateApp() {
         if (!('serviceWorker' in navigator)) {
-            await uiUtils.showCustomAlert("お使いのブラウザはService Workerをサポートしていません。");
+            const doReload = await uiUtils.showCustomConfirm("お使いのブラウザはService Workerをサポートしていません。\nページを強制リロードして最新版を取得しますか？");
+            if (doReload) window.location.reload(true);
             return;
         }
         
@@ -12689,7 +12701,68 @@ const appLogic = {
         return await this.base64ToBlob(base64Image, 'image/png');
     },
 
+    handleNovelAIGeneration: async function(args) {
+        if (!state.settings.novelaiApiKey) {
+            return { error: "NovelAI APIトークンが設定されていません。設定画面で追加してください。" };
+        }
+        try {
+            uiUtils.setLoadingIndicatorText('NovelAIで画像生成中...');
+            const imageBlob = await this.callNovelAIApi(args);
+            const imageId = await this.saveImageBlob(imageBlob);
+            return {
+                success: true,
+                message: "NovelAIによる画像の生成と保存に成功しました。",
+                _internal_ui_action: { type: "display_generated_images", imageIds: [imageId] }
+            };
+        } catch (error) {
+            console.error("[NovelAI] 画像生成エラー:", error);
+            return { success: false, error: { message: `NovelAI画像生成エラー: ${error.message}` } };
+        }
+    },
 
+    callNovelAIApi: async function(args) {
+        const endpoint = 'https://image.novelai.net/ai/generate-image';
+        const payload = {
+            input: args.prompt,
+            model: state.settings.novelaiModel || 'nai-diffusion-4-5-curated',
+            action: 'generate',
+            parameters: {
+                width: args.width || 832,
+                height: args.height || 1216,
+                steps: 28,
+                n_samples: 1,
+                negative_prompt: args.negative_prompt || 'lowres, bad anatomy, bad hands, text, error, worst quality',
+                seed: Math.floor(Math.random() * 4294967295)
+            }
+        };
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${state.settings.novelaiApiKey}`
+            },
+            body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+            let errorMsg = `NovelAI APIエラー (${response.status})`;
+            try { const j = await response.json(); errorMsg += `: ${j.message || JSON.stringify(j)}`; } catch {}
+            throw new Error(errorMsg);
+        }
+        // レスポンスはZIPファイル → JSZipで展開
+        const zipBlob = await response.blob();
+        if (!window.JSZip) {
+            await new Promise((resolve, reject) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+                s.onload = resolve; s.onerror = reject;
+                document.head.appendChild(s);
+            });
+        }
+        const zip = await window.JSZip.loadAsync(zipBlob);
+        const files = Object.values(zip.files).filter(f => !f.dir);
+        if (files.length === 0) throw new Error("ZIPファイルに画像が見つかりませんでした。");
+        return await files[0].async('blob');
+    },
 
     runQualityChecker: async function(imageBlob, prompt, responseText = '') {
         const qcModel = state.settings.sdQcModel;
