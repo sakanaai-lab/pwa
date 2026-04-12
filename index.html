@@ -652,6 +652,21 @@
                     </p>
                 </div>
 
+                <div class="settings-group" id="novelai-settings">
+                    <h3>NovelAI設定</h3>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-top:-10px;margin-bottom:15px;">
+                        Function Callingで「絵を描いて」と言うとNovelAIでアニメ調画像を生成します。
+                    </p>
+                    <label for="novelai-api-key">APIトークン:</label>
+                    <input type="password" id="novelai-api-key" placeholder="eyJ..." autocomplete="new-password">
+                    <label for="novelai-model" style="margin-top:15px;">モデル:</label>
+                    <select id="novelai-model">
+                        <option value="nai-diffusion-4-5-curated">V4.5 Curated（推奨）</option>
+                        <option value="nai-diffusion-4-5-full">V4.5 Full</option>
+                        <option value="nai-diffusion-3">V3</option>
+                    </select>
+                </div>
+
                 <div class="settings-group">
                     <h3>校正機能</h3>
                     <label class="checkbox-label">
