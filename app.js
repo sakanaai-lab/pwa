@@ -10377,9 +10377,10 @@ const appLogic = {
                     }
 
                     // テキストコンテンツの処理
-                    // thought:true または thoughtSignature を持つパートは思考プロセス
+                    // thought:true のパートのみ思考プロセス
+                    // thoughtSignatureのみを持つテキストは通常コンテンツとして扱う（Gemini 2.5 Pro対応）
                     else if (part.text) {
-                        if (part.thought === true || part.thoughtSignature) {
+                        if (part.thought === true) {
                             finalThoughtSummary += part.text;
                         } else {
                             finalContent += part.text;
