@@ -3942,7 +3942,8 @@ const apiUtils = {
             ];
         } else {
             if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0 && systemInstruction.parts[0].text) {
-                requestBody.systemInstruction = systemInstruction;
+                const { _staticText, _dynamicText, ...cleanSystemInstruction } = systemInstruction;
+                requestBody.systemInstruction = cleanSystemInstruction;
             }
 
             let finalTools = [];
