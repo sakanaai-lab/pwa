@@ -13907,6 +13907,28 @@ window.dbUtils = dbUtils;
                 if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
             }
         }
+        // Post-process: strip orphaned tool_use blocks (no matching tool_result in next message)
+        // This happens when _aggregateMessages merges tool call results into a single model message
+        // but discards the intermediate tool response messages from the conversation history.
+        for (let i = 0; i < anthropicMessages.length; i++) {
+            const msg = anthropicMessages[i];
+            if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+            const toolUseIds = msg.content.filter(b => b.type === 'tool_use').map(b => b.id);
+            if (toolUseIds.length === 0) continue;
+
+            const nextMsg = anthropicMessages[i + 1];
+            const nextContent = nextMsg && Array.isArray(nextMsg.content) ? nextMsg.content : [];
+            const toolResultIds = new Set(nextContent.filter(b => b.type === 'tool_result').map(b => b.tool_use_id));
+            const orphanedIds = new Set(toolUseIds.filter(id => !toolResultIds.has(id)));
+            if (orphanedIds.size === 0) continue;
+
+            const filtered = msg.content.filter(b => !(b.type === 'tool_use' && orphanedIds.has(b.id)));
+            if (filtered.length === 0) {
+                filtered.push({ type: 'text', text: '(tool execution result incorporated)' });
+            }
+            msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
+        }
+
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
