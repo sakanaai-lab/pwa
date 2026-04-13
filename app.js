@@ -13961,6 +13961,13 @@ window.dbUtils = dbUtils;
                 finishReason: 'STOP'
             }]
         };
+        if (data.usage) {
+            geminiFormat.usageMetadata = {
+                promptTokenCount: data.usage.input_tokens || 0,
+                candidatesTokenCount: data.usage.output_tokens || 0,
+                totalTokenCount: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)
+            };
+        }
         return { ok: true, status: 200, json: async () => geminiFormat };
     }
 
