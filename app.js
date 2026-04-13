@@ -13787,7 +13787,6 @@ window.dbUtils = dbUtils;
             model: state.settings.modelName || 'claude-opus-4-6',
             messages: [],
             max_tokens: maxTokens,
-            cache_control: cacheControl,
         };
 
         if (useThinking) {
@@ -13838,6 +13837,8 @@ window.dbUtils = dbUtils;
                 }
             }
             if (anthropicTools.length > 0) {
+                // 最後のツール定義にcache_controlを付与してツール定義全体をキャッシュ
+                anthropicTools[anthropicTools.length - 1].cache_control = cacheControl;
                 requestBody.tools = anthropicTools;
                 // thinking有効時はtool_choice強制不可
                 if (forceCalling && !useThinking) {
@@ -13907,6 +13908,42 @@ window.dbUtils = dbUtils;
                 if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
             }
         }
+        // Post-process: strip orphaned tool_use blocks (no matching tool_result in next message)
+        // This happens when _aggregateMessages merges tool call results into a single model message
+        // but discards the intermediate tool response messages from the conversation history.
+        for (let i = 0; i < anthropicMessages.length; i++) {
+            const msg = anthropicMessages[i];
+            if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+            const toolUseIds = msg.content.filter(b => b.type === 'tool_use').map(b => b.id);
+            if (toolUseIds.length === 0) continue;
+
+            const nextMsg = anthropicMessages[i + 1];
+            const nextContent = nextMsg && Array.isArray(nextMsg.content) ? nextMsg.content : [];
+            const toolResultIds = new Set(nextContent.filter(b => b.type === 'tool_result').map(b => b.tool_use_id));
+            const orphanedIds = new Set(toolUseIds.filter(id => !toolResultIds.has(id)));
+            if (orphanedIds.size === 0) continue;
+
+            const filtered = msg.content.filter(b => !(b.type === 'tool_use' && orphanedIds.has(b.id)));
+            if (filtered.length === 0) {
+                filtered.push({ type: 'text', text: '(tool execution result incorporated)' });
+            }
+            msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
+        }
+
+        // 会話履歴にキャッシュブレークポイントを追加
+        // 最後から2番目のメッセージ（直前のターンの最後）にcache_controlを付与し、
+        // それ以前の会話履歴プレフィックス全体をキャッシュする
+        if (anthropicMessages.length >= 2) {
+            const target = anthropicMessages[anthropicMessages.length - 2];
+            // contentが文字列の場合は配列に変換
+            if (typeof target.content === 'string') {
+                target.content = [{ type: 'text', text: target.content }];
+            }
+            if (Array.isArray(target.content) && target.content.length > 0) {
+                target.content[target.content.length - 1].cache_control = cacheControl;
+            }
+        }
+
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -13961,6 +13998,13 @@ window.dbUtils = dbUtils;
                 finishReason: 'STOP'
             }]
         };
+        if (data.usage) {
+            geminiFormat.usageMetadata = {
+                promptTokenCount: data.usage.input_tokens || 0,
+                candidatesTokenCount: data.usage.output_tokens || 0,
+                totalTokenCount: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)
+            };
+        }
         return { ok: true, status: 200, json: async () => geminiFormat };
     }
 
