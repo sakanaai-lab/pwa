@@ -14004,10 +14004,13 @@ window.dbUtils = dbUtils;
             }]
         };
         if (data.usage) {
+            const inputTotal = (data.usage.input_tokens || 0)
+                + (data.usage.cache_creation_input_tokens || 0)
+                + (data.usage.cache_read_input_tokens || 0);
             geminiFormat.usageMetadata = {
-                promptTokenCount: data.usage.input_tokens || 0,
+                promptTokenCount: inputTotal,
                 candidatesTokenCount: data.usage.output_tokens || 0,
-                totalTokenCount: (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0)
+                totalTokenCount: inputTotal + (data.usage.output_tokens || 0)
             };
         }
         return { ok: true, status: 200, json: async () => geminiFormat };
