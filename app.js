@@ -12729,17 +12729,19 @@ const appLogic = {
         const model = state.settings.novelaiModel || 'nai-diffusion-4-5-curated';
         // v4/v4.5モデルはparams_version:3が必要
         const isV4 = model.includes('4');
-        const negPrompt = args.negative_prompt || 'lowres, bad anatomy, bad hands, text, error, worst quality';
+        const qualityPrefix = 'masterpiece, best quality, amazing quality, very aesthetic, absurdres';
+        const finalPrompt = args.prompt ? `${qualityPrefix}, ${args.prompt}` : qualityPrefix;
+        const negPrompt = args.negative_prompt || 'lowres, worst quality, low quality, bad anatomy, bad hands, missing fingers, blurry, jpeg artifacts';
         const payload = {
-            input: args.prompt,
+            input: finalPrompt,
             model: model,
             action: 'generate',
             parameters: {
                 params_version: isV4 ? 3 : 1,
                 width: args.width || 832,
                 height: args.height || 1216,
-                scale: 6,
-                sampler: 'k_euler',
+                scale: 5.0,
+                sampler: 'k_euler_ancestral',
                 steps: 28,
                 n_samples: 1,
                 ucPreset: 0,
@@ -12757,7 +12759,7 @@ const appLogic = {
                 reference_strength_multiple: [],
                 ...(isV4 ? {
                     v4_prompt: {
-                        caption: { base_caption: args.prompt, char_captions: [] },
+                        caption: { base_caption: finalPrompt, char_captions: [] },
                         use_coords: false,
                         use_order: true
                     },
