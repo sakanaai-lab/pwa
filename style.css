@@ -433,6 +433,16 @@ body.dark-mode #chat-overlay {
     border-bottom-left-radius: var(--border-radius-sm);
     max-width: 90%;
 }
+.message[data-turn]::before {
+    content: "#" attr(data-turn);
+    display: block;
+    font-size: 0.6rem;
+    line-height: 1;
+    color: var(--text-secondary);
+    opacity: 0.4;
+    margin-bottom: 2px;
+}
+.message.user[data-turn]::before { text-align: right; }
 .message.error {
     background-color: var(--bg-error-message);
     color: var(--text-error);
