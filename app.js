@@ -1924,6 +1924,18 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', role);
     messageDiv.dataset.index = index;
+
+    // ターン番号を計算して設定
+    if (role === 'user' || role === 'model') {
+        let turnNumber = 0;
+        for (let i = 0; i <= index; i++) {
+            const m = state.currentMessages[i];
+            if (!m || m.isHidden || m.role === 'tool' || m.role === 'error') continue;
+            if (m.isCascaded && !m.isSelected) continue;
+            if (m.role === 'user') turnNumber++;
+        }
+        messageDiv.dataset.turn = turnNumber;
+    }
     
     if (role === 'model' && messageData && messageData.thoughtSummary) {
         const thoughtDetails = document.createElement('details');
