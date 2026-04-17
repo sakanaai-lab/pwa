@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.13";
+const APP_VERSION = "1.14";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -88,6 +88,7 @@ const OPENAI_MODELS = [
 const DEFAULT_OPENAI_MODEL = 'gpt-4o';
 
 const ANTHROPIC_MODELS = [
+    { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
     { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
@@ -131,6 +132,10 @@ const MISTRAL_MODELS = [
 const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
+    "1.14": [
+        "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
+        "Claude Opus 4.7モデルを追加。"
+    ],
     "1.13": [
         "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
         "Function Calling使用後にツールをOFFにしてチャットすると発生していた`tool_use without tool_result`エラーを修正。",
@@ -356,6 +361,7 @@ try {
         anthropicApiKeyInput: document.getElementById('anthropic-api-key'),
         anthropicApiKeyContainer: document.getElementById('anthropic-api-key-container'),
         anthropicCacheTTLSelect: document.getElementById('anthropic-cache-ttl'),
+        anthropicEffortSelect: document.getElementById('anthropic-effort'),
         novelaiApiKeyInput: document.getElementById('novelai-api-key'),
         novelaiModelSelect: document.getElementById('novelai-model'),
         groqApiKeyInput: document.getElementById('groq-api-key'),
@@ -610,6 +616,7 @@ const state = {
         openaiApiKey: '',
         anthropicApiKey: '',
         anthropicCacheTTL: '5m',
+        anthropicEffort: 'high',
         novelaiApiKey: '',
         novelaiModel: 'nai-diffusion-4-5-curated',
         groqApiKey: '',
@@ -1007,7 +1014,7 @@ const dbUtils = {
                                 'enableProofreading', 'proofreadingModelName', 'proofreadingSystemInstruction',
                                 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'googleSearchApiKey',
                                 'googleSearchEngineId', 'messageOpacity', 'overlayOpacity', 'headerColor',
-                                'allowPromptUiChanges', 'forceFunctionCalling'
+                                'allowPromptUiChanges', 'forceFunctionCalling', 'anthropicEffort'
                             ];
 
                             const newProfileSettings = {};
@@ -2700,6 +2707,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         }
         if (elements.anthropicCacheTTLSelect) {
             elements.anthropicCacheTTLSelect.value = state.settings.anthropicCacheTTL || '5m';
+        }
+        if (elements.anthropicEffortSelect) {
+            elements.anthropicEffortSelect.value = state.settings.anthropicEffort || 'high';
         }
         if (elements.novelaiApiKeyInput) {
             elements.novelaiApiKeyInput.value = state.settings.novelaiApiKey || '';
@@ -5161,7 +5171,7 @@ const appLogic = {
 
     getCurrentUiSettings() {
         const settings = {};
-        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'novelaiApiKey', 'novelaiModel', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
+        const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'anthropicEffort', 'novelaiApiKey', 'novelaiModel', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
         const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
@@ -7007,6 +7017,7 @@ const appLogic = {
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
             anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
+            anthropicEffort: { element: elements.anthropicEffortSelect, event: 'change', getValue: () => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : 'high' },
             novelaiApiKey: { element: elements.novelaiApiKeyInput, event: 'input' },
             novelaiModel: { element: elements.novelaiModelSelect, event: 'change', getValue: () => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : 'nai-diffusion-4-5-curated' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },
@@ -13791,26 +13802,39 @@ window.dbUtils = dbUtils;
         const apiKey = state.settings.anthropicApiKey;
         if (!apiKey) { const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
 
-        const useThinking = state.settings.includeThoughts || state.settings.thinkingBudget !== null;
-        const budgetTokens = state.settings.thinkingBudget ?? 8000;
-        const maxTokens = Math.max(config.maxOutputTokens ?? 4000, budgetTokens + 1000);
+        const effort = state.settings.anthropicEffort || null;
+        const useAdaptive = !!effort;
+        const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
+        const useThinking = useAdaptive || useManualThinking;
+        const maxTokens = useAdaptive
+            ? Math.max(config.maxOutputTokens ?? 16000, 16000)
+            : useManualThinking
+                ? Math.max(config.maxOutputTokens ?? 4000, state.settings.thinkingBudget + 1000)
+                : config.maxOutputTokens ?? 4000;
 
         const cacheTTL = state.settings.anthropicCacheTTL || '5m';
         const cacheControl = cacheTTL === '1h'
             ? { type: "ephemeral", ttl: "1h" }
             : { type: "ephemeral" };
 
+        const model = state.settings.modelName || 'claude-opus-4-6';
         const requestBody = {
-            model: state.settings.modelName || 'claude-opus-4-6',
+            model,
             messages: [],
             max_tokens: maxTokens,
         };
 
-        if (useThinking) {
-            requestBody.thinking = { type: 'enabled', budget_tokens: budgetTokens };
+        if (useAdaptive) {
+            requestBody.thinking = { type: 'adaptive' };
+            requestBody.temperature = 1;
+        } else if (useManualThinking) {
+            requestBody.thinking = { type: 'enabled', budget_tokens: state.settings.thinkingBudget };
             requestBody.temperature = 1;
         } else {
             requestBody.temperature = config.temperature ?? 0.7;
+        }
+        if (effort) {
+            requestBody.output_config = { effort };
         }
 
         const _staticText = systemInstruction?._staticText;

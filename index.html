@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0" />
     <!-- CSSファイルを外部から読み込む -->
-    <link rel="stylesheet" href="style.css?v=1.13">
+    <link rel="stylesheet" href="style.css?v=1.14">
     <link rel="stylesheet" href="prism.css" />
     <script src="marked.js" defer></script>
     <script src="function-calling.js?v=1.12" defer></script>
@@ -30,7 +30,7 @@
                 console.error("AWS Bedrock Runtime SDKの読み込みに失敗しました:", err);
             });
     </script>
-    <script src="app.js?v=1.13" defer></script>
+    <script src="app.js?v=1.14" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -320,6 +320,15 @@
                                 <option value="1h">1時間（長い会話向け）</option>
                             </select>
                             <p style="font-size: 11px; color: var(--text-secondary); margin-top: 6px;">※ 1時間TTLはキャッシュ書き込みコストが2倍になりますが、5分以上間隔が空く会話で有効です。</p>
+                            <label for="anthropic-effort" style="margin-top: 15px;">思考の深さ (Effort):</label>
+                            <select id="anthropic-effort">
+                                <option value="">OFF (思考なし)</option>
+                                <option value="low">low（速度・コスト重視）</option>
+                                <option value="medium">medium（バランス型）</option>
+                                <option value="high" selected>high（デフォルト）</option>
+                                <option value="max">max（最大品質）</option>
+                            </select>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">※ Claude APIでの思考の深さ。adaptive thinkingを使用。<br>※ OFFでも応答の詳しさに影響。思考表示にはInclude Thoughtsも必要。</p>
                         </div>
 
                         <div id="groq-api-key-container" class="hidden">

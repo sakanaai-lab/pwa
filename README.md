@@ -10,8 +10,9 @@
 | **カラーテーマ** | ライトモードを水色・ブルーグリーン系「Aquarium」テーマに変更 |
 | **マルチプロバイダー対応** | OpenAI・Anthropic・Groq・DeepSeek・xAI・Mistral のAPIをネイティブサポート。Anthropic使用時はプロンプトキャッシングを自動適用 |
 | **カスタムモデル登録** | 各プロバイダーに任意のモデルIDを追加可能 |
-| **推論モデル対応** | OpenAI o-series / DeepSeek-R1 / Anthropic Extended Thinking に最適化されたAPIパラメータを自動適用 |
+| **推論モデル対応** | OpenAI o-series / DeepSeek-R1 / Anthropic Adaptive Thinking に最適化されたAPIパラメータを自動適用 |
 | **思考プロセス表示** | Gemini・Claude・DeepSeek-R1 の思考プロセスを折りたたみで表示、日本語翻訳も対応 |
+| **Claude思考の深さ制御** | Anthropic APIの思考の深さ（effort: low/medium/high/max）を設定画面から選択可能 |
 | **設定画面UI** | アコーディオン形式に再構築、保存ボタンをヘッダー右上に固定 |
 | **NovelAI画像生成** | Function Calling経由でアニメ・イラスト調の画像を生成。「絵を描いて」と言うだけで自動呼び出し。Gemini・OpenAI・Claude の全プロバイダーで動作 |
 | **Stable Diffusion連携** | 個人環境では不使用のため削除 |
@@ -108,11 +109,13 @@
 | モデル | 思考の仕組み |
 |---|---|
 | Gemini 2.5 Pro / Gemini 3.x | Googleの思考機能（thinkingConfig） |
-| Claude 3.7 Sonnet / Claude Opus 4以降 | Anthropic Extended Thinking |
+| Claude Opus 4.6 / 4.7 / Sonnet 4.6 | Anthropic Adaptive Thinking |
 | DeepSeek-R1 / deepseek-reasoner | reasoning_content フィールド |
 | Groqのr1系モデルなど | `<think>` タグ |
 
 ## 設定方法
+
+### Gemini / DeepSeek / Groq の場合
 
 1. 設定画面の **「その他パラメータ」** セクションを開きます。
 2. **「Thinking Budget」** に数値を入力します（推奨：`1024`）。
@@ -121,6 +124,20 @@
    - ⚠️ 数値を大きくしすぎると、思考プロセスが長くなる分だけモデルが内容を深く検討するため、ロールプレイなどの際にコンテンツポリシーで応答を断られやすくなります。**1024 推奨**。
 3. **「Include Thoughts」** にチェックを入れます。
 4. **「設定を保存」** します。
+
+### Claude（Anthropic）の場合
+
+1. 設定画面でプロバイダーを **Anthropic** に設定します。
+2. Anthropic設定セクションの **「思考の深さ (Effort)」** ドロップダウンから深さを選択します。
+   - **OFF**：思考なし（応答の詳しさにも影響）
+   - **low**：速度・コスト重視
+   - **medium**：バランス型（Sonnet 4.6推奨）
+   - **high**：デフォルト（パラメータ省略時と同等）
+   - **max**：最大品質
+3. **「Include Thoughts」** にチェックを入れると、思考プロセスが折りたたみ表示されます。
+4. **「設定を保存」** します。
+
+> **💡 ポイント：** Claude の思考の深さ（effort）は adaptive thinking を使用しており、従来の `budget_tokens` 指定に比べてモデルが自律的に思考量を調整します。Thinking Budget を空欄にしたまま effort だけ設定すれば OK です。
 
 > **💡 ヒント：** 「思考プロセスを日本語に翻訳する」にチェックを入れると、英語の思考プロセスを自動で日本語に翻訳します。翻訳には別途 Gemini API キーが必要です。
 
@@ -663,6 +680,7 @@ AIがユーザーの意図を汲み取り、事前に用意された「ツール
 
 | 日付 | 内容 |
 |---|---|
+| **2026-04-17** | Claude Adaptive Thinking 対応：思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。Claude Opus 4.7モデルを追加 |
 | **2026-04-13** | **NovelAI画像生成対応**：Function Callingで「絵を描いて」と言うとアニメ・イラスト調の画像を自動生成。Gemini・OpenAI・Claude の3プロバイダーすべてで動作。品質タグ自動付与・k_euler_ancestral サンプラー使用 |
 | **2026-04-13** | OpenAI プロバイダーで Function Calling が動作しないバグを修正（ツール定義がAPIリクエストに含まれていなかった） |
 | **2026-04-13** | Claude プロバイダーに Function Calling サポートを追加（Anthropic形式のtool定義・tool_use/tool_resultのメッセージ変換） |
