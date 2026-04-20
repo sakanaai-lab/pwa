@@ -316,6 +316,7 @@
                             <textarea id="anthropic-custom-models" placeholder="例: claude-3-7-sonnet-20250219, claude-3-5-sonnet-20241022"></textarea>
                             <label for="anthropic-cache-ttl" style="margin-top: 15px;">プロンプトキャッシュ保持時間:</label>
                             <select id="anthropic-cache-ttl">
+                                <option value="none">なし（キャッシュ未使用）</option>
                                 <option value="5m">5分（デフォルト・低コスト）</option>
                                 <option value="1h">1時間（長い会話向け）</option>
                             </select>

@@ -431,7 +431,7 @@ body.dark-mode #chat-overlay {
     background-color: color-mix(in srgb, var(--bg-model-message) calc(var(--message-bubble-opacity, 1) * 100%), transparent);
     align-self: flex-start;
     border-bottom-left-radius: var(--border-radius-sm);
-    max-width: 90%;
+    max-width: 95%;
 }
 .message[data-turn]::before {
     content: "#" attr(data-turn);
@@ -441,6 +441,9 @@ body.dark-mode #chat-overlay {
     color: var(--text-secondary);
     opacity: 0.7;
     margin-bottom: 2px;
+}
+.message.model[data-turn][data-model]::before {
+    content: "#" attr(data-turn) "  " attr(data-model);
 }
 .message.user[data-turn]::before { text-align: right; }
 .message.error {
