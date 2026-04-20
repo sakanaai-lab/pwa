@@ -1167,6 +1167,7 @@ const dbUtils = {
                     assetId: att.assetId
                 })) : undefined,
                 usageMetadata: msg.usageMetadata,
+                modelName: msg.modelName,
                 executedFunctions: msg.executedFunctions,
                 generated_images: msg.generated_images,
                 generated_videos: msg.generated_videos ? msg.generated_videos.map(video => ({
@@ -1942,6 +1943,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             if (m.role === 'user') turnNumber++;
         }
         messageDiv.dataset.turn = turnNumber;
+        if (role === 'model' && messageData.modelName) {
+            messageDiv.dataset.model = messageData.modelName;
+        }
     }
     
     if (role === 'model' && messageData && messageData.thoughtSummary) {
@@ -8918,6 +8922,7 @@ const appLogic = {
             const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
             
             const finalAggregatedMessage = this._aggregateMessages(newMessages);
+            finalAggregatedMessage.modelName = state.settings.modelName;
             state.currentMessages[modelMessageIndex] = finalAggregatedMessage;
 
             uiUtils.renderChatMessages();
@@ -9886,8 +9891,7 @@ const appLogic = {
     
                 const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
                 const newAggregatedMessage = this._aggregateMessages(newMessages);
-    
-                // 成功したので、待避していたデータを取得し、待避領域をクリア
+                newAggregatedMessage.modelName = state.settings.modelName;
                 const finalOriginalResponses = state.pendingCascadeResponses || [];
                 state.pendingCascadeResponses = null;
 
@@ -13813,8 +13817,8 @@ window.dbUtils = dbUtils;
                 : config.maxOutputTokens ?? 4000;
 
         const cacheTTL = state.settings.anthropicCacheTTL || '5m';
-        const cacheControl = cacheTTL === '1h'
-            ? { type: "ephemeral", ttl: "1h" }
+        const cacheControl = cacheTTL === 'none' ? null
+            : cacheTTL === '1h' ? { type: "ephemeral", ttl: "1h" }
             : { type: "ephemeral" };
 
         const model = state.settings.modelName || 'claude-opus-4-6';
@@ -13842,12 +13846,20 @@ window.dbUtils = dbUtils;
         if (_staticText !== undefined || _dynamicText !== undefined) {
             // 静的部分（システムプロンプト・ナレッジ）をキャッシュ、動的部分（記憶・サマリー）はキャッシュ対象外
             const blocks = [];
-            if (_staticText) blocks.push({ type: "text", text: _staticText, cache_control: cacheControl });
+            if (_staticText) {
+                const block = { type: "text", text: _staticText };
+                if (cacheControl) block.cache_control = cacheControl;
+                blocks.push(block);
+            }
             if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
             if (blocks.length > 0) requestBody.system = blocks;
         } else {
             const systemText = extractSystemText(systemInstruction);
-            if (systemText) requestBody.system = [{ type: "text", text: systemText, cache_control: cacheControl }];
+            if (systemText) {
+                const block = { type: "text", text: systemText };
+                if (cacheControl) block.cache_control = cacheControl;
+                requestBody.system = [block];
+            }
         }
 
         // Add tools in Anthropic format (input_schema instead of parameters)
@@ -13878,8 +13890,9 @@ window.dbUtils = dbUtils;
                 }
             }
             if (anthropicTools.length > 0) {
-                // 最後のツール定義にcache_controlを付与してツール定義全体をキャッシュ
-                anthropicTools[anthropicTools.length - 1].cache_control = cacheControl;
+                if (cacheControl) {
+                    anthropicTools[anthropicTools.length - 1].cache_control = cacheControl;
+                }
                 requestBody.tools = anthropicTools;
                 // thinking有効時はtool_choice強制不可
                 if (forceCalling && !useThinking) {
@@ -13974,9 +13987,8 @@ window.dbUtils = dbUtils;
         // 会話履歴にキャッシュブレークポイントを追加
         // 最後から2番目のメッセージ（直前のターンの最後）にcache_controlを付与し、
         // それ以前の会話履歴プレフィックス全体をキャッシュする
-        if (anthropicMessages.length >= 2) {
+        if (cacheControl && anthropicMessages.length >= 2) {
             const target = anthropicMessages[anthropicMessages.length - 2];
-            // contentが文字列の場合は配列に変換
             if (typeof target.content === 'string') {
                 target.content = [{ type: 'text', text: target.content }];
             }
