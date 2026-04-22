@@ -134,7 +134,10 @@ const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 const VERSION_HISTORY = {
     "1.14": [
         "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
-        "Claude Opus 4.7モデルを追加。"
+        "Claude Opus 4.7モデルを追加。",
+        "モデルの応答にターン番号とモデル名を小さく表示するようにしました（例: #1 claude-opus-4-6）。",
+        "モデル側の吹き出し幅を拡大し、スマホでも読みやすくしました。",
+        "Anthropicプロンプトキャッシュ設定に「なし（キャッシュ未使用）」オプションを追加。"
     ],
     "1.13": [
         "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
