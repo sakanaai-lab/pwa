@@ -5770,9 +5770,12 @@ const appLogic = {
         if (allAvailableValues.includes(currentValue)) {
             modelSelect.value = currentValue;
         } else {
-            // デフォルトモデルを設定
+            // プロバイダーごとに最後に選んだモデルを優先、なければハードコードのデフォルト
+            const lastUsed = state.settings.lastModelPerProvider?.[provider];
             let defaultModel;
-            if (provider === 'zai') {
+            if (lastUsed && allAvailableValues.includes(lastUsed)) {
+                defaultModel = lastUsed;
+            } else if (provider === 'zai') {
                 defaultModel = DEFAULT_ZAI_MODEL;
             } else if (provider === 'openrouter') {
                 defaultModel = DEFAULT_OPENROUTER_MODEL;
@@ -12944,8 +12947,14 @@ window.dbUtils = dbUtils;
                     }
                 }
                 
+                // プロバイダーごとに最後に選んだモデルを記憶
+                const curProvider = window.state.settings.apiProvider;
+                if (curProvider && newModel) {
+                    window.state.settings.lastModelPerProvider = window.state.settings.lastModelPerProvider || {};
+                    window.state.settings.lastModelPerProvider[curProvider] = newModel;
+                }
                 if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
-                    await window.dbUtils.saveSettings({ modelName: newModel, apiProvider: window.state.settings.apiProvider });
+                    await window.dbUtils.saveSettings({ modelName: newModel, apiProvider: curProvider, lastModelPerProvider: window.state.settings.lastModelPerProvider });
                 }
                 if (window.state.activeProfileId && window.dbUtils && typeof window.dbUtils.updateProfileField === 'function') {
                     await window.dbUtils.updateProfileField(window.state.activeProfileId, 'modelName', newModel);
@@ -13576,6 +13585,7 @@ window.dbUtils = dbUtils;
 
         state.settings.customModelsText = state.settings.customModelsText || {};
         state.settings.fetchedModels = state.settings.fetchedModels || {};
+        state.settings.lastModelPerProvider = state.settings.lastModelPerProvider || {};
         // Fill defaults for empty providers and persist
         let defaultsApplied = false;
         providers.forEach(prov => {
