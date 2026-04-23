@@ -431,7 +431,7 @@ body.dark-mode #chat-overlay {
     background-color: color-mix(in srgb, var(--bg-model-message) calc(var(--message-bubble-opacity, 1) * 100%), transparent);
     align-self: flex-start;
     border-bottom-left-radius: var(--border-radius-sm);
-    max-width: 95%;
+    max-width: 90%;
 }
 .message[data-turn]::before {
     content: "#" attr(data-turn);
