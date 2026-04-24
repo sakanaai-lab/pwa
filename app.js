@@ -9283,25 +9283,22 @@ const appLogic = {
             if (doReload) window.location.reload(true);
             return;
         }
-        
+
         const confirmed = await uiUtils.showCustomConfirm("アプリのキャッシュをクリアして最新版を再取得しますか？ (ページがリロードされます)");
         if (!confirmed) return;
 
         try {
-            const registration = await navigator.serviceWorker.ready;
-            
-            if (registration && registration.active) {
-                // Service Workerにキャッシュクリアを指示します。
-                // リロード処理は、sw.jsからの完了メッセージを 'message' リスナーが受け取って実行します。
-                registration.active.postMessage({ action: 'clearCache' });
+            // 全キャッシュを削除
+            const cacheNames = await caches.keys();
+            await Promise.all(cacheNames.map(name => caches.delete(name)));
 
-            } else {
-                await uiUtils.showCustomAlert("アクティブなService Workerが見つかりませんでした。ページを強制的に再読み込みします。");
-                window.location.reload(true);
-            }
+            // Service Worker を完全に登録解除（次回アクセス時に最新sw.jsを取得させる）
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map(r => r.unregister()));
+
+            window.location.reload(true);
         } catch (error) {
             console.error("Service Workerの処理中にエラー:", error);
-            await uiUtils.showCustomAlert(`Service Workerの処理中にエラーが発生しました。ページを強制的に再読み込みします。\nエラー: ${error.message}`);
             window.location.reload(true);
         }
     },
