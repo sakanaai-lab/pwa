@@ -759,6 +759,18 @@ let resizeTimer;
 window.addEventListener('DOMContentLoaded', (event) => {
     console.log("DOM fully loaded and parsed. Initializing app...");
     appLogic.initializeApp();
+
+    // iOS Safari: フォーカス時の自動ズームをblur後にリセット
+    // フォントサイズ16px未満の入力欄がある場合に備えた保険
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+        document.addEventListener('focusout', () => {
+            viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1');
+            requestAnimationFrame(() => {
+                viewport.setAttribute('content', 'width=device-width, initial-scale=1');
+            });
+        });
+    }
 });
 
 // --- ユーティリティ関数 ---
