@@ -146,6 +146,8 @@ html, body {
     overflow: hidden;
     font-size: 14px;
     line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
 }
 button {
     cursor: pointer;
@@ -469,10 +471,12 @@ body.dark-mode #chat-overlay {
     margin-bottom: 0;
     padding: 10px;
     border-radius: var(--border-radius-lg);
-    font-size: 16px; /* iOS Safari auto-zoom prevention (triggers below 16px) */
+    font-size: 16px !important;
+    box-sizing: border-box !important;
 }
 .message-edit-area textarea {
-    font-size: 16px; /* iOS Safari auto-zoom prevention */
+    font-size: 16px !important;
+    box-sizing: border-box !important;
 }
 .chat-input-area button {
     height: 44px;
