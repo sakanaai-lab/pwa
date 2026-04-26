@@ -13088,9 +13088,10 @@ window.dbUtils = dbUtils;
         async function loadProjects() {
             if (!window.dbUtils || !window.dbUtils.getAllProjects) return;
             projectsCache = await window.dbUtils.getAllProjects();
-            
+
             // Update Header Select
-            const currentVal = headerSelect.value;
+            // activeProjectId が既に設定されていればそれを優先、なければ現在のUIの値を使う
+            const currentVal = (window.state.activeProjectId != null ? String(window.state.activeProjectId) : null) || headerSelect.value;
             headerSelect.innerHTML = '<option value="">すべてのプロジェクト</option><option value="manage">⚙️ プロジェクト管理...</option>';
             projectsCache.forEach(p => {
                 const opt = document.createElement('option');
@@ -13100,6 +13101,7 @@ window.dbUtils = dbUtils;
             });
             if (currentVal && projectsCache.find(p => p.id === parseInt(currentVal, 10))) {
                 headerSelect.value = currentVal;
+                window.state.activeProjectId = parseInt(currentVal, 10);
             } else if (currentVal === 'manage') {
                 headerSelect.value = window.state.activeProjectId || "";
             } else {
@@ -13363,6 +13365,8 @@ window.dbUtils = dbUtils;
                 return;
             }
             window.state.activeProjectId = e.target.value ? parseInt(e.target.value, 10) : null;
+            // 選択プロジェクトをリロード後も復元できるよう保存
+            window.dbUtils.saveSetting('activeProjectId', window.state.activeProjectId).catch(() => {});
             const switchedP = window.state.activeProjectId ? projectsCache.find(p => p.id === window.state.activeProjectId) : null;
             window.state.activeProjectKnowledge = switchedP ? (switchedP.knowledgeFiles || []) : [];
             if (window.uiUtils && typeof window.uiUtils.loadHistoryList === 'function') {
@@ -13420,7 +13424,23 @@ window.dbUtils = dbUtils;
             setTimeout(syncModelOpts, 1000);
         }
 
+        // リロード後に選択プロジェクトを復元
+        if (window.dbUtils && window.dbUtils.getSetting) {
+            const savedProject = await window.dbUtils.getSetting('activeProjectId');
+            if (savedProject && savedProject.value != null) {
+                window.state.activeProjectId = savedProject.value;
+            }
+        }
+
         await loadProjects();
+
+        // プロジェクトが選択されている場合はナレッジとプロンプトを反映
+        if (window.state.activeProjectId) {
+            const activeP = projectsCache.find(p => p.id === window.state.activeProjectId);
+            if (activeP) {
+                window.state.activeProjectKnowledge = activeP.knowledgeFiles || [];
+            }
+        }
     }
 
     if (document.readyState === 'loading') {
