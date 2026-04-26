@@ -5016,10 +5016,14 @@ const appLogic = {
             
             // 1. アプリの最新のデフォルト設定をベースにする
             const newSettings = { ...window.state.settings };
-            
+
             // 2. ロードしたプロファイルの設定で上書きする
+            // fetchedModels はプロファイルではなくグローバル設定として管理されるため、
+            // プロファイルマージ前に退避し、マージ後に復元する
+            const globalFetchedModels = newSettings.fetchedModels;
             const loadedProfileSettings = state.activeProfile.settings || {};
             Object.assign(newSettings, loadedProfileSettings);
+            newSettings.fetchedModels = globalFetchedModels;
 
             // 3. state.settings を更新する
             state.settings = newSettings;
