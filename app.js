@@ -4961,6 +4961,11 @@ const appLogic = {
                 state.settings.backgroundImageBlob = storedBlob.value;
                 console.log("[GlobalSettings] 背景画像BlobをDBから読み込みました。");
             }
+            const storedFetchedModels = await dbUtils.getSetting('fetchedModels');
+            if (storedFetchedModels && storedFetchedModels.value) {
+                state.settings.fetchedModels = storedFetchedModels.value;
+                console.log("[GlobalSettings] API取得モデルをDBから読み込みました。");
+            }
         } catch (error) {
             console.error("[GlobalSettings] 共通設定の読み込み中にエラーが発生しました:", error);
             // エラーが発生しても起動処理は続行する
