@@ -13310,7 +13310,10 @@ window.dbUtils = dbUtils;
                     input.type = 'file';
                     input.multiple = true;
                     input.accept = '.txt,.md,.csv,.json,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.html,.css,.xml,.yaml,.yml,.toml,.log,.sh,.pdf';
+                    input.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+                    document.body.appendChild(input);
                     input.onchange = async (e) => {
+                        document.body.removeChild(input);
                         const projectId = parseInt(btn.dataset.id, 10);
                         const project = projectsCache.find(p => p.id === projectId);
                         if (!project) return;
