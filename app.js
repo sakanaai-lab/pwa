@@ -9078,6 +9078,9 @@ const appLogic = {
             // モデルの応答をDBに保存
             await dbUtils.saveChat(null, null, { skipPush: true });
 
+            // 初回やり取り完了時にタイトルを自動生成（fire-and-forget）
+            this.autoGenerateTitle().catch(() => {});
+
             this.updateCharacterProfileButtonVisibility();
 
             // --- 自動学習トリガー ---
@@ -11689,6 +11692,114 @@ const appLogic = {
         }
     },
 
+    async autoGenerateTitle() {
+        // 初回のやり取り（ユーザー1回 + AI1回）のみ実行
+        const userMsgs = state.currentMessages.filter(m => m.role === 'user' && !m.isHidden);
+        const modelMsgs = state.currentMessages.filter(m => (m.role === 'model' || m.role === 'assistant') && !m.error && !m.isHidden);
+        if (userMsgs.length !== 1 || modelMsgs.length < 1) return;
+        if (!state.currentChatId) return;
+
+        const provider = state.settings.apiProvider || 'gemini';
+        const firstUserContent = (typeof userMsgs[0].content === 'string' ? userMsgs[0].content : JSON.stringify(userMsgs[0].content)).substring(0, 300);
+        const firstModelContent = (typeof modelMsgs[0].content === 'string' ? modelMsgs[0].content : '').substring(0, 300);
+        const titlePrompt = `以下の会話の内容を端的に表すタイトルを20文字以内で作成してください。タイトルのみを出力してください（説明・引用符不要）。\n\nユーザー: ${firstUserContent}\nAI: ${firstModelContent}`;
+
+        try {
+            let title = null;
+
+            if (provider === 'gemini') {
+                const apiKey = state.settings.apiKey;
+                if (!apiKey) return;
+                const model = state.settings.modelName || 'gemini-2.0-flash-lite';
+                const endpoint = `${GEMINI_API_BASE_URL}${model}:generateContent?key=${apiKey}`;
+                const resp = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ role: 'user', parts: [{ text: titlePrompt }] }],
+                        generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+                        safetySettings: [
+                            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+                        ]
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    title = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+                }
+            } else if (provider === 'anthropic') {
+                const apiKey = state.settings.anthropicApiKey;
+                if (!apiKey) return;
+                const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': apiKey,
+                        'anthropic-version': '2023-06-01',
+                        'anthropic-dangerous-direct-browser-access': 'true'
+                    },
+                    body: JSON.stringify({
+                        model: state.settings.modelName || 'claude-haiku-4-5-20251001',
+                        max_tokens: 30,
+                        messages: [{ role: 'user', content: titlePrompt }]
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    title = data.content?.[0]?.text?.trim();
+                }
+            } else {
+                // OpenAI互換プロバイダー
+                const apiKeyMap = {
+                    openai: state.settings.openaiApiKey,
+                    groq: state.settings.groqApiKey,
+                    deepseek: state.settings.deepseekApiKey,
+                    xai: state.settings.xaiApiKey,
+                    mistral: state.settings.mistralApiKey,
+                    openrouter: state.settings.openrouterApiKey,
+                    zai: state.settings.zaiApiKey || state.settings.apiKey
+                };
+                const baseUrlMap = {
+                    openai: 'https://api.openai.com/v1/chat/completions',
+                    groq: GROQ_API_BASE_URL,
+                    deepseek: DEEPSEEK_API_BASE_URL,
+                    xai: XAI_API_BASE_URL,
+                    mistral: MISTRAL_API_BASE_URL,
+                    openrouter: OPENROUTER_API_BASE_URL,
+                    zai: ZAI_API_BASE_URL
+                };
+                const apiKey = apiKeyMap[provider];
+                const baseUrl = baseUrlMap[provider];
+                if (!apiKey || !baseUrl) return;
+                const resp = await fetch(baseUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: state.settings.modelName,
+                        max_tokens: 30,
+                        messages: [{ role: 'user', content: titlePrompt }]
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    title = data.choices?.[0]?.message?.content?.trim();
+                }
+            }
+
+            if (!title) return;
+            title = title.replace(/^["「『\s]+|["」』\s]+$/g, '').substring(0, 25);
+            if (!title) return;
+
+            await dbUtils.saveChat(title);
+            uiUtils.renderHistoryList();
+            console.log(`[AutoTitle] タイトル生成: "${title}"`);
+        } catch (e) {
+            console.warn('[AutoTitle] タイトル自動生成失敗:', e);
+        }
+    },
 
     async triggerAutoMemorySave() {
         if (!state.activeProfileId || !state.settings.apiKey) {
