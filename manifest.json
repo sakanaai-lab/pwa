@@ -1,6 +1,6 @@
 {
-  "name": "Aquarium",
-  "short_name": "Aquarium",
+  "name": "Aquarium Chat",
+  "short_name": "Aquarium Chat",
   "description": "Your personal AI chat with multi-provider support and cloud sync.",
   "start_url": "./index.html",
   "display": "standalone",

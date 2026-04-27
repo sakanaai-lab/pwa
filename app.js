@@ -2512,7 +2512,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         // コロンを削除
         const displayTitle = titleText;
         elements.chatTitle.textContent = displayTitle;
-        document.title = `Aquarium - ${titleText}`;
+        document.title = `Aquarium Chat - ${titleText}`;
     },
 
 
@@ -4569,7 +4569,7 @@ const apiUtils = {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
                     'HTTP-Referer': window.location.origin,
-                    'X-Title': 'Aquarium'
+                    'X-Title': 'Aquarium Chat'
                 },
                 body: JSON.stringify(requestBody),
                 signal
