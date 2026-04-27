@@ -6732,6 +6732,44 @@ const appLogic = {
     },
 
     /**
+     * 「クラウドから復元」ボタン専用: sync状態を無視してDropboxから強制取得・インポートする
+     */
+    async forceRestoreFromCloud() {
+        const tokenData = await dbUtils.getSetting('dropboxTokens');
+        if (!tokenData || !tokenData.value) {
+            await uiUtils.showCustomAlert('Dropboxが接続されていません。設定画面で連携してください。');
+            return;
+        }
+
+        uiUtils.showProgressDialog('クラウドからデータを取得中...');
+        try {
+            const cloudMetadataString = await window.dropboxApi.downloadMetadata();
+            if (!cloudMetadataString) {
+                uiUtils.hideProgressDialog();
+                await uiUtils.showCustomAlert('クラウドにデータが見つかりませんでした。\nDropboxの接続状態を確認してください。');
+                return;
+            }
+
+            const importResult = await this.importDataFromString(cloudMetadataString);
+
+            await Promise.all([
+                dbUtils.saveSetting('lastSyncId', importResult.syncId),
+                dbUtils.saveSetting('syncIsDirty', false),
+                dbUtils.saveSetting('syncLastError', null),
+            ]);
+
+            uiUtils.hideProgressDialog();
+            await uiUtils.showCustomAlert('クラウドからデータを復元しました。再起動します。');
+            sessionStorage.setItem('isSyncReload', 'true');
+            window.location.reload();
+        } catch (error) {
+            uiUtils.hideProgressDialog();
+            console.error('[ForceRestore] エラー:', error);
+            await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
+        }
+    },
+
+    /**
      * [V2 Pull] Dropboxからデータをダウンロードして同期する
      */
      async handlePull(isManual = false) {
@@ -6900,11 +6938,7 @@ const appLogic = {
                 restoreFromCloudBtn.disabled = true;
                 restoreFromCloudBtn.textContent = '復元中...';
                 try {
-                    // lastSyncId を一時的にリセットして強制Pullする
-                    // （起動時の自動Pullで既に最新と判定されている場合も再取得できるように）
-                    state.sync.lastSyncId = null;
-                    await dbUtils.saveSetting('lastSyncId', null);
-                    await this.handlePull(true);
+                    await this.forceRestoreFromCloud();
                 } finally {
                     restoreFromCloudBtn.disabled = false;
                     restoreFromCloudBtn.textContent = '☁️ クラウドから復元';
