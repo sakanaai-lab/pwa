@@ -1237,6 +1237,13 @@ const dbUtils = {
                     if (chatIdForOperation) {
                         finalChatData.id = chatIdForOperation;
                     }
+                    // projectIdを保持・注入 (既存値を優先、なければアクティブプロジェクトを使用)
+                    const inheritedProjectId = (chatDataToSave && chatDataToSave.projectId) || (existingChatData && existingChatData.projectId);
+                    if (inheritedProjectId) {
+                        finalChatData.projectId = inheritedProjectId;
+                    } else if (window.state && window.state.activeProjectId) {
+                        finalChatData.projectId = window.state.activeProjectId;
+                    }
     
                     const putRequest = store.put(finalChatData);
                     putRequest.onsuccess = (event) => {
@@ -13151,22 +13158,14 @@ window.dbUtils = dbUtils;
             // Patch getAllChats to filter by activeProjectId
             const originalGetAllChats = window.dbUtils.getAllChats;
             window.dbUtils.getAllChatsUnfiltered = originalGetAllChats.bind(window.dbUtils);
-            window.dbUtils.getAllChats = async function() {
-                const allChats = await originalGetAllChats.call(this);
+            window.dbUtils.getAllChats = async function(sortBy) {
+                const allChats = await originalGetAllChats.call(this, sortBy);
                 if (window.state.activeProjectId) {
                     return allChats.filter(c => c.projectId === window.state.activeProjectId);
                 }
                 return allChats;
             };
 
-            // Patch saveChat to inject activeProjectId
-            const originalSaveChat = window.dbUtils.saveChat;
-            window.dbUtils.saveChat = async function(chatData) {
-                if (chatData && !chatData.projectId && window.state.activeProjectId) {
-                    chatData.projectId = window.state.activeProjectId;
-                }
-                return await originalSaveChat.call(this, chatData);
-            };
         }
 
         // Patch startNewChat for New Chat behavior
