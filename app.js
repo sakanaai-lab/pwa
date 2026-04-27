@@ -6564,6 +6564,7 @@ const appLogic = {
         await uiUtils.showCustomAlert(
             `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
         );
+        await dbUtils.saveSetting('activeProjectId', null);
         sessionStorage.setItem('isSyncReload', 'true');
         window.location.reload();
     },
@@ -6626,10 +6627,29 @@ const appLogic = {
 
             // --- Step 2: データ準備 ---
             await window.dropboxApi.ensureAssetsFolderExists();
-            
+
             updateProgress('ローカルデータを準備中...');
             const { metadataJson, localAssets } = await this._prepareExportData();
             const localAssetIds = new Set(localAssets.keys());
+
+            // --- 安全チェック: ローカルが空なのにクラウドにデータがある場合は上書きを拒否 ---
+            if (cloudMetadataString) {
+                const cloudDataForCheck = JSON.parse(cloudMetadataString);
+                const cloudChatCount = (cloudDataForCheck.data && cloudDataForCheck.data.chats) ? cloudDataForCheck.data.chats.length : 0;
+                const localMetaObj = JSON.parse(metadataJson);
+                const localChatCount = (localMetaObj.data && localMetaObj.data.chats) ? localMetaObj.data.chats.length : 0;
+                if (localChatCount === 0 && cloudChatCount > 0) {
+                    console.error(`[Sync Push] 安全チェック失敗: ローカルチャット数=${localChatCount}, クラウドチャット数=${cloudChatCount}。クラウドの上書きを中止します。`);
+                    state.sync.isSyncing = false;
+                    this.updateSyncStatusUI('error', 'ローカルデータが空のため同期を中断しました');
+                    if (isManual) {
+                        uiUtils.hideProgressDialog();
+                        await uiUtils.showCustomAlert('安全のため同期を中断しました。\n\nローカルのチャット履歴が空ですが、クラウドにはデータが存在します。\nクラウドからデータを復元してから再試行してください。');
+                    }
+                    await window.dropboxApi.deleteLockFile();
+                    return;
+                }
+            }
 
             const cloudAssetsList = await window.dropboxApi.listAssets();
             const cloudAssetIds = new Set(cloudAssetsList.map(asset => asset.name));
@@ -6776,6 +6796,7 @@ const appLogic = {
 
             uiUtils.hideProgressDialog();
             await uiUtils.showCustomAlert('クラウドからデータを復元しました。再起動します。');
+            await dbUtils.saveSetting('activeProjectId', null);
             sessionStorage.setItem('isSyncReload', 'true');
             window.location.reload();
         } catch (error) {
@@ -6903,6 +6924,7 @@ const appLogic = {
                 }
 
                 await uiUtils.showCustomAlert(finalMessage);
+                await dbUtils.saveSetting('activeProjectId', null);
                 sessionStorage.setItem('isSyncReload', 'true'); // リロード後の処理のためにフラグを立てる
                 window.location.reload();
 
