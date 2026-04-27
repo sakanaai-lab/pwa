@@ -6652,10 +6652,26 @@ const appLogic = {
             }
 
             // --- Step 4: 不要なアセットの削除 ---
-            if (assetsToDelete.length > 0) {
-                console.log(`[Sync Core Push V2] ${assetsToDelete.length}個の不要なアセットを削除します。`);
-                updateProgress(`${assetsToDelete.length}個の不要アセットを削除中...`);
-                await window.dropboxApi.deleteAssets(assetsToDelete);
+            // 安全のため、ローカルにないかつメタデータにも参照されていないアセットのみ削除する。
+            // ローカルDBが空・不完全な状態でPushしても正常なアセットを誤削除しない。
+            const metadataObj = JSON.parse(metadataJson);
+            const referencedAssetIds = new Set();
+            (metadataObj.data.profiles || []).forEach(p => { if (p.iconAssetId) referencedAssetIds.add(p.iconAssetId); });
+            (metadataObj.data.assets || []).forEach(a => { if (a.assetId) referencedAssetIds.add(a.assetId); });
+            (metadataObj.data.chats || []).forEach(c => {
+                (c.messages || []).forEach(m => {
+                    if (m.imageIds) m.imageIds.forEach(id => { if (id) referencedAssetIds.add(id); });
+                    if (m.attachments) m.attachments.forEach(att => { if (att.assetId) referencedAssetIds.add(att.assetId); });
+                });
+            });
+            const safeToDelete = assetsToDelete.filter(id => !referencedAssetIds.has(id));
+            if (safeToDelete.length > 0) {
+                console.log(`[Sync Core Push V2] ${safeToDelete.length}個の不要なアセットを削除します。`);
+                updateProgress(`${safeToDelete.length}個の不要アセットを削除中...`);
+                await window.dropboxApi.deleteAssets(safeToDelete);
+            }
+            if (assetsToDelete.length !== safeToDelete.length) {
+                console.warn(`[Sync Core Push V2] ${assetsToDelete.length - safeToDelete.length}個のアセットはローカルにないがメタデータに参照されているため削除をスキップしました。`);
             }
 
             // --- Step 5: メタデータのアップロード ---
