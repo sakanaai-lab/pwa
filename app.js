@@ -12157,7 +12157,7 @@ const appLogic = {
             // ディープコピーの対象を、Blobを含まないメタデータのみに限定する
             const [profiles, chats, memories, projects, allSettings] = await Promise.all([
                 dbUtils.getAllProfiles().then(data => JSON.parse(JSON.stringify(data))),
-                dbUtils.getAllChats().then(data => JSON.parse(JSON.stringify(data))),
+                (window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils))().then(data => JSON.parse(JSON.stringify(data))),
                 dbUtils.getAllMemories().then(data => JSON.parse(JSON.stringify(data))),
                 window.dbUtils.getAllProjects().then(data => JSON.parse(JSON.stringify(data))),
                 new Promise((res, rej) => {
