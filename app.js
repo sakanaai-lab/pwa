@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.17";
+const APP_VERSION = "1.18";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -11770,11 +11770,12 @@ const appLogic = {
             title = title.replace(/^["「『\s]+|["」』\s]+$/g, '').substring(0, 25);
             if (!title) return;
 
-            await dbUtils.saveChat(title);
+            await dbUtils.updateChatTitleDb(state.currentChatId, title);
+            uiUtils.updateChatTitle(title);
             uiUtils.renderHistoryList();
             console.log(`[AutoTitle] タイトル生成: "${title}"`);
         } catch (e) {
-            console.warn('[AutoTitle] タイトル自動生成失敗:', e);
+            console.warn('[AutoTitle] タイトル自動生成失敗:', e.message || e);
         }
     },
 

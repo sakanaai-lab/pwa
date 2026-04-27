@@ -2913,3 +2913,7 @@ details.settings-group > summary::-webkit-details-marker {
 details.settings-group > summary:hover {
     background-color: var(--bg-hover);
 }
+
+@media screen and (max-width: 800px) {
+    html, body { font-size: 15px; }
+}
