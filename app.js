@@ -2581,12 +2581,23 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             } else {
                 elements.noHistoryMessage.classList.remove('hidden');
                 elements.historyTitle.textContent = '履歴一覧';
-                // Dropbox接続済みの場合は「クラウドから復元」ボタンを表示
+                const pEl = elements.noHistoryMessage.querySelector('p') || elements.noHistoryMessage;
                 const restoreBtn = document.getElementById('restore-from-cloud-btn');
-                if (restoreBtn) {
-                    dbUtils.getSetting('dropboxTokens').then(tok => {
-                        restoreBtn.classList.toggle('hidden', !(tok && tok.value));
-                    });
+                // フィルターなしの総数を確認し、プロジェクトフィルターで空なのか本当に空なのかを判別
+                const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+                const totalChats = await getAllUnfiltered();
+                if (totalChats.length > 0) {
+                    // プロジェクトフィルターで絞り込まれて空になっている
+                    pEl.textContent = 'このプロジェクトにチャットはありません。';
+                    if (restoreBtn) restoreBtn.classList.add('hidden');
+                } else {
+                    // DB自体が空
+                    pEl.textContent = 'チャット履歴はありません。';
+                    if (restoreBtn) {
+                        dbUtils.getSetting('dropboxTokens').then(tok => {
+                            restoreBtn.classList.toggle('hidden', !(tok && tok.value));
+                        });
+                    }
                 }
             }
 
@@ -6889,6 +6900,10 @@ const appLogic = {
                 restoreFromCloudBtn.disabled = true;
                 restoreFromCloudBtn.textContent = '復元中...';
                 try {
+                    // lastSyncId を一時的にリセットして強制Pullする
+                    // （起動時の自動Pullで既に最新と判定されている場合も再取得できるように）
+                    state.sync.lastSyncId = null;
+                    await dbUtils.saveSetting('lastSyncId', null);
                     await this.handlePull(true);
                 } finally {
                     restoreFromCloudBtn.disabled = false;
@@ -13063,6 +13078,7 @@ window.dbUtils = dbUtils;
             
             // Patch getAllChats to filter by activeProjectId
             const originalGetAllChats = window.dbUtils.getAllChats;
+            window.dbUtils.getAllChatsUnfiltered = originalGetAllChats.bind(window.dbUtils);
             window.dbUtils.getAllChats = async function() {
                 const allChats = await originalGetAllChats.call(this);
                 if (window.state.activeProjectId) {
