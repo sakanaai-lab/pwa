@@ -13337,6 +13337,19 @@ window.dbUtils = dbUtils;
 
                 const promptEditArea = document.createElement('div');
                 promptEditArea.style.cssText = 'display:none; margin-top:6px;';
+
+                // Name edit field
+                const nameLabel = document.createElement('label');
+                nameLabel.textContent = 'プロジェクト名';
+                nameLabel.style.cssText = 'font-size:0.85em; color:var(--text-secondary,#888); display:block; margin-bottom:2px;';
+                const nameInput = document.createElement('input');
+                nameInput.type = 'text';
+                nameInput.value = p.name || '';
+                nameInput.style.cssText = 'width:100%; font-size:0.9em; box-sizing:border-box; margin-bottom:8px; padding:4px 6px;';
+
+                const promptLabel = document.createElement('label');
+                promptLabel.textContent = 'システムプロンプト';
+                promptLabel.style.cssText = 'font-size:0.85em; color:var(--text-secondary,#888); display:block; margin-bottom:2px;';
                 const promptTextarea = document.createElement('textarea');
                 promptTextarea.value = p.systemPrompt || '';
                 promptTextarea.placeholder = 'このプロジェクトのシステムプロンプトを入力...';
@@ -13347,6 +13360,9 @@ window.dbUtils = dbUtils;
                 const promptCancelBtn = document.createElement('button');
                 promptCancelBtn.textContent = 'キャンセル';
                 promptCancelBtn.style.cssText = 'margin-top:4px; font-size:0.85em;';
+                promptEditArea.appendChild(nameLabel);
+                promptEditArea.appendChild(nameInput);
+                promptEditArea.appendChild(promptLabel);
                 promptEditArea.appendChild(promptTextarea);
                 promptEditArea.appendChild(document.createElement('br'));
                 promptEditArea.appendChild(promptSaveBtn);
@@ -13357,13 +13373,25 @@ window.dbUtils = dbUtils;
                     const isOpen = promptEditArea.style.display !== 'none';
                     promptEditArea.style.display = isOpen ? 'none' : 'block';
                     if (!isOpen) {
+                        nameInput.value = p.name || '';
                         promptTextarea.value = p.systemPrompt || '';
-                        promptTextarea.focus();
+                        nameInput.focus();
                     }
                 };
                 promptCancelBtn.onclick = () => { promptEditArea.style.display = 'none'; };
                 promptSaveBtn.onclick = async () => {
+                    const newName = nameInput.value.trim();
                     const newPrompt = promptTextarea.value.trim();
+                    if (newName) {
+                        p.name = newName;
+                        div.querySelector('.project-item-title').textContent = newName;
+                        // ヘッダーのselectも更新
+                        const headerSelect = document.getElementById('project-filter-select');
+                        if (headerSelect) {
+                            const opt = headerSelect.querySelector(`option[value="${p.id}"]`);
+                            if (opt) opt.textContent = newName;
+                        }
+                    }
                     p.systemPrompt = newPrompt;
                     await window.dbUtils.updateProject(p);
                     promptPreview.textContent = newPrompt || '（指示なし）';
