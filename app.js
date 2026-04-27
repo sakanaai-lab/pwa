@@ -2581,6 +2581,13 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             } else {
                 elements.noHistoryMessage.classList.remove('hidden');
                 elements.historyTitle.textContent = '履歴一覧';
+                // Dropbox接続済みの場合は「クラウドから復元」ボタンを表示
+                const restoreBtn = document.getElementById('restore-from-cloud-btn');
+                if (restoreBtn) {
+                    dbUtils.getSetting('dropboxTokens').then(tok => {
+                        restoreBtn.classList.toggle('hidden', !(tok && tok.value));
+                    });
+                }
             }
 
             // 古い履歴削除ボタンの状態を更新
@@ -2595,7 +2602,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
 
         } catch (error) {
             console.error("履歴リストのレンダリングエラー:", error);
-            elements.noHistoryMessage.textContent = "履歴の読み込み中にエラーが発生しました。";
+            const pEl = elements.noHistoryMessage.querySelector('p') || elements.noHistoryMessage;
+            pEl.textContent = "履歴の読み込み中にエラーが発生しました。";
             elements.noHistoryMessage.classList.remove('hidden');
             elements.historyTitle.textContent = '履歴一覧';
         }
@@ -6872,6 +6880,22 @@ const appLogic = {
         elements.gotoSettingsBtn.addEventListener('click', () => uiUtils.showScreen('settings'));
         elements.backToChatFromHistoryBtn.addEventListener('click', () => uiUtils.showScreen('chat'));
         elements.backToChatFromSettingsBtn.addEventListener('click', () => uiUtils.showScreen('chat'));
+
+        // クラウドから復元ボタン（Dropbox接続済みかつ履歴が空の場合に表示）
+        const restoreFromCloudBtn = document.getElementById('restore-from-cloud-btn');
+        if (restoreFromCloudBtn && !restoreFromCloudBtn._bound) {
+            restoreFromCloudBtn._bound = true;
+            restoreFromCloudBtn.addEventListener('click', async () => {
+                restoreFromCloudBtn.disabled = true;
+                restoreFromCloudBtn.textContent = '復元中...';
+                try {
+                    await this.handlePull(true);
+                } finally {
+                    restoreFromCloudBtn.disabled = false;
+                    restoreFromCloudBtn.textContent = '☁️ クラウドから復元';
+                }
+            });
+        }
     
         // --- チャット関連 ---
         elements.newChatBtn.addEventListener('click', () => this.confirmStartNewChat());
