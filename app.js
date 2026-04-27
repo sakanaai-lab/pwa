@@ -6610,23 +6610,12 @@ const appLogic = {
             if (cloudMetadataString) {
                 const cloudData = JSON.parse(cloudMetadataString);
                 if (cloudData.syncId !== state.sync.lastSyncId) {
-                    console.warn(`[Sync Push] 競合を検出！ Local: ${state.sync.lastSyncId}, Cloud: ${cloudData.syncId}`);
-                    if (isManual) uiUtils.hideProgressDialog();
-                    const confirmed = await uiUtils.showCustomConfirm(
-                        "【警告：同期の競合】\n\n" +
-                        "クラウド上のデータが、このデバイスが最後に同期した状態から変更されています。（他のデバイスが先に同期した可能性があります）\n\n" +
-                        "このまま同期を実行すると、クラウド上のデータがこのデバイスのデータで完全に上書きされます。\n\n" +
-                        "クラウドのデータを上書きして同期を続行しますか？"
-                    );
-                    if (!confirmed) {
-                        console.log("[Sync Push] ユーザーが上書きをキャンセルしました。Push処理を中断します。");
-                        state.sync.isSyncing = false;
-                        this.updateSyncStatusUI('dirty');
-                        if (isManual) uiUtils.showCustomAlert("同期がキャンセルされました。");
-                        // キャンセル時もロックファイルは削除する
-                        await window.dropboxApi.deleteLockFile();
-                        return;
-                    }
+                    // 競合時は自動マージ（Pushを止めてPull→マージ→Pushの流れへ）
+                    console.warn(`[Sync Push] 競合を検出。自動マージのためPullに切り替えます。Local: ${state.sync.lastSyncId}, Cloud: ${cloudData.syncId}`);
+                    state.sync.isSyncing = false;
+                    await window.dropboxApi.deleteLockFile();
+                    await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+                    return;
                     if (isManual) uiUtils.showProgressDialog('同期を再開しています...');
                     console.log("[Sync Push] ユーザーが上書きを承認しました。Push処理を続行します。");
                 }
@@ -6879,23 +6868,11 @@ const appLogic = {
                 const localChats = await getAllUnfiltered();
                 const localHasData = localChats.length > 0;
                 if (state.sync.isDirty || localHasData) {
-                    if (isManual) uiUtils.hideProgressDialog();
-                    const choice = await this._showSyncConflictDialog(state.sync.isDirty);
-                    if (choice === 'cancel') {
-                        console.log("[Sync Pull] ユーザーがキャンセルしました。");
-                        this.updateSyncStatusUI('dirty');
-                        if (isManual) uiUtils.showCustomAlert("同期がキャンセルされました。");
-                        state.sync.isSyncing = false;
-                        await window.dropboxApi.deleteLockFile();
-                        return;
-                    }
-                    if (choice === 'merge') {
-                        console.log("[Sync Pull] マージを実行します。");
-                        await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
-                        return; // 内部でreloadされる
-                    }
-                    // choice === 'overwrite': 以降の上書きインポートへ続行
-                    if (isManual) uiUtils.showProgressDialog('同期を再開しています...');
+                    // 競合時は自動マージ（ダイアログなし）
+                    console.log("[Sync Pull] 競合を検出。自動マージを実行します。");
+                    if (isManual) uiUtils.showProgressDialog('データをマージ中...');
+                    await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+                    return;
                 }
 
                 const importResult = await this.importDataFromString(cloudMetadataString);
