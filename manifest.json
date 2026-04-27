@@ -1,7 +1,7 @@
 {
-  "name": "GeminiPWA",
-  "short_name": "GeminiPWA",
-  "description": "Chat with Gemini and save history.",
+  "name": "Aquarium",
+  "short_name": "Aquarium",
+  "description": "Your personal AI chat with multi-provider support and cloud sync.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
