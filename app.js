@@ -6845,7 +6845,8 @@ const appLogic = {
 
             if (cloudMetadataString === null) {
                 console.log("[Sync Pull V2] クラウドにファイルが見つかりません。");
-                const localChats = await dbUtils.getAllChats();
+                const getAllUnfiltered2 = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+                const localChats = await getAllUnfiltered2();
                 if (localChats.length > 0 || state.sync.isDirty) {
                     console.log("[Sync Pull V2] ローカルにデータが存在するため、初回Pushを実行します。");
                     if (isManual) {
@@ -6873,7 +6874,9 @@ const appLogic = {
             console.log(`[Sync Pull V2] Cloud syncId: ${cloudSyncId}, Local lastSyncId: ${state.sync.lastSyncId}`);
 
             if (cloudSyncId !== state.sync.lastSyncId) {
-                const localChats = await dbUtils.getAllChats();
+                // フィルターなしで確認しないとプロジェクトフィルターで0件に見えてしまう
+                const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+                const localChats = await getAllUnfiltered();
                 const localHasData = localChats.length > 0;
                 if (state.sync.isDirty || localHasData) {
                     if (isManual) uiUtils.hideProgressDialog();
