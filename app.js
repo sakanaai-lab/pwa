@@ -6566,13 +6566,18 @@ const appLogic = {
         if (isManual) uiUtils.showProgressDialog('マージ結果をクラウドにアップロード中...');
         await this._doPush(isManual);
 
-        const localCnt = (localData.chats || []).length;
-        const cloudCnt = (cloudData.chats || []).length;
-        await uiUtils.showCustomAlert(
-            `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
-        );
         await dbUtils.saveSetting('activeProjectId', null);
         sessionStorage.setItem('isSyncReload', 'true');
+        if (isManual) {
+            const localCnt = (localData.chats || []).length;
+            const cloudCnt = (cloudData.chats || []).length;
+            await uiUtils.showCustomAlert(
+                `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
+            );
+        } else {
+            console.log(`[Sync Merge] 自動マージ完了。ローカル${(localData.chats||[]).length}件 + クラウド${(cloudData.chats||[]).length}件 → ${chatMap.size}件。静かにリロードします。`);
+            this.updateSyncStatusUI('syncing', 'データを更新中...');
+        }
         window.location.reload();
     },
 
@@ -6901,18 +6906,23 @@ const appLogic = {
                 this.updateSyncStatusUI('idle');
                 if (isManual) uiUtils.hideProgressDialog();
 
-                let finalMessage = "クラウドからデータを同期しました。アプリを再起動します。";
-                if (removedAssetInfo && Object.keys(removedAssetInfo).length > 0) {
-                    let cleanupDetails = "\n\n【通知】\nクラウド上で実体が見つからなかったため、以下のチャットから画像添付の記録を削除しました：\n";
-                    for (const chatTitle in removedAssetInfo) {
-                        cleanupDetails += `・「${chatTitle}」から ${removedAssetInfo[chatTitle].length} 件\n`;
-                    }
-                    finalMessage += cleanupDetails;
-                }
-
-                await uiUtils.showCustomAlert(finalMessage);
                 await dbUtils.saveSetting('activeProjectId', null);
-                sessionStorage.setItem('isSyncReload', 'true'); // リロード後の処理のためにフラグを立てる
+                sessionStorage.setItem('isSyncReload', 'true');
+
+                if (isManual) {
+                    let finalMessage = "クラウドからデータを同期しました。アプリを再起動します。";
+                    if (removedAssetInfo && Object.keys(removedAssetInfo).length > 0) {
+                        let cleanupDetails = "\n\n【通知】\nクラウド上で実体が見つからなかったため、以下のチャットから画像添付の記録を削除しました：\n";
+                        for (const chatTitle in removedAssetInfo) {
+                            cleanupDetails += `・「${chatTitle}」から ${removedAssetInfo[chatTitle].length} 件\n`;
+                        }
+                        finalMessage += cleanupDetails;
+                    }
+                    await uiUtils.showCustomAlert(finalMessage);
+                } else {
+                    console.log("[Sync Pull] クラウドから自動インポート完了。静かにリロードします。");
+                    this.updateSyncStatusUI('syncing', 'データを更新中...');
+                }
                 window.location.reload();
 
             } else {
