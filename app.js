@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.18";
+const APP_VERSION = "1.19";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -541,6 +541,7 @@ try {
         dropboxConnectedState: document.getElementById('dropbox-connected-state'),
         dropboxUserName: document.getElementById('dropbox-user-name'),
         dropboxSyncBtn: document.getElementById('dropbox-sync-btn'),
+        dropboxRestoreBtn: document.getElementById('dropbox-restore-btn'),
         dropboxDisconnectBtn: document.getElementById('dropbox-disconnect-btn'),
         syncStatusHeaderIcon: document.getElementById('sync-status-header-icon'),
         syncStatusSettingsIcon: document.getElementById('sync-status-settings-icon'),
@@ -7711,6 +7712,17 @@ const appLogic = {
             });
         });
 
+        elements.dropboxRestoreBtn.addEventListener('click', async () => {
+            const confirmed = await uiUtils.showCustomConfirm("クラウドのデータでローカルを上書きします。ローカルの変更は失われます。続けますか？");
+            if (!confirmed) return;
+            try {
+                await appLogic.forceRestoreFromCloud();
+            } catch (error) {
+                console.error("クラウドから復元に失敗:", error);
+                await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
+            }
+        });
+
         elements.dropboxDisconnectBtn.addEventListener('click', async () => {
             const confirmed = await uiUtils.showCustomConfirm("Dropboxとの連携を解除しますか？同期されなくなります。");
             if (confirmed) {
@@ -9079,6 +9091,11 @@ const appLogic = {
                 this.triggerAutoMemorySave(); // awaitを付けずに実行 (Fire-and-forget)
             }
             // -------------------------
+
+            // 最初のやり取り後に自動タイトル生成 (fire-and-forget)
+            if (userMessageCount === 1) {
+                this.autoGenerateTitle().catch(e => console.warn('[AutoTitle] エラー:', e.message));
+            }
 
         } catch(error) {
             console.error("--- handleSend: 最終catchブロックでエラー捕捉 ---", error);
@@ -11793,6 +11810,37 @@ const appLogic = {
             console.log(`[AutoTitle] タイトル生成: "${title}"`);
         } catch (e) {
             console.warn('[AutoTitle] タイトル自動生成失敗:', e.message || e);
+        }
+    },
+
+    async autoGenerateTitle() {
+        const userMsgs = state.currentMessages.filter(m => m.role === 'user');
+        const modelMsgs = state.currentMessages.filter(m => m.role === 'model' && m.content);
+        if (userMsgs.length !== 1 || modelMsgs.length < 1) return;
+        if (!state.currentChatId) return;
+        const firstUserText = (userMsgs[0].content || '').trim();
+        if (!firstUserText) return;
+
+        const chatId = state.currentChatId;
+        const messagesForApi = [
+            { role: 'user', parts: [{ text: firstUserText.substring(0, 500) }] },
+            { role: 'model', parts: [{ text: (modelMsgs[0].content || '').substring(0, 200) }] },
+            { role: 'user', parts: [{ text: 'この会話に適した簡潔なタイトルを20文字以内でつけてください。タイトルのテキストのみを出力してください。' }] }
+        ];
+
+        const titleAbortCtrl = new AbortController();
+        try {
+            const response = await apiUtils.callApi(messagesForApi, { temperature: 0.3, maxOutputTokens: 60 }, null, null, false, titleAbortCtrl.signal);
+            const data = await response.json();
+            let title = (data?.candidates?.[0]?.content?.parts?.find(p => p.text && p.thought !== true)?.text || '').trim();
+            title = title.replace(/^["「『【\s]+|["」』】\s]+$/g, '').trim().substring(0, 50);
+            if (!title || state.currentChatId !== chatId) return;
+            console.log(`[AutoTitle] 生成: "${title}"`);
+            await dbUtils.updateChatTitleDb(chatId, title);
+            uiUtils.updateChatTitle(title);
+            await uiUtils.renderHistoryList();
+        } catch (e) {
+            console.warn('[AutoTitle] 失敗:', e.message);
         }
     },
 
