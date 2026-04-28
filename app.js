@@ -541,6 +541,7 @@ try {
         dropboxConnectedState: document.getElementById('dropbox-connected-state'),
         dropboxUserName: document.getElementById('dropbox-user-name'),
         dropboxSyncBtn: document.getElementById('dropbox-sync-btn'),
+        dropboxRestoreBtn: document.getElementById('dropbox-restore-btn'),
         dropboxDisconnectBtn: document.getElementById('dropbox-disconnect-btn'),
         syncStatusHeaderIcon: document.getElementById('sync-status-header-icon'),
         syncStatusSettingsIcon: document.getElementById('sync-status-settings-icon'),
@@ -7722,6 +7723,17 @@ const appLogic = {
                     syncGroup.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             });
+        });
+
+        elements.dropboxRestoreBtn.addEventListener('click', async () => {
+            const confirmed = await uiUtils.showCustomConfirm("クラウドのデータでローカルを上書きします。ローカルの変更は失われます。続けますか？");
+            if (!confirmed) return;
+            try {
+                await appLogic.forceRestoreFromCloud();
+            } catch (error) {
+                console.error("クラウドから復元に失敗:", error);
+                await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
+            }
         });
 
         elements.dropboxDisconnectBtn.addEventListener('click', async () => {
