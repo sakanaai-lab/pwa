@@ -11673,8 +11673,15 @@ const appLogic = {
         // 初回のやり取り（ユーザー1回 + AI1回）のみ実行
         const userMsgs = state.currentMessages.filter(m => m.role === 'user' && !m.isHidden);
         const modelMsgs = state.currentMessages.filter(m => (m.role === 'model' || m.role === 'assistant') && !m.error && !m.isHidden);
-        if (userMsgs.length !== 1 || modelMsgs.length < 1) return;
-        if (!state.currentChatId) return;
+        console.log(`[AutoTitle] 起動: userMsgs=${userMsgs.length}, modelMsgs=${modelMsgs.length}, chatId=${state.currentChatId}, provider=${state.settings.apiProvider}`);
+        if (userMsgs.length !== 1 || modelMsgs.length < 1) {
+            console.log('[AutoTitle] 条件不一致でスキップ');
+            return;
+        }
+        if (!state.currentChatId) {
+            console.log('[AutoTitle] currentChatId なしでスキップ');
+            return;
+        }
 
         const provider = state.settings.apiProvider || 'gemini';
         const firstUserContent = (typeof userMsgs[0].content === 'string' ? userMsgs[0].content : JSON.stringify(userMsgs[0].content)).substring(0, 300);
