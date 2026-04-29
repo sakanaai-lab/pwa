@@ -132,6 +132,12 @@ const MISTRAL_MODELS = [
 const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
+    "1.20": [
+        "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
+        "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
+        "重複定義されていた `exportProfile` / `importProfile` を統合し、プロファイルのインポート後にアクティブプロファイル反映・UI更新・同期フラグ更新が確実に行われるよう修正しました。",
+        "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。"
+    ],
     "1.14": [
         "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
         "Claude Opus 4.7モデルを追加。",
