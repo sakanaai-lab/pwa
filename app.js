@@ -10796,91 +10796,6 @@ const appLogic = {
             elements.loadingIndicator.classList.add('hidden');
         }
     },
-    async exportProfile() {
-        console.log('[Debug Event] exportProfile が呼び出されました。');
-
-        if (!state.activeProfile) {
-            return uiUtils.showCustomAlert("エクスポートするプロファイルが選択されていません。");
-        }
-        
-        // stateのデータを汚染しないようにディープコピーする
-        const profileToExport = JSON.parse(JSON.stringify(state.activeProfile));
-        
-        // アイコンBlobがあればBase64に変換して埋め込む
-        if (state.activeProfile.icon instanceof Blob) {
-            try {
-                const base64Icon = await this.fileToBase64(state.activeProfile.icon);
-                profileToExport.icon = {
-                    mimeType: state.activeProfile.icon.type,
-                    data: base64Icon
-                };
-            } catch (error) {
-                console.error("アイコンのBase64変換に失敗:", error);
-                return uiUtils.showCustomAlert("アイコンのエクスポート処理に失敗しました。");
-            }
-        }
-
-        delete profileToExport.id; // DBのIDは不要なので削除
-
-        const jsonString = JSON.stringify(profileToExport, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        const safeName = profileToExport.name.replace(/[\\/:*?"<>|]/g, '_');
-        a.href = url;
-        a.download = `${safeName}.json`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-    },
-
-    async importProfile(file) {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                if (state.profiles.length >= MAX_PROFILES) {
-                    return uiUtils.showCustomAlert(`プロファイルの上限数（${MAX_PROFILES}個）に達しているため、プロファイルをインポートできません。`);
-                }
-                const importedData = JSON.parse(event.target.result);
-
-                if (!importedData.name || !importedData.settings) {
-                    throw new Error("無効なファイルです。'name'と'settings'プロパティが必要です。");
-                }
-
-                let newProfile = { ...importedData };
-                
-                if (newProfile.icon && newProfile.icon.data) {
-                    try {
-                        newProfile.icon = await this.base64ToBlob(newProfile.icon.data, newProfile.icon.mimeType);
-                    } catch (error) {
-                        console.error("インポート時のアイコン復元に失敗:", error);
-                        newProfile.icon = null;
-                    }
-                }
-
-                let finalName = newProfile.name;
-                const existingNames = state.profiles.map(p => p.name);
-                while (existingNames.includes(finalName)) {
-                    finalName = `${IMPORT_PREFIX}${finalName}`;
-                }
-                newProfile.name = finalName;
-
-                const newId = await dbUtils.addProfile(newProfile);
-                const newlyAddedProfile = await dbUtils.getProfile(newId);
-                state.profiles.push(newlyAddedProfile);
-                
-                uiUtils.updateProfileSwitcherUI();
-                await uiUtils.showCustomAlert(`プロファイル「${finalName}」をインポートしました。`);
-
-            } catch (error) {
-                console.error("プロファイルのインポートに失敗:", error);
-                await uiUtils.showCustomAlert(`プロファイルのインポートに失敗しました: ${error.message}`);
-            }
-        };
-        reader.readAsText(file);
-    },
     updateAssetCount: async function() {
         try {
             const assets = await dbUtils.getAllAssets();
@@ -11810,37 +11725,6 @@ const appLogic = {
             console.log(`[AutoTitle] タイトル生成: "${title}"`);
         } catch (e) {
             console.warn('[AutoTitle] タイトル自動生成失敗:', e.message || e);
-        }
-    },
-
-    async autoGenerateTitle() {
-        const userMsgs = state.currentMessages.filter(m => m.role === 'user');
-        const modelMsgs = state.currentMessages.filter(m => m.role === 'model' && m.content);
-        if (userMsgs.length !== 1 || modelMsgs.length < 1) return;
-        if (!state.currentChatId) return;
-        const firstUserText = (userMsgs[0].content || '').trim();
-        if (!firstUserText) return;
-
-        const chatId = state.currentChatId;
-        const messagesForApi = [
-            { role: 'user', parts: [{ text: firstUserText.substring(0, 500) }] },
-            { role: 'model', parts: [{ text: (modelMsgs[0].content || '').substring(0, 200) }] },
-            { role: 'user', parts: [{ text: 'この会話に適した簡潔なタイトルを20文字以内でつけてください。タイトルのテキストのみを出力してください。' }] }
-        ];
-
-        const titleAbortCtrl = new AbortController();
-        try {
-            const response = await apiUtils.callApi(messagesForApi, { temperature: 0.3, maxOutputTokens: 60 }, null, null, false, titleAbortCtrl.signal);
-            const data = await response.json();
-            let title = (data?.candidates?.[0]?.content?.parts?.find(p => p.text && p.thought !== true)?.text || '').trim();
-            title = title.replace(/^["「『【\s]+|["」』】\s]+$/g, '').trim().substring(0, 50);
-            if (!title || state.currentChatId !== chatId) return;
-            console.log(`[AutoTitle] 生成: "${title}"`);
-            await dbUtils.updateChatTitleDb(chatId, title);
-            uiUtils.updateChatTitle(title);
-            await uiUtils.renderHistoryList();
-        } catch (e) {
-            console.warn('[AutoTitle] 失敗:', e.message);
         }
     },
 
