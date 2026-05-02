@@ -2462,7 +2462,12 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             const formattedCandidates = usage.candidatesTokenCount.toLocaleString('en-US');
             const formattedTotal = finalTotalTokenCount.toLocaleString('en-US');
             tokenSpan.textContent = `${formattedCandidates} / ${formattedTotal}`;
-            tokenSpan.title = `Candidate Tokens / Total Tokens`;
+            let titleParts = [`出力 / 合計トークン`];
+            if (usage.cacheReadInputTokens > 0 || usage.cacheCreationInputTokens > 0) {
+                titleParts.push(`キャッシュ読取: ${(usage.cacheReadInputTokens || 0).toLocaleString('en-US')}`);
+                titleParts.push(`キャッシュ書込: ${(usage.cacheCreationInputTokens || 0).toLocaleString('en-US')}`);
+            }
+            tokenSpan.title = titleParts.join(' | ');
             actionsDiv.appendChild(tokenSpan);
         }
         if (role === 'model' && typeof messageData?.retryCount === 'number' && messageData.retryCount > 0) {
@@ -14308,13 +14313,16 @@ window.dbUtils = dbUtils;
             }]
         };
         if (data.usage) {
-            const inputTotal = (data.usage.input_tokens || 0)
-                + (data.usage.cache_creation_input_tokens || 0)
-                + (data.usage.cache_read_input_tokens || 0);
+            const cacheWrite = data.usage.cache_creation_input_tokens || 0;
+            const cacheRead = data.usage.cache_read_input_tokens || 0;
+            const inputTotal = (data.usage.input_tokens || 0) + cacheWrite + cacheRead;
+            console.log(`[Cache] cache_write=${cacheWrite} cache_read=${cacheRead} input=${data.usage.input_tokens || 0} output=${data.usage.output_tokens || 0}`);
             geminiFormat.usageMetadata = {
                 promptTokenCount: inputTotal,
                 candidatesTokenCount: data.usage.output_tokens || 0,
-                totalTokenCount: inputTotal + (data.usage.output_tokens || 0)
+                totalTokenCount: inputTotal + (data.usage.output_tokens || 0),
+                cacheCreationInputTokens: cacheWrite,
+                cacheReadInputTokens: cacheRead
             };
         }
         return { ok: true, status: 200, json: async () => geminiFormat };
