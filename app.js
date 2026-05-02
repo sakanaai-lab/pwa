@@ -136,7 +136,8 @@ const VERSION_HISTORY = {
         "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
         "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
         "重複定義されていた `exportProfile` / `importProfile` を統合し、プロファイルのインポート後にアクティブプロファイル反映・UI更新・同期フラグ更新が確実に行われるよう修正しました。",
-        "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。"
+        "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。",
+        "履歴一覧のトークン表示を改善し、合計トークンに加えて入力（prompt）/出力（completion）の内訳を表示するようにしました。"
     ],
     "1.14": [
         "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
@@ -1309,14 +1310,24 @@ const dbUtils = {
         if (!messages) return null;
 
         let totalTokens = 0;
+        let inputTokens = 0;
+        let outputTokens = 0;
         const assetIds = new Set();
         let totalAssetSize = 0;
         let attachmentCount = 0;
 
         messages.forEach(msg => {
             // トークン数を集計
-            if (msg.usageMetadata && typeof msg.usageMetadata.totalTokenCount === 'number') {
-                totalTokens += msg.usageMetadata.totalTokenCount;
+            if (msg.usageMetadata) {
+                if (typeof msg.usageMetadata.totalTokenCount === 'number') {
+                    totalTokens += msg.usageMetadata.totalTokenCount;
+                }
+                if (typeof msg.usageMetadata.promptTokenCount === 'number') {
+                    inputTokens += msg.usageMetadata.promptTokenCount;
+                }
+                if (typeof msg.usageMetadata.candidatesTokenCount === 'number') {
+                    outputTokens += msg.usageMetadata.candidatesTokenCount;
+                }
             }
             // 生成された画像IDを収集
             if (msg.imageIds) {
@@ -1357,6 +1368,8 @@ const dbUtils = {
 
         return {
             totalTokens: totalTokens,
+            inputTokens: inputTokens,
+            outputTokens: outputTokens,
             assetCount: assetIds.size + attachmentCount,
             totalAssetSize: totalAssetSize
         };
@@ -2567,7 +2580,10 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
 
                     // 統計情報を表示
                     if (chat.stats) {
-                        li.querySelector('.js-stat-tokens').innerHTML = `<span class="material-symbols-outlined">token</span>${chat.stats.totalTokens > 0 ? chat.stats.totalTokens.toLocaleString() : '0'}`;
+                        const totalTokenText = chat.stats.totalTokens > 0 ? chat.stats.totalTokens.toLocaleString() : '0';
+                        const inputTokenText = chat.stats.inputTokens > 0 ? chat.stats.inputTokens.toLocaleString() : '0';
+                        const outputTokenText = chat.stats.outputTokens > 0 ? chat.stats.outputTokens.toLocaleString() : '0';
+                        li.querySelector('.js-stat-tokens').innerHTML = `<span class="material-symbols-outlined">token</span>${totalTokenText} (入:${inputTokenText} / 出:${outputTokenText})`;
                         li.querySelector('.js-stat-assets').innerHTML = `<span class="material-symbols-outlined">perm_media</span>${chat.stats.assetCount > 0 ? chat.stats.assetCount.toLocaleString() : '0'}`;
                         li.querySelector('.js-stat-size').innerHTML = `<span class="material-symbols-outlined">database</span>${chat.stats.totalAssetSize > 0 ? formatFileSize(chat.stats.totalAssetSize) : '0 B'}`;
                     } else {
