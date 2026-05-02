@@ -7263,7 +7263,6 @@ const appLogic = {
             overlayOpacity: { element: elements.overlayOpacitySlider, event: 'input', onUpdate: () => uiUtils.applyOverlayOpacity() },
             messageOpacity: { element: elements.messageOpacitySlider, event: 'input', onUpdate: (value) => document.documentElement.style.setProperty('--message-bubble-opacity', String(value)) },
             headerColor: { element: elements.headerColorInput, event: 'input', onUpdate: () => uiUtils.applyHeaderColor() },
-            allowPromptUiChanges: { element: document.getElementById('allow-prompt-ui-changes'), event: 'change' },
             forceFunctionCalling: { element: elements.forceFunctionCallingToggle, event: 'change' },
             autoScroll: { element: elements.autoScrollToggle, event: 'change' },
             enableWideMode: { element: elements.enableWideModeToggle, event: 'change', onUpdate: () => this.applyWideMode() },
