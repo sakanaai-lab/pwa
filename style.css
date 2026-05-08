@@ -665,6 +665,7 @@ input[type="color"]::-moz-color-swatch { border: 1px solid var(--border-primary)
 .message-content hr { border: none; border-top: 1px solid var(--border-secondary); margin: 1.5em 0; }
 .message.editing.show-actions .message-actions, .message.editing.show-actions .message-cascade-controls { display: none !important; }
 .message-actions .token-count-display { font-size: 0.8rem; color: var(--text-secondary); vertical-align: middle; line-height: 1.5; white-space: nowrap; }
+.message-actions .token-cache-display { display: block; font-size: 0.75rem; color: var(--text-secondary); opacity: 0.8; }
 .thought-summary-details { margin-bottom: 10px; font-size: 13px; border: 1px solid var(--border-tertiary); border-radius: 5px; background-color: var(--bg-tertiary); }
 .thought-summary-details summary { cursor: pointer; font-weight: 500; color: var(--text-secondary); list-style: none; padding: 6px 10px; outline: none; display: flex; align-items: center; gap: 5px; user-select: none; }
 .thought-summary-details summary::before { content: '🧠'; font-size: 14px; display: inline-block; }
