@@ -2463,10 +2463,18 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             const formattedTotal = finalTotalTokenCount.toLocaleString('en-US');
             const cacheRead = usage.cacheReadInputTokens || 0;
             const cacheWrite = usage.cacheCreationInputTokens || 0;
-            let tokenText = `${formattedCandidates} / ${formattedTotal}`;
-            if (cacheRead > 0) tokenText += ` 💾${cacheRead.toLocaleString('en-US')}`;
-            if (cacheWrite > 0) tokenText += ` ✏️${cacheWrite.toLocaleString('en-US')}`;
-            tokenSpan.textContent = tokenText;
+            const toK = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+            tokenSpan.textContent = `${formattedCandidates} / ${formattedTotal}`;
+            if (cacheRead > 0 || cacheWrite > 0) {
+                const cacheSpan = document.createElement('span');
+                cacheSpan.classList.add('token-cache-display');
+                let cacheParts = [];
+                if (cacheRead > 0) cacheParts.push(`💾${toK(cacheRead)}`);
+                if (cacheWrite > 0) cacheParts.push(`✏️${toK(cacheWrite)}`);
+                cacheSpan.textContent = cacheParts.join(' ');
+                tokenSpan.appendChild(document.createElement('br'));
+                tokenSpan.appendChild(cacheSpan);
+            }
             tokenSpan.title = `出力 / 合計トークン${cacheRead > 0 ? ` | キャッシュ読取: ${cacheRead.toLocaleString('en-US')}` : ''}${cacheWrite > 0 ? ` | キャッシュ書込: ${cacheWrite.toLocaleString('en-US')}` : ''}`;
             actionsDiv.appendChild(tokenSpan);
         }
