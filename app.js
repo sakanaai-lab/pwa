@@ -14252,19 +14252,6 @@ window.dbUtils = dbUtils;
             msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
         }
 
-        // 会話履歴にキャッシュブレークポイントを追加
-        // 最後から2番目のメッセージ（直前のターンの最後）にcache_controlを付与し、
-        // それ以前の会話履歴プレフィックス全体をキャッシュする
-        if (cacheControl && anthropicMessages.length >= 2) {
-            const target = anthropicMessages[anthropicMessages.length - 2];
-            if (typeof target.content === 'string') {
-                target.content = [{ type: 'text', text: target.content }];
-            }
-            if (Array.isArray(target.content) && target.content.length > 0) {
-                target.content[target.content.length - 1].cache_control = cacheControl;
-            }
-        }
-
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
