@@ -13158,12 +13158,12 @@ window.dbUtils = dbUtils;
                     window.state.settings.lastModelPerProvider = window.state.settings.lastModelPerProvider || {};
                     window.state.settings.lastModelPerProvider[curProvider] = newModel;
                 }
-                if (window.dbUtils && typeof window.dbUtils.saveSettings === 'function') {
-                    await window.dbUtils.saveSettings({ modelName: newModel, apiProvider: curProvider, lastModelPerProvider: window.state.settings.lastModelPerProvider });
-                }
-                if (window.state.activeProfileId && window.dbUtils && typeof window.dbUtils.updateProfileField === 'function') {
-                    await window.dbUtils.updateProfileField(window.state.activeProfileId, 'modelName', newModel);
-                    await window.dbUtils.updateProfileField(window.state.activeProfileId, 'apiProvider', window.state.settings.apiProvider);
+                if (window.state.activeProfile && window.dbUtils && typeof window.dbUtils.updateProfile === 'function') {
+                    window.state.activeProfile.settings = window.state.activeProfile.settings || {};
+                    window.state.activeProfile.settings.modelName = newModel;
+                    window.state.activeProfile.settings.apiProvider = curProvider;
+                    window.state.activeProfile.settings.lastModelPerProvider = window.state.settings.lastModelPerProvider;
+                    await window.dbUtils.updateProfile(window.state.activeProfile);
                 }
                 console.log(`[Model Switcher] Model changed to: ${newModel} (Provider: ${window.state.settings.apiProvider})`);
             }
