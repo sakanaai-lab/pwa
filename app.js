@@ -9112,7 +9112,7 @@ const appLogic = {
             await dbUtils.saveChat(null, null, { skipPush: true });
 
             // 初回やり取り完了時にタイトルを自動生成（fire-and-forget）
-            this.autoGenerateTitle().catch(() => {});
+            this.autoGenerateTitle().catch(e => console.warn('[AutoTitle] エラー:', e.message));
 
             this.updateCharacterProfileButtonVisibility();
 
@@ -9125,11 +9125,6 @@ const appLogic = {
                 this.triggerAutoMemorySave(); // awaitを付けずに実行 (Fire-and-forget)
             }
             // -------------------------
-
-            // 最初のやり取り後に自動タイトル生成 (fire-and-forget)
-            if (userMessageCount === 1) {
-                this.autoGenerateTitle().catch(e => console.warn('[AutoTitle] エラー:', e.message));
-            }
 
         } catch(error) {
             console.error("--- handleSend: 最終catchブロックでエラー捕捉 ---", error);
@@ -11670,8 +11665,7 @@ const appLogic = {
             if (provider === 'gemini') {
                 const apiKey = state.settings.apiKey;
                 if (!apiKey) return;
-                const model = state.settings.modelName || 'gemini-2.0-flash-lite';
-                const endpoint = `${GEMINI_API_BASE_URL}${model}:generateContent?key=${apiKey}`;
+                const endpoint = `${GEMINI_API_BASE_URL}gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
                 const resp = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -11688,7 +11682,7 @@ const appLogic = {
                 });
                 if (resp.ok) {
                     const data = await resp.json();
-                    title = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+                    title = data.candidates?.[0]?.content?.parts?.find(p => p.text && p.thought !== true)?.text?.trim();
                 }
             } else if (provider === 'anthropic') {
                 const apiKey = state.settings.anthropicApiKey;
