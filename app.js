@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.19";
+const APP_VERSION = "1.20";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -521,6 +521,10 @@ try {
         deleteAllMemoryBtn: document.getElementById('delete-all-memory-btn'),
         headerAutoHideToggle: document.getElementById('header-auto-hide-toggle'),
         headerTriggerArea: document.getElementById('header-trigger-area'),
+        chatStatsBtn: document.getElementById('chat-stats-btn'),
+        chatStatsDialog: document.getElementById('chatStatsDialog'),
+        chatStatsContent: document.getElementById('chat-stats-content'),
+        chatStatsCloseBtn: document.getElementById('chat-stats-close-btn'),
         summarizeHistoryBtn: document.getElementById('summarize-history-btn'),
         summaryModelNameSelect: document.getElementById('summary-model-name'),
         summarySystemPromptTextarea: document.getElementById('summary-system-prompt'),
@@ -7566,6 +7570,10 @@ const appLogic = {
             this.applyFloatingPanelBehavior();
         });
 
+        // --- Chat Stats ---
+        elements.chatStatsBtn.addEventListener('click', () => this.showChatStats());
+        elements.chatStatsCloseBtn.addEventListener('click', () => elements.chatStatsDialog.close());
+
         // --- History Summary ---
         elements.summarizeHistoryBtn.addEventListener('click', () => this.startSummaryProcess());
         elements.summaryCancelBtn.addEventListener('click', () => elements.summaryDialog.close('cancel'));
@@ -11901,6 +11909,76 @@ const appLogic = {
             // on-clickの場合は、最初は非表示にしておく
             panel.classList.remove('visible');
         }
+    },
+
+    showChatStats() {
+        const ANTHROPIC_PRICING = {
+            'claude-opus':    { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
+            'claude-sonnet':  { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
+            'claude-haiku':   { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
+        };
+        const getPricing = (modelName) => {
+            if (!modelName) return null;
+            const m = modelName.toLowerCase();
+            for (const [key, price] of Object.entries(ANTHROPIC_PRICING)) {
+                if (m.startsWith(key)) return price;
+            }
+            return null;
+        };
+
+        const msgs = state.currentMessages.filter(m => !m.isHidden);
+        let totalTokens = 0, totalInput = 0, totalOutput = 0;
+        let totalCacheRead = 0, totalCacheWrite = 0;
+        let totalCost = 0;
+        let hasCost = false;
+        const modelsUsed = new Set();
+
+        for (const msg of msgs) {
+            const u = msg.usageMetadata;
+            if (!u) continue;
+            const cr = u.cacheReadInputTokens || 0;
+            const cw = u.cacheCreationInputTokens || 0;
+            const out = u.candidatesTokenCount || 0;
+            const total = u.totalTokenCount || 0;
+            const inp = (u.promptTokenCount || 0);
+            const regular = inp - cr - cw;
+
+            totalTokens += total;
+            totalInput += inp;
+            totalOutput += out;
+            totalCacheRead += cr;
+            totalCacheWrite += cw;
+
+            const modelName = msg.modelName || state.settings.modelName || '';
+            if (modelName) modelsUsed.add(modelName);
+            const pricing = getPricing(modelName);
+            if (pricing) {
+                hasCost = true;
+                totalCost += (Math.max(0, regular) * pricing.in + cw * pricing.cw + cr * pricing.cr + out * pricing.out) / 1_000_000;
+            }
+        }
+
+        const sizeKb = (new TextEncoder().encode(JSON.stringify(state.currentMessages)).byteLength / 1024).toFixed(2);
+        const toK = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+        const hitRate = totalInput > 0 ? ((totalCacheRead / totalInput) * 100).toFixed(1) : '0.0';
+
+        const rows = [
+            ['合計メッセージ数', `${msgs.length} 件`],
+            ['使用済みトークン合計', `${totalTokens.toLocaleString()}`],
+            ['　うち入力', `${totalInput.toLocaleString()}`],
+            ['　うち出力', `${totalOutput.toLocaleString()}`],
+            ['💾 キャッシュ読み込み', `${toK(totalCacheRead)} (${hitRate}%)`],
+            ['✏️ キャッシュ書き込み', `${toK(totalCacheWrite)}`],
+            hasCost ? ['推定コスト', `$${totalCost.toFixed(4)}`] : null,
+            ['会話サイズ', `${sizeKb} KB`],
+            modelsUsed.size > 0 ? ['モデル', [...modelsUsed].join(', ')] : null,
+        ].filter(Boolean);
+
+        elements.chatStatsContent.innerHTML = rows.map(([label, value]) =>
+            `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`
+        ).join('');
+
+        uiUtils.showCustomDialog(elements.chatStatsDialog, elements.chatStatsCloseBtn);
     },
 
     async startSummaryProcess() {

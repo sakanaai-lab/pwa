@@ -74,6 +74,9 @@
             </main>
 
             <div id="floating-action-panel" class="floating-action-panel">
+                <button id="chat-stats-btn" class="floating-action-button" title="会話の統計">
+                    <span class="material-symbols-outlined">info</span>
+                </button>
                 <button id="summarize-history-btn" class="floating-action-button" title="履歴を要約" disabled>
                     <span class="material-symbols-outlined">article_shortcut</span>
                 </button>
@@ -993,6 +996,17 @@
             </div>
         </dialog>
 
+
+        <!-- Chat Stats Dialog -->
+        <dialog id="chatStatsDialog" class="custom-dialog">
+            <h3 class="dialog-title">会話の統計</h3>
+            <div class="dialog-content">
+                <div id="chat-stats-content" class="chat-stats-content"></div>
+            </div>
+            <div class="dialog-actions">
+                <button id="chat-stats-close-btn" class="dialog-ok-btn">閉じる</button>
+            </div>
+        </dialog>
 
         <!-- Character Profile Dialog -->
         <dialog id="characterProfileDialog" class="custom-dialog">
