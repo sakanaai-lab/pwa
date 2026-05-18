@@ -1709,6 +1709,13 @@ body.header-auto-hide.header-force-show #chat-screen .app-header {
     max-width: 700px;
 }
 
+.chat-stats-content { display: flex; flex-direction: column; gap: 2px; min-width: 260px; }
+.stats-row { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 6px 0; border-bottom: 1px solid var(--border-color); }
+.stats-row:last-child { border-bottom: none; }
+.stats-label { font-size: 0.85rem; color: var(--text-secondary); white-space: nowrap; }
+.stats-value { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); text-align: right; }
+body.dark-mode .stats-row { border-bottom-color: var(--border-color); }
+
 .summary-stats {
     font-size: 0.8rem;
     color: var(--text-secondary);
