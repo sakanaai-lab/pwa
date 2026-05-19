@@ -13050,9 +13050,9 @@ const appLogic = {
         const model = state.settings.novelaiModel || 'nai-diffusion-4-5-curated';
         // v4/v4.5モデルはparams_version:3が必要
         const isV4 = model.includes('4');
-        const qualityPrefix = 'masterpiece, best quality, amazing quality, very aesthetic, absurdres';
+        const qualityPrefix = '{{masterpiece}}, {{best quality}}, {{highres}}, extremely detailed, anime style 2026, vibrant colors, sharp lines, highly detailed, 8k, ultra-detailed, intricate details, professional, detailed skin texture, individual hair strands, realistic cloth folds, glistening sweat droplets, volumetric lighting, cinematic lighting, rim light, dramatic shadows, atmospheric, beautiful face, detailed eyes with glossy highlights';
         const finalPrompt = args.prompt ? `${qualityPrefix}, ${args.prompt}` : qualityPrefix;
-        const negPrompt = args.negative_prompt || 'lowres, worst quality, low quality, bad anatomy, bad hands, missing fingers, blurry, jpeg artifacts';
+        const negPrompt = args.negative_prompt || 'worst quality, lowres, blurry, deformed, ugly, mutated hands, extra limbs, poorly drawn face, bad anatomy, watermark, text, signature';
         const payload = {
             input: finalPrompt,
             model: model,
