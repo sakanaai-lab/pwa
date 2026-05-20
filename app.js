@@ -11913,9 +11913,15 @@ const appLogic = {
 
     showChatStats() {
         const ANTHROPIC_PRICING = {
-            'claude-opus':    { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
-            'claude-sonnet':  { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
-            'claude-haiku':   { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
+            // Claude 4系 (claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
+            'claude-opus-4':   { in: 5,    out: 25,  cw: 6.25,  cr: 0.50 },
+            'claude-sonnet-4': { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
+            'claude-haiku-4':  { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
+            // Claude 3系 (旧モデル)
+            'claude-opus-3':   { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
+            'claude-opus':     { in: 5,    out: 25,  cw: 6.25,  cr: 0.50 },
+            'claude-sonnet':   { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
+            'claude-haiku':    { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
         };
         const getPricing = (modelName) => {
             if (!modelName) return null;
