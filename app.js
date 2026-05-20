@@ -14230,9 +14230,6 @@ window.dbUtils = dbUtils;
                 }
             }
             if (anthropicTools.length > 0) {
-                if (cacheControl) {
-                    anthropicTools[anthropicTools.length - 1].cache_control = cacheControl;
-                }
                 requestBody.tools = anthropicTools;
                 // thinking有効時はtool_choice強制不可
                 if (forceCalling && !useThinking) {
