@@ -14164,7 +14164,7 @@ window.dbUtils = dbUtils;
 
         const cacheTTL = state.settings.anthropicCacheTTL || '5m';
         const cacheControl = cacheTTL === 'none' ? null
-            : cacheTTL === '1h' ? { type: "ephemeral", ttl: 3600 }
+            : cacheTTL === '1h' ? { type: "ephemeral", ttl: "1h" }
             : { type: "ephemeral" };
 
         const model = state.settings.modelName || 'claude-opus-4-6';
