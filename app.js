@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.20";
+const APP_VERSION = "1.21";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -14325,6 +14325,22 @@ window.dbUtils = dbUtils;
                 filtered.push({ type: 'text', text: '(tool execution result incorporated)' });
             }
             msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
+        }
+
+        // 会話履歴の最後のassistantメッセージにcache_controlを付けて
+        // 会話キャッシュをAnthropicの自動5minではなく設定TTLで管理する
+        if (cacheControl && anthropicMessages.length >= 2) {
+            for (let i = anthropicMessages.length - 2; i >= 0; i--) {
+                const msg = anthropicMessages[i];
+                if (msg.role === 'assistant') {
+                    if (typeof msg.content === 'string') {
+                        msg.content = [{ type: 'text', text: msg.content, cache_control: cacheControl }];
+                    } else if (Array.isArray(msg.content) && msg.content.length > 0) {
+                        msg.content[msg.content.length - 1].cache_control = cacheControl;
+                    }
+                    break;
+                }
+            }
         }
 
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
