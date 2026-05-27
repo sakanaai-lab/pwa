@@ -4154,35 +4154,47 @@ const apiUtils = {
         console.log("--- 思考プロセスの翻訳処理開始 ---");
         
         const modelToUse = translationModelName || 'gemini-2.5-flash-lite';
-        const apiKey = state.settings.apiKey;
-        if (!apiKey) {
-            console.warn("翻訳スキップ: APIキーが設定されていません。");
-            return textToTranslate;
-        }
+        const isDeepSeek = modelToUse.startsWith('deepseek-');
+        const translationSystemPrompt = "You are a professional translator. Translate the given English text into natural Japanese. Do not add any extra comments or explanations. Just output the translated Japanese text.";
 
-        const endpoint = `${GEMINI_API_BASE_URL}${modelToUse}:generateContent`;
-        
-        const systemInstruction = {
-            parts: [{ text: "You are a professional translator. Translate the given English text into natural Japanese. Do not add any extra comments or explanations. Just output the translated Japanese text." }]
-        };
+        let endpoint, requestBody, fetchHeaders;
 
-        const requestBody = {
-            contents: [{
-                role: 'user',
-                parts: [{ text: textToTranslate }]
-            }],
-            systemInstruction,
-            generationConfig: {
+        if (isDeepSeek) {
+            const deepseekApiKey = state.settings.deepseekApiKey;
+            if (!deepseekApiKey) {
+                console.warn("翻訳スキップ: DeepSeek APIキーが設定されていません。");
+                return textToTranslate;
+            }
+            endpoint = DEEPSEEK_API_BASE_URL;
+            fetchHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` };
+            requestBody = {
+                model: modelToUse,
+                messages: [
+                    { role: 'system', content: translationSystemPrompt },
+                    { role: 'user', content: textToTranslate }
+                ],
                 temperature: 0.1,
-                thinkingConfig: { thinkingBudget: 0 }
-            },
-            safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-            ]
-        };
+            };
+        } else {
+            const apiKey = state.settings.apiKey;
+            if (!apiKey) {
+                console.warn("翻訳スキップ: APIキーが設定されていません。");
+                return textToTranslate;
+            }
+            endpoint = `${GEMINI_API_BASE_URL}${modelToUse}:generateContent`;
+            fetchHeaders = { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey };
+            requestBody = {
+                contents: [{ role: 'user', parts: [{ text: textToTranslate }] }],
+                systemInstruction: { parts: [{ text: translationSystemPrompt }] },
+                generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
+                safetySettings: [
+                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
+                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
+                ]
+            };
+        }
 
         if (state.settings.applyDummyToTranslate && state.settings.dummyUser) {
             requestBody.contents.push({
@@ -4226,7 +4238,7 @@ const apiUtils = {
 
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                    headers: fetchHeaders,
                     body: JSON.stringify(requestBody),
                     signal: timeoutController.signal
                 });
@@ -4243,10 +4255,13 @@ const apiUtils = {
                 }
 
                 const responseData = await response.json();
-                const translatedPart = responseData.candidates?.[0]?.content?.parts?.find(p => !p.thought && p.text);
-                if (translatedPart) {
+                // DeepSeek (OpenAI互換) とGeminiでレスポンス形式が異なる
+                const translatedText = isDeepSeek
+                    ? responseData.choices?.[0]?.message?.content
+                    : responseData.candidates?.[0]?.content?.parts?.find(p => !p.thought && p.text)?.text;
+                if (translatedText) {
                     console.log("--- 翻訳処理成功 ---");
-                    return translatedPart.text;
+                    return translatedText;
                 } else {
                     console.warn("翻訳APIの応答形式が不正、またはコンテンツが空です。", responseData);
                     if(responseData.promptFeedback) {
@@ -12062,15 +12077,34 @@ const appLogic = {
             };
 
             const summaryModel = state.settings.summaryModelName || state.settings.modelName;
+            const isSummaryDeepSeek = summaryModel.startsWith('deepseek-');
             console.log("--- [要約API] リクエスト開始 ---");
             console.log("使用モデル:", summaryModel);
-            console.log("リクエストボディ:", JSON.stringify(requestBody, null, 2));
 
-            const endpoint = `${GEMINI_API_BASE_URL}${summaryModel}:generateContent`;
-            const response = await fetch(endpoint, {
+            let summaryEndpoint, summaryHeaders, summaryBody;
+            if (isSummaryDeepSeek) {
+                const deepseekApiKey = state.settings.deepseekApiKey;
+                if (!deepseekApiKey) throw new Error("DeepSeek APIキーが設定されていません。");
+                summaryEndpoint = DEEPSEEK_API_BASE_URL;
+                summaryHeaders = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` };
+                summaryBody = {
+                    model: summaryModel,
+                    messages: [
+                        { role: 'system', content: state.settings.summarySystemPrompt },
+                        { role: 'user', content: userContent }
+                    ],
+                    temperature: 0.3,
+                };
+            } else {
+                summaryEndpoint = `${GEMINI_API_BASE_URL}${summaryModel}:generateContent`;
+                summaryHeaders = { 'Content-Type': 'application/json', 'x-goog-api-key': state.settings.apiKey };
+                summaryBody = requestBody;
+            }
+
+            const response = await fetch(summaryEndpoint, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.settings.apiKey },
-                body: JSON.stringify(requestBody),
+                headers: summaryHeaders,
+                body: JSON.stringify(summaryBody),
             });
 
             if (!response.ok) {
@@ -12084,10 +12118,10 @@ const appLogic = {
             const responseData = await response.json();
 
             console.log("--- [要約API] 正常レスポンス ---");
-            console.log("レスポンスボディ全体:", JSON.stringify(responseData, null, 2));
 
-            const candidate = responseData.candidates?.[0];
-            const summaryText = candidate?.content?.parts?.[0]?.text;
+            const summaryText = isSummaryDeepSeek
+                ? responseData.choices?.[0]?.message?.content
+                : responseData.candidates?.[0]?.content?.parts?.[0]?.text;
 
             if (!summaryText) {
                 let errorMessage = "APIから有効な要約結果が得られませんでした。";
