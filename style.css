@@ -1135,6 +1135,46 @@ body.dark-mode #chat-screen.drag-over::after {
     font-size: 20px;
 }
 
+/* --- 設定画面のプロファイル切り替えカード --- */
+.profile-card-wrapper-settings {
+    margin-bottom: 4px;
+}
+.profile-card-settings {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    transition: background-color var(--transition-duration) var(--transition-timing);
+    user-select: none;
+}
+.profile-card-settings:hover {
+    background-color: var(--bg-tertiary);
+}
+.profile-card-settings .profile-icon-container {
+    background-color: var(--bg-tertiary);
+}
+.profile-card-settings .profile-icon-container .material-symbols-outlined {
+    color: var(--text-secondary);
+}
+.profile-card-name-text {
+    flex: 1;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.profile-card-chevron {
+    font-size: 20px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
 /* --- Profile Management Styles (Settings Screen) --- */
 #profile-management-group {
     background-color: var(--bg-secondary);
