@@ -647,7 +647,7 @@ const state = {
         thinkingBudget: null,
         includeThoughts: false,
         enableThoughtTranslation: true, // 思考プロセスの翻訳を有効にするか
-        thoughtTranslationModel: 'gemini-flash-latest',
+        thoughtTranslationModel: 'gemini-2.5-flash-lite',
         dummyUser: '',
         applyDummyToProofread: false,
         applyDummyToTranslate: false,
@@ -4153,7 +4153,7 @@ const apiUtils = {
 
         console.log("--- 思考プロセスの翻訳処理開始 ---");
         
-        const modelToUse = translationModelName || 'gemini-flash-latest';
+        const modelToUse = translationModelName || 'gemini-2.5-flash-lite';
         const apiKey = state.settings.apiKey;
         if (!apiKey) {
             console.warn("翻訳スキップ: APIキーが設定されていません。");
@@ -11670,7 +11670,7 @@ const appLogic = {
             if (provider === 'gemini') {
                 const apiKey = state.settings.apiKey;
                 if (!apiKey) return;
-                const endpoint = `${GEMINI_API_BASE_URL}gemini-2.0-flash-lite:generateContent?key=${apiKey}`;
+                const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
                 const resp = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
