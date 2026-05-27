@@ -5849,11 +5849,8 @@ const appLogic = {
             }
         }
 
-        // 現在の値が新しいリストに含まれているか確認（標準モデル＋ユーザー指定モデル両方チェック）
-        const userDefinedValues = userDefinedGroup
-            ? Array.from(userDefinedGroup.querySelectorAll('option')).map(o => o.value)
-            : [];
-        const allAvailableValues = [...standardValues, ...userDefinedValues];
+        // 現在の値が新しいリストに含まれているか確認（標準・手動追加・API取得モデルすべて）
+        const allAvailableValues = Array.from(modelSelect.querySelectorAll('option')).map(o => o.value);
         if (allAvailableValues.includes(currentValue)) {
             modelSelect.value = currentValue;
         } else {
