@@ -6640,8 +6640,13 @@ const appLogic = {
     async _softReloadAfterMerge() {
         try {
             this.updateSyncStatusUI('syncing', 'データを更新中...');
+            // activeProjectId をリセット（DBはすでにnullに設定済み）
+            if (window.state) window.state.activeProjectId = null;
+            const projSelect = document.getElementById('header-project-select');
+            if (projSelect) projSelect.value = '';
             await this.loadProfiles();
-            const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
+            const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+            const chats = await getAllUnfiltered();
             if (chats && chats.length > 0) {
                 const targetId = state.currentChatId && chats.some(c => c.id === state.currentChatId)
                     ? state.currentChatId
@@ -6987,9 +6992,9 @@ const appLogic = {
                 if (isManual) uiUtils.hideProgressDialog();
 
                 await dbUtils.saveSetting('activeProjectId', null);
-                sessionStorage.setItem('isSyncReload', 'true');
 
                 if (isManual) {
+                    sessionStorage.setItem('isSyncReload', 'true');
                     let finalMessage = "クラウドからデータを同期しました。アプリを再起動します。";
                     if (removedAssetInfo && Object.keys(removedAssetInfo).length > 0) {
                         let cleanupDetails = "\n\n【通知】\nクラウド上で実体が見つからなかったため、以下のチャットから画像添付の記録を削除しました：\n";
@@ -6999,11 +7004,11 @@ const appLogic = {
                         finalMessage += cleanupDetails;
                     }
                     await uiUtils.showCustomAlert(finalMessage);
+                    window.location.reload();
                 } else {
-                    console.log("[Sync Pull] クラウドから自動インポート完了。静かにリロードします。");
-                    this.updateSyncStatusUI('syncing', 'データを更新中...');
+                    console.log("[Sync Pull] クラウドから自動インポート完了。ソフトリロードします。");
+                    await this._softReloadAfterMerge();
                 }
-                window.location.reload();
 
             } else {
                 console.log("[Sync Pull V2] ローカルは既に最新です。同期は不要です。");
