@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.21";
+const APP_VERSION = "1.22";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -133,6 +133,9 @@ const MISTRAL_MODELS = [
 const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
+    "1.22": [
+        "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
+    ],
     "1.20": [
         "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
         "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
@@ -6620,18 +6623,42 @@ const appLogic = {
         await this._doPush(isManual);
 
         await dbUtils.saveSetting('activeProjectId', null);
-        sessionStorage.setItem('isSyncReload', 'true');
         if (isManual) {
+            sessionStorage.setItem('isSyncReload', 'true');
             const localCnt = (localData.chats || []).length;
             const cloudCnt = (cloudData.chats || []).length;
             await uiUtils.showCustomAlert(
                 `マージが完了しました。\n\nローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット\n\nアプリを再起動します。`
             );
+            window.location.reload();
         } else {
-            console.log(`[Sync Merge] 自動マージ完了。ローカル${(localData.chats||[]).length}件 + クラウド${(cloudData.chats||[]).length}件 → ${chatMap.size}件。静かにリロードします。`);
-            this.updateSyncStatusUI('syncing', 'データを更新中...');
+            console.log(`[Sync Merge] 自動マージ完了。ローカル${(localData.chats||[]).length}件 + クラウド${(cloudData.chats||[]).length}件 → ${chatMap.size}件。ソフトリロードします。`);
+            await this._softReloadAfterMerge();
         }
-        window.location.reload();
+    },
+
+    async _softReloadAfterMerge() {
+        try {
+            this.updateSyncStatusUI('syncing', 'データを更新中...');
+            await this.loadProfiles();
+            const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
+            if (chats && chats.length > 0) {
+                const targetId = state.currentChatId && chats.some(c => c.id === state.currentChatId)
+                    ? state.currentChatId
+                    : chats[0].id;
+                await this.loadChat(targetId);
+            } else {
+                this.startNewChat();
+            }
+            if (state.currentScreen === 'history') {
+                await this.renderHistoryList();
+            }
+            this.updateSyncStatusUI('success', '同期完了');
+            console.log('[Sync Merge] ソフトリロード完了。');
+        } catch (e) {
+            console.error('[Sync Merge] ソフトリロード中にエラーが発生しました:', e);
+            this.updateSyncStatusUI('error', '更新エラー');
+        }
     },
 
     /**
