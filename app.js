@@ -8230,7 +8230,13 @@ const appLogic = {
                     }
                 });
                 
-                state.currentSystemPrompt = chat.systemPrompt !== undefined ? chat.systemPrompt : state.settings.systemPrompt;
+                // プロジェクトに属するチャットはプロジェクトのSPを優先（プロジェクト設定が正規版）
+                if (chat.projectId && window.projectsCache) {
+                    const proj = window.projectsCache.find(p => p.id === chat.projectId);
+                    state.currentSystemPrompt = proj ? (proj.systemPrompt || '') : (chat.systemPrompt !== undefined ? chat.systemPrompt : state.settings.systemPrompt);
+                } else {
+                    state.currentSystemPrompt = chat.systemPrompt !== undefined ? chat.systemPrompt : state.settings.systemPrompt;
+                }
                 state.pendingAttachments = [];
                 
                 uiUtils.updateChatTitle(chat.title);
@@ -13423,6 +13429,7 @@ window.dbUtils = dbUtils;
         async function loadProjects() {
             if (!window.dbUtils || !window.dbUtils.getAllProjects) return;
             projectsCache = await window.dbUtils.getAllProjects();
+            window.projectsCache = projectsCache;
 
             // Update Header Select
             // activeProjectId が既に設定されていればそれを優先、なければ現在のUIの値を使う
@@ -13533,6 +13540,10 @@ window.dbUtils = dbUtils;
                         window.state.currentSystemPrompt = newPrompt;
                         const editor = document.getElementById('system-prompt-editor');
                         if (editor) editor.value = newPrompt;
+                        // 現在読み込み中のチャットにも反映
+                        if (window.appLogic && window.state.currentChatId) {
+                            await window.dbUtils.saveChat().catch(() => {});
+                        }
                     }
                 };
 
