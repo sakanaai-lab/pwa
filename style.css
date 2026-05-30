@@ -2448,7 +2448,7 @@ body.dark-mode {
     color: var(--text-secondary); /* グレー */
 }
 .sync-status-header-icon[data-status="idle"] {
-    color: #4caf50; /* 緑 */
+    color: rgba(255, 255, 255, 0.85); /* 白（背景に埋もれない） */
 }
 .sync-status-header-icon[data-status="dirty"] {
     color: #ffa000; /* 黄/オレンジ */
