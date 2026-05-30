@@ -7352,6 +7352,17 @@ const appLogic = {
             const { element, event, onUpdate, getValue } = settingsMap[key];
             setupInstantSave(element, key, event, onUpdate, getValue);
         }
+
+        // --- ダミープロンプトクリアボタン ---
+        const clearDummyBtn = document.getElementById('clear-dummy-btn');
+        if (clearDummyBtn) {
+            clearDummyBtn.addEventListener('click', () => {
+                elements.dummyUserInput.value = '';
+                elements.dummyUserInput.dispatchEvent(new Event('input'));
+                elements.dummyModelInput.value = '';
+                elements.dummyModelInput.dispatchEvent(new Event('input'));
+            });
+        }
     
         // --- OpenRouterモデル名テキストボックスのイベントリスナー ---
         if (elements.openrouterModelInput) {
