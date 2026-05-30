@@ -11762,14 +11762,14 @@ const appLogic = {
                         'anthropic-dangerous-direct-browser-access': 'true'
                     },
                     body: JSON.stringify({
-                        model: state.settings.modelName || 'claude-haiku-4-5-20251001',
+                        model: 'claude-haiku-4-5-20251001',
                         max_tokens: 30,
                         messages: [{ role: 'user', content: titlePrompt }]
                     })
                 });
                 if (resp.ok) {
                     const data = await resp.json();
-                    title = data.content?.[0]?.text?.trim();
+                    title = data.content?.find(c => c.type === 'text')?.text?.trim();
                 }
             } else {
                 // OpenAI互換プロバイダー
