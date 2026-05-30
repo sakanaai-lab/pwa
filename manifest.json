@@ -1,0 +1,16 @@
+{
+  "name": "Aquarium Chat",
+  "short_name": "Aquarium Chat",
+  "description": "Your personal AI chat with multi-provider support and cloud sync.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4a90e2",
+  "icons": [
+    {
+      "src": "icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
