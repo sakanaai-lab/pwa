@@ -6650,6 +6650,10 @@ const appLogic = {
             const projSelect = document.getElementById('header-project-select');
             if (projSelect) projSelect.value = '';
             await this.loadProfiles();
+            // マージ後のDB内容でprojectsCacheを再構築
+            if (window.dbUtils.getAllProjects) {
+                window.projectsCache = await window.dbUtils.getAllProjects();
+            }
             const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
             const chats = await getAllUnfiltered();
             if (chats && chats.length > 0) {
@@ -13532,6 +13536,7 @@ window.dbUtils = dbUtils;
                         }
                     }
                     p.systemPrompt = newPrompt;
+                    p.updatedAt = Date.now();
                     await window.dbUtils.updateProject(p);
                     promptPreview.textContent = newPrompt || '（指示なし）';
                     promptPreview.style.cssText = newPrompt ? '' : 'color:var(--text-secondary,#888); font-style:italic;';
