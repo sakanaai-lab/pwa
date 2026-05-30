@@ -400,6 +400,7 @@ try {
         enableThoughtTranslationCheckbox: document.getElementById('enable-thought-translation'),
         thoughtTranslationModelSelect: document.getElementById('thought-translation-model'),
         dummyUserInput: document.getElementById('dummy-user'),
+        dummyEnabledToggle: document.getElementById('dummy-enabled-toggle'),
         applyDummyToProofreadCheckbox: document.getElementById('apply-dummy-to-proofread'),
         applyDummyToTranslateCheckbox: document.getElementById('apply-dummy-to-translate'),
         dummyModelInput: document.getElementById('dummy-model'),
@@ -653,6 +654,7 @@ const state = {
         enableThoughtTranslation: true, // 思考プロセスの翻訳を有効にするか
         thoughtTranslationModel: 'gemini-2.5-flash-lite',
         dummyUser: '',
+        dummyEnabled: true,
         applyDummyToProofread: false,
         applyDummyToTranslate: false,
         dummyModel: '',
@@ -2830,6 +2832,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || 'gemini-2.5-flash-lite';
         elements.thoughtTranslationOptionsDiv.classList.toggle('hidden', !state.settings.includeThoughts);
         elements.dummyUserInput.value = state.settings.dummyUser || '';
+        if (elements.dummyEnabledToggle) elements.dummyEnabledToggle.checked = state.settings.dummyEnabled !== false;
         elements.applyDummyToProofreadCheckbox.checked = state.settings.applyDummyToProofread;
         elements.applyDummyToTranslateCheckbox.checked = state.settings.applyDummyToTranslate;
         elements.dummyModelInput.value = state.settings.dummyModel || '';
@@ -4200,7 +4203,7 @@ const apiUtils = {
             };
         }
 
-        if (state.settings.applyDummyToTranslate && state.settings.dummyUser) {
+        if (state.settings.dummyEnabled && state.settings.applyDummyToTranslate && state.settings.dummyUser) {
             requestBody.contents.push({
                 role: 'user',
                 parts: [{ text: state.settings.dummyUser }]
@@ -5286,7 +5289,7 @@ const appLogic = {
         const settings = {};
         const stringKeys = ['apiProvider', 'apiKey', 'zaiApiKey', 'openrouterApiKey', 'bedrockAccessKey', 'bedrockSecretKey', 'bedrockRegion', 'openaiApiKey', 'anthropicApiKey', 'anthropicCacheTTL', 'anthropicEffort', 'novelaiApiKey', 'novelaiModel', 'groqApiKey', 'deepseekApiKey', 'xaiApiKey', 'mistralApiKey', 'modelName', 'dummyUser', 'dummyModel', 'additionalModels', 'historySortOrder', 'fontFamily', 'proofreadingModelName', 'proofreadingSystemInstruction', 'googleSearchApiKey', 'googleSearchEngineId', 'headerColor', 'thoughtTranslationModel', 'summaryModelName', 'summarySystemPrompt'];
         const numberKeys = ['temperature', 'maxTokens', 'topK', 'topP', 'thinkingBudget', 'maxRetries', 'maxBackoffDelaySeconds', 'overlayOpacity', 'messageOpacity'];
-        const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
+        const booleanKeys = ['enterToSend', 'darkMode', 'geminiEnableGrounding', 'geminiEnableFunctionCalling', 'enableSwipeNavigation', 'enableProofreading', 'enableAutoRetry', 'useFixedRetryDelay', 'reverseDummyOrder', 'concatDummyModel', 'dummyEnabled', 'includeThoughts', 'enableThoughtTranslation', 'applyDummyToProofread', 'applyDummyToTranslate', 'forceFunctionCalling', 'autoScroll', 'enableWideMode', 'enableSummaryButton'];
         
         settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
         settings.fixedRetryDelaySeconds = parseFloat(elements.fixedRetryDelayInput.value) || null;
@@ -5386,21 +5389,23 @@ const appLogic = {
         }
 
         // ダミープロンプトの追加処理は共通
-        if (state.settings.reverseDummyOrder) {
-            // 順序を入れ替える場合: ダミーModel → ダミーUser
-            if (state.settings.dummyModel) {
-                historyToProcess.push({ role: 'model', content: state.settings.dummyModel, attachments: [] });
-            }
-            if (state.settings.dummyUser) {
-                historyToProcess.push({ role: 'user', content: state.settings.dummyUser, attachments: [] });
-            }
-        } else {
-            // 通常の順序: ダミーUser → ダミーModel
-            if (state.settings.dummyUser) {
-                historyToProcess.push({ role: 'user', content: state.settings.dummyUser, attachments: [] });
-            }
-            if (state.settings.dummyModel) {
-                historyToProcess.push({ role: 'model', content: state.settings.dummyModel, attachments: [] });
+        if (state.settings.dummyEnabled) {
+            if (state.settings.reverseDummyOrder) {
+                // 順序を入れ替える場合: ダミーModel → ダミーUser
+                if (state.settings.dummyModel) {
+                    historyToProcess.push({ role: 'model', content: state.settings.dummyModel, attachments: [] });
+                }
+                if (state.settings.dummyUser) {
+                    historyToProcess.push({ role: 'user', content: state.settings.dummyUser, attachments: [] });
+                }
+            } else {
+                // 通常の順序: ダミーUser → ダミーModel
+                if (state.settings.dummyUser) {
+                    historyToProcess.push({ role: 'user', content: state.settings.dummyUser, attachments: [] });
+                }
+                if (state.settings.dummyModel) {
+                    historyToProcess.push({ role: 'model', content: state.settings.dummyModel, attachments: [] });
+                }
             }
         }
         
@@ -7287,6 +7292,7 @@ const appLogic = {
             enableThoughtTranslation: { element: elements.enableThoughtTranslationCheckbox, event: 'change' },
             thoughtTranslationModel: { element: elements.thoughtTranslationModelSelect, event: 'change' },
             dummyUser: { element: elements.dummyUserInput, event: 'input' },
+            dummyEnabled: { element: elements.dummyEnabledToggle, event: 'change' },
             applyDummyToProofread: { element: elements.applyDummyToProofreadCheckbox, event: 'change' },
             applyDummyToTranslate: { element: elements.applyDummyToTranslateCheckbox, event: 'change' },
             dummyModel: { element: elements.dummyModelInput, event: 'input' },
@@ -7353,16 +7359,6 @@ const appLogic = {
             setupInstantSave(element, key, event, onUpdate, getValue);
         }
 
-        // --- ダミープロンプトクリアボタン ---
-        const clearDummyBtn = document.getElementById('clear-dummy-btn');
-        if (clearDummyBtn) {
-            clearDummyBtn.addEventListener('click', () => {
-                elements.dummyUserInput.value = '';
-                elements.dummyUserInput.dispatchEvent(new Event('input'));
-                elements.dummyModelInput.value = '';
-                elements.dummyModelInput.dispatchEvent(new Event('input'));
-            });
-        }
     
         // --- OpenRouterモデル名テキストボックスのイベントリスナー ---
         if (elements.openrouterModelInput) {
@@ -8705,7 +8701,7 @@ const appLogic = {
             ]
         };
 
-        if (state.settings.applyDummyToProofread && state.settings.dummyUser) {
+        if (state.settings.dummyEnabled && state.settings.applyDummyToProofread && state.settings.dummyUser) {
             requestBody.contents.push({
                 role: 'user',
                 parts: [{ text: state.settings.dummyUser }]
