@@ -12017,8 +12017,9 @@ const appLogic = {
             totalCacheRead += cr;
             totalCacheWrite += cw;
 
-            const modelName = msg.modelName || state.settings.modelName || '';
-            if (modelName) modelsUsed.add(modelName);
+            const modelName = msg.modelName || '';
+            const displayModel = modelName || state.settings.modelName || '';
+            if (displayModel) modelsUsed.add(displayModel);
             const pricing = getPricing(modelName);
             if (pricing) {
                 hasCost = true;
