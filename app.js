@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.22";
+const APP_VERSION = "1.23";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -11976,7 +11976,7 @@ const appLogic = {
     showChatStats() {
         const ANTHROPIC_PRICING = {
             // Claude 4系 (claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
-            'claude-opus-4':   { in: 5,    out: 25,  cw: 6.25,  cr: 0.50 },
+            'claude-opus-4':   { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
             'claude-sonnet-4': { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
             'claude-haiku-4':  { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
             // Claude 3系 (旧モデル)
