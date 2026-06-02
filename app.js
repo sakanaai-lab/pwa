@@ -11976,14 +11976,19 @@ const appLogic = {
     showChatStats() {
         const ANTHROPIC_PRICING = {
             // Claude 4系 (claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
-            'claude-opus-4':   { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
-            'claude-sonnet-4': { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
-            'claude-haiku-4':  { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
+            'claude-opus-4-8': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
+            'claude-opus-4-7': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
+            'claude-opus-4-6': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
+            'claude-opus-4-5': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
+            'claude-opus-4-1': { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
+            'claude-opus-4':   { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
+            'claude-sonnet-4': { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
+            'claude-haiku-4':  { in: 1,    out: 5,   cw5m: 1.25,  cw1h: 2,    cr: 0.10 },
             // Claude 3系 (旧モデル)
-            'claude-opus-3':   { in: 15,   out: 75,  cw: 18.75, cr: 1.50 },
-            'claude-opus':     { in: 5,    out: 25,  cw: 6.25,  cr: 0.50 },
-            'claude-sonnet':   { in: 3,    out: 15,  cw: 3.75,  cr: 0.30 },
-            'claude-haiku':    { in: 0.80, out: 4,   cw: 1.00,  cr: 0.08 },
+            'claude-opus-3':   { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
+            'claude-opus':     { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
+            'claude-sonnet':   { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
+            'claude-haiku':    { in: 0.80, out: 4,   cw5m: 1.00,  cw1h: 1.60, cr: 0.08 },
         };
         const getPricing = (modelName) => {
             if (!modelName) return null;
@@ -12006,6 +12011,8 @@ const appLogic = {
             if (!u) continue;
             const cr = u.cacheReadInputTokens || 0;
             const cw = u.cacheCreationInputTokens || 0;
+            const cw5m = u.cacheCreation5mInputTokens ?? cw;
+            const cw1h = u.cacheCreation1hInputTokens || 0;
             const out = u.candidatesTokenCount || 0;
             const total = u.totalTokenCount || 0;
             const inp = (u.promptTokenCount || 0);
@@ -12023,7 +12030,7 @@ const appLogic = {
             const pricing = getPricing(modelName);
             if (pricing) {
                 hasCost = true;
-                totalCost += (Math.max(0, regular) * pricing.in + cw * pricing.cw + cr * pricing.cr + out * pricing.out) / 1_000_000;
+                totalCost += (Math.max(0, regular) * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1_000_000;
             }
         }
 
@@ -14415,20 +14422,11 @@ window.dbUtils = dbUtils;
             msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
         }
 
-        // 会話履歴の最後のassistantメッセージにcache_controlを付けて
-        // 会話キャッシュをAnthropicの自動5minではなく設定TTLで管理する
+        // Anthropicの自動プロンプトキャッシュで、成長する会話履歴のキャッシュポイントを
+        // 最新のキャッシュ可能ブロックまで前進させる。初回1メッセージだけの会話では、
+        // 再利用されにくい現在ユーザー入力の無駄な書き込みを避けるため有効化しない。
         if (cacheControl && anthropicMessages.length >= 2) {
-            for (let i = anthropicMessages.length - 2; i >= 0; i--) {
-                const msg = anthropicMessages[i];
-                if (msg.role === 'assistant') {
-                    if (typeof msg.content === 'string') {
-                        msg.content = [{ type: 'text', text: msg.content, cache_control: cacheControl }];
-                    } else if (Array.isArray(msg.content) && msg.content.length > 0) {
-                        msg.content[msg.content.length - 1].cache_control = cacheControl;
-                    }
-                    break;
-                }
-            }
+            requestBody.cache_control = cacheControl;
         }
 
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
@@ -14488,6 +14486,9 @@ window.dbUtils = dbUtils;
         if (data.usage) {
             const cacheWrite = data.usage.cache_creation_input_tokens || 0;
             const cacheRead = data.usage.cache_read_input_tokens || 0;
+            const cacheCreation = data.usage.cache_creation || {};
+            const cacheWrite5m = cacheCreation.ephemeral_5m_input_tokens ?? (cacheTTL === '1h' ? 0 : cacheWrite);
+            const cacheWrite1h = cacheCreation.ephemeral_1h_input_tokens ?? (cacheTTL === '1h' ? cacheWrite : 0);
             const inputTotal = (data.usage.input_tokens || 0) + cacheWrite + cacheRead;
             console.log(`[Cache] cache_write=${cacheWrite} cache_read=${cacheRead} input=${data.usage.input_tokens || 0} output=${data.usage.output_tokens || 0}`);
             geminiFormat.usageMetadata = {
@@ -14495,7 +14496,9 @@ window.dbUtils = dbUtils;
                 candidatesTokenCount: data.usage.output_tokens || 0,
                 totalTokenCount: inputTotal + (data.usage.output_tokens || 0),
                 cacheCreationInputTokens: cacheWrite,
-                cacheReadInputTokens: cacheRead
+                cacheReadInputTokens: cacheRead,
+                cacheCreation5mInputTokens: cacheWrite5m,
+                cacheCreation1hInputTokens: cacheWrite1h
             };
         }
         return { ok: true, status: 200, json: async () => geminiFormat };
