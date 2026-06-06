@@ -14422,12 +14422,11 @@ window.dbUtils = dbUtils;
             msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
         }
 
-        // Anthropicの自動プロンプトキャッシュで、成長する会話履歴のキャッシュポイントを
-        // 最新のキャッシュ可能ブロックまで前進させる。初回1メッセージだけの会話では、
-        // 再利用されにくい現在ユーザー入力の無駄な書き込みを避けるため有効化しない。
-        if (cacheControl && anthropicMessages.length >= 2) {
-            requestBody.cache_control = cacheControl;
-        }
+// 固定プロンプト側 block.cache_control のみ使う。
+// 会話履歴全体への自動キャッシュは、1h書き込みが増えるため無効化。
+// if (cacheControl && anthropicMessages.length >= 2) {
+//   requestBody.cache_control = cacheControl;
+// }
 
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
