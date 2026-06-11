@@ -10539,6 +10539,7 @@ const appLogic = {
                     console.warn(`ファイル "${fileName}": MIMEタイプ不明。拡張子(.${fileExtension})にもマッピングなし。'application/octet-stream' を使用します。`);
                 }
 
+                // Anthropic APIは画像のみ形式制限あり（テキスト・PDFは別途対応）
                 const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
                 if (state.settings.apiProvider === 'anthropic' && finalMimeType.startsWith('image/') && !ANTHROPIC_IMAGE_TYPES.includes(finalMimeType)) {
                     encodingError = true;
@@ -14450,20 +14451,34 @@ window.dbUtils = dbUtils;
                             input: part.functionCall.args || {}
                         });
                     } else if (part.inlineData) {
-                        const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-                        if (!ANTHROPIC_IMAGE_TYPES.includes(part.inlineData.mimeType)) {
-                            const e = new Error(`Anthropic APIはこの画像形式（${part.inlineData.mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
-                            e.status = 400;
-                            throw e;
-                        }
-                        contentBlocks.push({
-                            type: 'image',
-                            source: {
-                                type: 'base64',
-                                media_type: part.inlineData.mimeType,
-                                data: part.inlineData.data
+                        const mimeType = part.inlineData.mimeType;
+                        // data URL prefix ("data:...;base64,") を除去して純粋なbase64を取り出す
+                        const rawData = part.inlineData.data.replace(/^data:[^;]+;base64,/, '');
+                        if (mimeType.startsWith('image/')) {
+                            const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                            if (!ANTHROPIC_IMAGE_TYPES.includes(mimeType)) {
+                                const e = new Error(`Anthropic APIはこの画像形式（${mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
+                                e.status = 400;
+                                throw e;
                             }
-                        });
+                            contentBlocks.push({
+                                type: 'image',
+                                source: { type: 'base64', media_type: mimeType, data: rawData }
+                            });
+                        } else if (mimeType === 'application/pdf') {
+                            contentBlocks.push({
+                                type: 'document',
+                                source: { type: 'base64', media_type: 'application/pdf', data: rawData }
+                            });
+                        } else {
+                            // テキスト・その他のファイルはデコードしてテキストブロックとして送信
+                            try {
+                                const decoded = decodeURIComponent(escape(atob(rawData)));
+                                contentBlocks.push({ type: 'text', text: decoded });
+                            } catch {
+                                contentBlocks.push({ type: 'text', text: rawData });
+                            }
+                        }
                     }
                 }
                 if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
