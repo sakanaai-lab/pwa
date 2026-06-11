@@ -1957,6 +1957,50 @@ body.dark-mode .floating-action-panel .floating-action-button.active {
 }
 
 
+/* --- Scroll to Bottom FAB --- */
+.scroll-bottom-fab {
+    position: absolute;
+    bottom: 80px; /* 入力エリアの上 */
+    right: 16px;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background-color: var(--bg-button-action);
+    color: #fff;
+    border: none;
+    box-shadow: var(--shadow-3);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 10;
+    opacity: 1;
+    transform: scale(1);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    padding: 0;
+}
+
+.scroll-bottom-fab.hidden {
+    opacity: 0;
+    transform: scale(0.7);
+    pointer-events: none;
+}
+
+.scroll-bottom-fab:hover {
+    background-color: var(--bg-button-action-hover, var(--bg-button-action));
+    box-shadow: var(--shadow-3);
+    transform: scale(1.1);
+}
+
+.scroll-bottom-fab .material-symbols-outlined {
+    font-size: 26px;
+}
+
+body.dark-mode .scroll-bottom-fab {
+    background-color: var(--bg-button-action);
+    color: #fff;
+}
+
 /* --- Asset Management Dialog --- */
 #assetManagementDialog {
     width: 90%;
