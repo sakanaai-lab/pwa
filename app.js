@@ -10539,6 +10539,13 @@ const appLogic = {
                     console.warn(`ファイル "${fileName}": MIMEタイプ不明。拡張子(.${fileExtension})にもマッピングなし。'application/octet-stream' を使用します。`);
                 }
 
+                const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (state.settings.apiProvider === 'anthropic' && finalMimeType.startsWith('image/') && !ANTHROPIC_IMAGE_TYPES.includes(finalMimeType)) {
+                    encodingError = true;
+                    await uiUtils.showCustomAlert(`"${fileName}": ${finalMimeType} 形式の画像はAnthropicAPIに対応していません。\nJPEG・PNG・GIF・WebP形式に変換してから添付してください。\n※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、変換アプリをご利用ください。`);
+                    break;
+                }
+
                 attachmentsToAdd.push({
                     file: rehydratedBlob,
                     name: fileName,
@@ -14443,6 +14450,12 @@ window.dbUtils = dbUtils;
                             input: part.functionCall.args || {}
                         });
                     } else if (part.inlineData) {
+                        const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                        if (!ANTHROPIC_IMAGE_TYPES.includes(part.inlineData.mimeType)) {
+                            const e = new Error(`Anthropic APIはこの画像形式（${part.inlineData.mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
+                            e.status = 400;
+                            throw e;
+                        }
                         contentBlocks.push({
                             type: 'image',
                             source: {
