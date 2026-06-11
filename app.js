@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.23";
+const APP_VERSION = "1.24";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -133,6 +133,13 @@ const MISTRAL_MODELS = [
 const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
+    "1.24": [
+        "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
+        "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
+        "コスト計算を改善：5分/1時間キャッシュ書き込みを区別して計算。料金テーブルを現行価格に更新（Opus 4.5〜4.8: $5/$25、Haiku 4.5: $1/$5 等）。",
+        "モデル名が記録されていないメッセージを現在のモデル価格で計算してしまい推定コストがずれる問題を修正。",
+        "長期記憶の自動学習間隔に「75」「100メッセージごと」を追加。"
+    ],
     "1.22": [
         "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
     ],
@@ -6180,12 +6187,22 @@ const appLogic = {
         // ライブラリと基本設定
         if (typeof marked !== 'undefined') {
             const renderer = new marked.Renderer();
+            // marked v8以降 sanitizeオプションは廃止され無視されるため、自前で無害化する。
+            // 生HTML（<img onerror=...>等）をエスケープしないと、共有ログのインポートや
+            // AI応答経由のXSSでIndexedDB内のAPIキーが盗まれる恐れがある。
+            const escapeHtmlText = (t) => String(t ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            renderer.html = (token) => escapeHtmlText(typeof token === 'object' && token !== null ? token.text : token);
             const originalLinkRenderer = renderer.link;
             renderer.link = (href, title, text) => {
+                const rawHref = (href && typeof href === 'object') ? href.href : href;
+                if (typeof rawHref === 'string' && /^\s*(javascript|vbscript|data)\s*:/i.test(rawHref)) {
+                    const label = (href && typeof href === 'object') ? href.text : text;
+                    return escapeHtmlText(label || rawHref);
+                }
                 const html = originalLinkRenderer.call(renderer, href, title, text);
                 return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
             };
-            marked.setOptions({ renderer, breaks: true, gfm: true, sanitize: true, smartypants: false });
+            marked.setOptions({ renderer, breaks: true, gfm: true, smartypants: false });
         } else {
             console.error("Marked.jsライブラリが読み込まれていません！");
         }
