@@ -3,11 +3,14 @@ marked.js
 prism.js
 prism.css
 
-# レガシーの大規模ファイルは Phase 1 以降のモジュール分割時に整形する
-# （今 prettier をかけると巨大な差分が出てレビュー不能になるため除外）
+# 自動生成バンドル（src/ から生成）
 app.js
-function-calling.js
-dropbox.js
+
+# レガシーの大規模ファイルは後続フェーズの分割時に整形する
+# （今 prettier をかけると巨大な差分が出てレビュー不能になるため除外）
+src/app.js
+src/function-calling.js
+src/dropbox.js
 style.css
 index.html
 sw.js
