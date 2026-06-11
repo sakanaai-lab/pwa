@@ -555,6 +555,7 @@ try {
         floatingActionPanel: document.getElementById('floating-action-panel'),
         scrollToTopBtn: document.getElementById('scroll-to-top-btn'),
         scrollToBottomBtn: document.getElementById('scroll-to-bottom-btn'),
+        scrollBottomFab: document.getElementById('scroll-bottom-fab'),
         floatingPanelBehaviorSelect: document.getElementById('floating-panel-behavior'),
         characterProfileBtn: document.getElementById('character-profile-btn'),
         characterProfileDialog: document.getElementById('characterProfileDialog'),
@@ -7727,6 +7728,9 @@ const appLogic = {
         
         elements.scrollToTopBtn.addEventListener('click', () => this.scrollToTop());
         elements.scrollToBottomBtn.addEventListener('click', () => this.scrollToBottom(true));
+        if (elements.scrollBottomFab) {
+            elements.scrollBottomFab.addEventListener('click', () => this.scrollToBottom(true));
+        }
 
         // --- Header Auto-Hide Event Listeners ---
         let headerHideTimer = null;
@@ -12378,6 +12382,11 @@ const appLogic = {
 
         elements.scrollToTopBtn.disabled = isAtTop;
         elements.scrollToBottomBtn.disabled = isAtBottom;
+
+        // 右下FAB: 最下部にいるときは非表示
+        if (elements.scrollBottomFab) {
+            elements.scrollBottomFab.classList.toggle('hidden', isAtBottom);
+        }
     },
 
     scrollToTop() {
