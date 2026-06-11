@@ -15,14 +15,14 @@ import 'fake-indexeddb/auto';
  *   - db   : openDB / マイグレーション（fake-indexeddb 上で）
  */
 describe('test harness', () => {
-  it('jsdom environment provides a DOM', () => {
-    const el = document.createElement('div');
-    el.textContent = 'hello';
-    expect(el.textContent).toBe('hello');
-  });
+    it('jsdom environment provides a DOM', () => {
+        const el = document.createElement('div');
+        el.textContent = 'hello';
+        expect(el.textContent).toBe('hello');
+    });
 
-  it('fake-indexeddb provides indexedDB', () => {
-    expect(typeof indexedDB).toBe('object');
-    expect(typeof indexedDB.open).toBe('function');
-  });
+    it('fake-indexeddb provides indexedDB', () => {
+        expect(typeof indexedDB).toBe('object');
+        expect(typeof indexedDB.open).toBe('function');
+    });
 });
