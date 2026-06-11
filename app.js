@@ -37,7 +37,7 @@ const DUPLICATE_SUFFIX = ' (コピー)';
 const IMPORT_PREFIX = '(取込) ';
 const LIGHT_THEME_COLOR = '#4a90e2';
 const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.24";
+const APP_VERSION = "1.25";
 const DEFAULT_ZAI_MODEL = 'glm-4.6';
 const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
 const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
@@ -133,6 +133,9 @@ const MISTRAL_MODELS = [
 const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
 
 const VERSION_HISTORY = {
+    "1.25": [
+        "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
+    ],
     "1.24": [
         "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
         "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
@@ -2190,7 +2193,43 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             newImages.forEach(img => appLogic.imageObserver.observe(img));
         });
     }
-    
+
+    // コードブロック（```）をコピーボタン付きカードに変換（テキストアーティファクト）
+    if (role === 'model') {
+        contentDiv.querySelectorAll('pre').forEach(pre => {
+            if (pre.closest('.code-artifact')) return; // 二重適用防止
+            const code = pre.querySelector('code');
+            let lang = '';
+            if (code) {
+                const langClass = [...code.classList].find(c => c.startsWith('language-'));
+                if (langClass) lang = langClass.replace('language-', '');
+            }
+            const wrapper = document.createElement('div');
+            wrapper.className = 'code-artifact';
+            const header = document.createElement('div');
+            header.className = 'code-artifact-header';
+            const label = document.createElement('span');
+            label.className = 'code-artifact-lang';
+            label.textContent = lang || 'テキスト';
+            const copyBtn = document.createElement('button');
+            copyBtn.type = 'button';
+            copyBtn.className = 'code-artifact-copy';
+            copyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
+            copyBtn.onclick = () => {
+                const text = code ? code.textContent : pre.textContent;
+                navigator.clipboard.writeText(text || '').then(() => {
+                    copyBtn.innerHTML = '<span class="material-symbols-outlined">check</span> コピー済';
+                    setTimeout(() => { copyBtn.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー'; }, 1500);
+                }).catch(() => {});
+            };
+            header.appendChild(label);
+            header.appendChild(copyBtn);
+            pre.parentNode.insertBefore(wrapper, pre);
+            wrapper.appendChild(header);
+            wrapper.appendChild(pre);
+        });
+    }
+
     if (role === 'model' && messageData && messageData.groundingMetadata &&
         ( (messageData.groundingMetadata.groundingChunks && messageData.groundingMetadata.groundingChunks.length > 0) ||
           (messageData.groundingMetadata.webSearchQueries && messageData.groundingMetadata.webSearchQueries.length > 0) )
