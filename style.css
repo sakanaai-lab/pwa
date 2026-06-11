@@ -655,6 +655,15 @@ input[type="color"]::-moz-color-swatch { border: 1px solid var(--border-primary)
 .message-content ul, .message-content ol { margin-bottom: 0.8em; padding-left: 2em; }
 .message-content li { margin-bottom: 0.3em; }
 .message-content pre { background-color: var(--bg-secondary); padding: 10px; border-radius: 5px; overflow-x: auto; margin: 1em 0; font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 13px; border: 1px solid var(--border-tertiary); color: var(--text-secondary); }
+
+/* テキストアーティファクト：コードブロックのカード化 */
+.code-artifact { margin: 1em 0; border: 1px solid var(--border-tertiary); border-radius: var(--border-radius-md); overflow: hidden; }
+.code-artifact-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 6px 4px 12px; background-color: var(--bg-header); }
+.code-artifact-lang { font-size: 11px; font-weight: 600; color: #fff; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; }
+.code-artifact-copy { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 12px; color: #fff; background-color: rgba(255,255,255,0.18); border: none; border-radius: var(--border-radius-sm); cursor: pointer; transition: background-color 0.15s; }
+.code-artifact-copy:hover { background-color: rgba(255,255,255,0.3); }
+.code-artifact-copy .material-symbols-outlined { font-size: 16px; }
+.code-artifact pre { margin: 0; border: none; border-radius: 0; }
 .message.user .message-content pre { background-color: transparent; padding: 0; margin: 0; border: none; border-radius: 0; color: inherit; font-family: inherit; font-size: inherit; line-height: inherit; white-space: pre-wrap; word-wrap: break-word; overflow-x: visible; }
 .message-content code:not(pre > code) { background-color: var(--bg-secondary); padding: 0.2em 0.4em; border-radius: 3px; font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace; font-size: 0.9em; border: 1px solid var(--border-tertiary); color: var(--text-secondary); }
 .message-content blockquote { margin: 1em 0; padding-left: 1em; border-left: 4px solid var(--border-primary); color: var(--text-secondary); }
