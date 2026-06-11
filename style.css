@@ -1961,7 +1961,8 @@ body.dark-mode .floating-action-panel .floating-action-button.active {
 .scroll-bottom-fab {
     position: absolute;
     bottom: 80px; /* 入力エリアの上 */
-    right: 16px;
+    left: 50%;
+    transform: translateX(-50%);
     width: 44px;
     height: 44px;
     border-radius: 50%;
@@ -1982,14 +1983,14 @@ body.dark-mode .floating-action-panel .floating-action-button.active {
 
 .scroll-bottom-fab.hidden {
     opacity: 0;
-    transform: scale(0.7);
+    transform: translateX(-50%) scale(0.7);
     pointer-events: none;
 }
 
 .scroll-bottom-fab:hover {
     background-color: var(--bg-button-action-hover, var(--bg-button-action));
     box-shadow: var(--shadow-3);
-    transform: scale(1.1);
+    transform: translateX(-50%) scale(1.1);
 }
 
 .scroll-bottom-fab .material-symbols-outlined {
