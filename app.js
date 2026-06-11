@@ -14422,11 +14422,14 @@ window.dbUtils = dbUtils;
             msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
         }
 
-// 固定プロンプト側 block.cache_control のみ使う。
-// 会話履歴全体への自動キャッシュは、1h書き込みが増えるため無効化。
-// if (cacheControl && anthropicMessages.length >= 2) {
-//   requestBody.cache_control = cacheControl;
-// }
+        // 会話履歴はトップレベルcache_control（自動キャッシュ）で管理する。
+        // これがないと履歴全体が毎ターン通常入力($5/M)で課金されるため必須。
+        // 書き込み単価を抑えるため履歴側は常に5分TTL（$6.25/M）とし、
+        // 1h TTL($10/M)は安定したシステムプロンプト側のみに適用する。
+        // ※ Anthropicの「長いTTLのブレークポイントが先」ルールにも適合（system→messagesの順）
+        if (cacheControl && anthropicMessages.length >= 2) {
+            requestBody.cache_control = { type: "ephemeral" };
+        }
 
         anthropicMessages.forEach(msg => requestBody.messages.push(msg));
 
