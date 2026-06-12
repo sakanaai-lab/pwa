@@ -3801,6 +3801,3785 @@ Reason: [NGの場合の理由]`,
     }
   };
 
+  // src/app-logic/profile.js
+  var profileMethods = {
+    async loadGlobalSettings() {
+      try {
+        console.log("[GlobalSettings] 共通設定の読み込みを開始します。");
+        const storedBlob = await dbUtils.getSetting("backgroundImageBlob");
+        if (storedBlob && storedBlob.value instanceof Blob) {
+          state.settings.backgroundImageBlob = storedBlob.value;
+          console.log("[GlobalSettings] 背景画像BlobをDBから読み込みました。");
+        }
+        const storedFetchedModels = await dbUtils.getSetting("fetchedModels");
+        if (storedFetchedModels && storedFetchedModels.value) {
+          state.settings.fetchedModels = storedFetchedModels.value;
+          console.log("[GlobalSettings] API取得モデルをDBから読み込みました。");
+        }
+      } catch (error) {
+        console.error("[GlobalSettings] 共通設定の読み込み中にエラーが発生しました:", error);
+      }
+    },
+    async loadProfiles() {
+      try {
+        console.log("[Profile] プロファイルの読み込みを開始します。");
+        state.profiles = await dbUtils.getAllProfiles();
+        const activeIdSetting = await dbUtils.getSetting("activeProfileId");
+        state.activeProfileId = activeIdSetting ? activeIdSetting.value : null;
+        if (state.profiles.length === 0) {
+          console.warn("[Profile] プロファイルが見つかりません。最初のプロファイルを作成します。");
+          const newProfile = {
+            name: "デフォルトプロファイル",
+            icon: null,
+            createdAt: Date.now(),
+            settings: { ...state.settings }
+          };
+          const newId = await dbUtils.addProfile(newProfile);
+          await dbUtils.saveSetting("activeProfileId", newId);
+          state.profiles = [await dbUtils.getProfile(newId)];
+          state.activeProfileId = newId;
+        }
+        if (!state.activeProfileId || !state.profiles.some((p) => p.id === state.activeProfileId)) {
+          state.activeProfileId = state.profiles[0].id;
+          await dbUtils.saveSetting("activeProfileId", state.activeProfileId);
+          console.log(`[Profile] アクティブなプロファイルが無効でした。最初のプロファイル (ID: ${state.activeProfileId}) をアクティブに設定しました。`);
+        }
+        console.log(`[Profile] ${state.profiles.length}件のプロファイルを読み込みました。アクティブID: ${state.activeProfileId}`);
+        this.applyActiveProfile();
+        uiUtils.updateProfileSwitcherUI();
+      } catch (error) {
+        console.error("[Profile] プロファイルの読み込み中に致命的なエラーが発生しました:", error);
+        await uiUtils.showCustomAlert(`プロファイルの読み込みに失敗しました: ${error}`);
+      }
+    },
+    applyActiveProfile() {
+      state.activeProfile = state.profiles.find((p) => p.id === state.activeProfileId);
+      if (state.activeProfile) {
+        console.log(`[Profile] プロファイル「${state.activeProfile.name}」(ID: ${state.activeProfile.id}) を適用します。`);
+        const newSettings = { ...window.state.settings };
+        const globalFetchedModels = newSettings.fetchedModels;
+        const loadedProfileSettings = state.activeProfile.settings || {};
+        Object.assign(newSettings, loadedProfileSettings);
+        newSettings.fetchedModels = globalFetchedModels;
+        state.settings = newSettings;
+        uiUtils.applySettingsToUI();
+        uiUtils.updateProfileCardUI();
+        DebugLogger.init();
+      } else {
+        console.error(`[Profile] 適用すべきアクティブなプロファイル (ID: ${state.activeProfileId}) が見つかりません。`);
+      }
+    },
+    async switchProfile(newProfileId) {
+      newProfileId = Number(newProfileId);
+      if (newProfileId === state.activeProfileId) return;
+      console.log(`[Profile] プロファイルを ID: ${newProfileId} に切り替えます。`);
+      await dbUtils.saveSetting("activeProfileId", newProfileId);
+      state.activeProfileId = newProfileId;
+      this.applyActiveProfile();
+      uiUtils.updateProfileSwitcherUI();
+    },
+    async saveNewProfile() {
+      if (state.profiles.length >= MAX_PROFILES) {
+        return uiUtils.showCustomAlert(`プロファイルの上限数（${MAX_PROFILES}個）に達しているため、新しいプロファイルを作成できません。`);
+      }
+      const profileName = await uiUtils.showCustomPrompt("新しいプロファイル名を入力してください:", "新規プロファイル");
+      if (!profileName || !profileName.trim()) {
+        console.log("[Profile] 新規保存をキャンセルしました。");
+        return;
+      }
+      const currentSettings = this.getCurrentUiSettings();
+      const newProfile = {
+        name: profileName.trim(),
+        icon: state.activeProfile?.icon || null,
+        createdAt: Date.now(),
+        settings: currentSettings
+      };
+      try {
+        const newId = await dbUtils.addProfile(newProfile);
+        const newlyAddedProfile = await dbUtils.getProfile(newId);
+        state.profiles.push(newlyAddedProfile);
+        await dbUtils.saveSetting("activeProfileId", newId);
+        state.activeProfileId = newId;
+        this.markAsDirtyAndSchedulePush(true);
+        this.applyActiveProfile();
+        uiUtils.updateProfileSwitcherUI();
+        await uiUtils.showCustomAlert(`プロファイル「${newProfile.name}」を保存しました。`);
+      } catch (error) {
+        console.error("[Profile] 新規プロファイルの保存に失敗しました:", error);
+        await uiUtils.showCustomAlert(`プロファイルの保存に失敗しました: ${error}`);
+      }
+    },
+    async updateCurrentProfile() {
+      if (!state.activeProfile) {
+        await uiUtils.showCustomAlert("更新対象のプロファイルが選択されていません。");
+        return;
+      }
+      const updatedProfile = { ...state.activeProfile };
+      try {
+        await dbUtils.updateProfile(updatedProfile);
+        const index = state.profiles.findIndex((p) => p.id === updatedProfile.id);
+        if (index !== -1) {
+          state.profiles[index] = updatedProfile;
+        }
+        this.markAsDirtyAndSchedulePush(true);
+        console.log(`[Profile] プロファイル「${updatedProfile.name}」を更新しました。`);
+        this.applyActiveProfile();
+        uiUtils.updateProfileSwitcherUI();
+      } catch (error) {
+        console.error("[Profile] プロファイルの更新に失敗しました:", error);
+        await uiUtils.showCustomAlert(`プロファイルの更新に失敗しました: ${error.message}`);
+      }
+    },
+    async deleteCurrentProfile() {
+      if (!state.activeProfile) return;
+      if (state.profiles.length <= 1) {
+        await uiUtils.showCustomAlert("最後のプロファイルは削除できません。");
+        return;
+      }
+      const confirmed = await uiUtils.showCustomConfirm(`本当にプロファイル「${state.activeProfile.name}」を削除しますか？`);
+      if (!confirmed) return;
+      try {
+        const idToDelete = state.activeProfileId;
+        await dbUtils.deleteProfile(idToDelete);
+        this.markAsDirtyAndSchedulePush(true);
+        state.profiles = state.profiles.filter((p) => p.id !== idToDelete);
+        if (state.profileIconUrls.has(idToDelete)) {
+          URL.revokeObjectURL(state.profileIconUrls.get(idToDelete));
+          state.profileIconUrls.delete(idToDelete);
+        }
+        const newActiveId = state.profiles[0].id;
+        await dbUtils.saveSetting("activeProfileId", newActiveId);
+        state.activeProfileId = newActiveId;
+        this.applyActiveProfile();
+        uiUtils.updateProfileSwitcherUI();
+        await uiUtils.showCustomAlert("プロファイルを削除しました。");
+      } catch (error) {
+        console.error("[Profile] プロファイルの削除に失敗しました:", error);
+        await uiUtils.showCustomAlert(`プロファイルの削除に失敗しました: ${error}`);
+      }
+    },
+    async editCurrentProfileName() {
+      if (!state.activeProfile) return;
+      const newName = await uiUtils.showCustomPrompt("新しいプロファイル名:", state.activeProfile.name);
+      if (newName && newName.trim() && newName.trim() !== state.activeProfile.name) {
+        state.activeProfile.name = newName.trim();
+        await this.updateCurrentProfile();
+      }
+    },
+    handleProfileIconChange(file) {
+      if (!file || !file.type.startsWith("image/")) return;
+      if (state.activeProfile && state.profileIconUrls.has(state.activeProfile.id)) {
+        const oldUrl = state.profileIconUrls.get(state.activeProfile.id);
+        URL.revokeObjectURL(oldUrl);
+        state.profileIconUrls.delete(state.activeProfile.id);
+        console.log(`[Profile] 古いアイコンキャッシュを破棄しました (ID: ${state.activeProfile.id})`);
+      }
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const blob = new Blob([e.target.result], { type: file.type });
+        if (state.activeProfile) {
+          state.activeProfile.icon = blob;
+          await this.updateCurrentProfile();
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    },
+    async resetProfileIcon() {
+      if (!state.activeProfile) return;
+      const confirmed = await uiUtils.showCustomConfirm("アイコンをデフォルトに戻しますか？");
+      if (confirmed) {
+        state.activeProfile.icon = null;
+        if (state.profileIconUrls.has(state.activeProfile.id)) {
+          URL.revokeObjectURL(state.profileIconUrls.get(state.activeProfile.id));
+          state.profileIconUrls.delete(state.activeProfile.id);
+        }
+        await this.updateCurrentProfile();
+      }
+    },
+    getCurrentUiSettings() {
+      const settings = {};
+      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
+      const numberKeys = ["temperature", "maxTokens", "topK", "topP", "thinkingBudget", "maxRetries", "maxBackoffDelaySeconds", "overlayOpacity", "messageOpacity"];
+      const booleanKeys = ["enterToSend", "darkMode", "geminiEnableGrounding", "geminiEnableFunctionCalling", "enableSwipeNavigation", "enableProofreading", "enableAutoRetry", "useFixedRetryDelay", "reverseDummyOrder", "concatDummyModel", "dummyEnabled", "includeThoughts", "enableThoughtTranslation", "applyDummyToProofread", "applyDummyToTranslate", "forceFunctionCalling", "autoScroll", "enableWideMode", "enableSummaryButton"];
+      settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
+      settings.fixedRetryDelaySeconds = parseFloat(elements.fixedRetryDelayInput.value) || null;
+      settings.hideSystemPromptInChat = elements.hideSystemPromptToggle.checked;
+      settings.floatingPanelBehavior = elements.floatingPanelBehaviorSelect.value;
+      const allowUiChangesEl = document.getElementById("allow-prompt-ui-changes");
+      if (allowUiChangesEl) {
+        settings.allowPromptUiChanges = allowUiChangesEl.checked;
+      }
+      stringKeys.forEach((key) => {
+        if (key === "modelName") {
+          const provider = settings.apiProvider || state.settings.apiProvider || "gemini";
+          if (provider === "openrouter" && elements.openrouterModelInput) {
+            settings[key] = elements.openrouterModelInput.value.trim();
+          } else if (elements.modelNameSelect) {
+            settings[key] = elements.modelNameSelect.value.trim();
+          }
+        } else {
+          const element = elements[key + "Input"] || elements[key + "Select"] || elements[key + "Textarea"];
+          if (element) settings[key] = element.value.trim();
+        }
+      });
+      numberKeys.forEach((key) => {
+        let element;
+        if (key === "overlayOpacity" || key === "messageOpacity") {
+          element = elements[key + "Slider"];
+        } else {
+          element = elements[key + "Input"];
+        }
+        if (element) {
+          const value = key === "overlayOpacity" || key === "messageOpacity" ? parseFloat(element.value) / 100 : parseFloat(element.value);
+          settings[key] = isNaN(value) ? null : value;
+        }
+      });
+      booleanKeys.forEach((key) => {
+        const element = elements[key + "Checkbox"] || elements[key + "Toggle"];
+        if (element) settings[key] = element.checked;
+      });
+      console.log("[Profile] 現在のUIから設定を取得しました:", settings);
+      return settings;
+    },
+    async exportProfile() {
+      if (!state.activeProfile) {
+        return uiUtils.showCustomAlert("エクスポートするプロファイルが選択されていません。");
+      }
+      const profileToExport = JSON.parse(JSON.stringify(state.activeProfile));
+      if (state.activeProfile.icon instanceof Blob) {
+        try {
+          const base64Icon = await this.fileToBase64(state.activeProfile.icon);
+          profileToExport.icon = {
+            mimeType: state.activeProfile.icon.type,
+            data: base64Icon
+          };
+        } catch (error) {
+          console.error("アイコンのBase64変換に失敗:", error);
+          return uiUtils.showCustomAlert("アイコンのエクスポート処理に失敗しました。");
+        }
+      }
+      delete profileToExport.id;
+      const jsonString = JSON.stringify(profileToExport, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const safeName = profileToExport.name.replace(/[\\/:*?"<>|]/g, "_");
+      a.href = url;
+      a.download = `${safeName}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    async importProfile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        try {
+          if (state.profiles.length >= MAX_PROFILES) {
+            return uiUtils.showCustomAlert(`プロファイルの上限数（${MAX_PROFILES}個）に達しているため、プロファイルをインポートできません。`);
+          }
+          const importedData = JSON.parse(event.target.result);
+          if (!importedData.name || !importedData.settings) {
+            throw new Error("無効なファイルです。'name'と'settings'プロパティが必要です。");
+          }
+          let newProfile = { ...importedData };
+          if (newProfile.icon && newProfile.icon.data) {
+            try {
+              newProfile.icon = await this.base64ToBlob(newProfile.icon.data, newProfile.icon.mimeType);
+            } catch (error) {
+              console.error("インポート時のアイコン復元に失敗:", error);
+              newProfile.icon = null;
+            }
+          }
+          let finalName = newProfile.name;
+          const existingNames = state.profiles.map((p) => p.name);
+          while (existingNames.includes(finalName)) {
+            finalName = `${IMPORT_PREFIX}${finalName}`;
+          }
+          newProfile.name = finalName;
+          const newId = await dbUtils.addProfile(newProfile);
+          const newlyAddedProfile = await dbUtils.getProfile(newId);
+          state.profiles.push(newlyAddedProfile);
+          await dbUtils.saveSetting("activeProfileId", newId);
+          state.activeProfileId = newId;
+          this.markAsDirtyAndSchedulePush(true);
+          this.applyActiveProfile();
+          uiUtils.updateProfileSwitcherUI();
+          await uiUtils.showCustomAlert(`プロファイル「${finalName}」をインポートしました。`);
+        } catch (error) {
+          console.error("プロファイルのインポートに失敗:", error);
+          await uiUtils.showCustomAlert(`プロファイルのインポートに失敗しました: ${error.message}`);
+        }
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  // src/app-logic/lifecycle.js
+  var lifecycleMethods = {
+    _setupEventListenersCallCount: 0,
+    timerManager: {
+      timers: {},
+      // { timer_name: { timerId: 123, endTime: 167... } }
+      start(name, minutes) {
+        if (this.timers[name]) {
+          clearTimeout(this.timers[name].timerId);
+          console.log(`タイマー「${name}」は上書きされました。`);
+        }
+        const durationMs = minutes * 60 * 1e3;
+        const endTime = Date.now() + durationMs;
+        const timerId = setTimeout(() => {
+          console.log(`タイマー「${name}」が時間切れになりました。自動応答をトリガーします。`);
+          delete this.timers[name];
+          appLogic.triggerTimerExpiredResponse(name);
+        }, durationMs);
+        this.timers[name] = { timerId, endTime };
+        const message = `タイマー「${name}」を${minutes}分で開始しました。`;
+        console.log(`[Timer] ${message}`);
+        return { success: true, message };
+      },
+      check(name) {
+        if (!this.timers[name]) {
+          return { success: false, message: `タイマー「${name}」はセットされていません。` };
+        }
+        const remainingMs = this.timers[name].endTime - Date.now();
+        if (remainingMs <= 0) {
+          return { success: true, status: "expired", message: `タイマー「${name}」は既に時間切れです。` };
+        }
+        const remainingMinutes = Math.floor(remainingMs / 6e4);
+        const remainingSeconds = Math.floor(remainingMs % 6e4 / 1e3);
+        const message = `タイマー「${name}」の残り時間は約${remainingMinutes}分${remainingSeconds}秒です。`;
+        console.log(`[Timer] ${message}`);
+        return { success: true, status: "running", remaining_time: message };
+      },
+      stop(name) {
+        if (!this.timers[name]) {
+          return { success: false, message: `タイマー「${name}」はセットされていません。` };
+        }
+        clearTimeout(this.timers[name].timerId);
+        delete this.timers[name];
+        const message = `タイマー「${name}」を停止しました。`;
+        console.log(`[Timer] ${message}`);
+        return { success: true, message };
+      }
+    },
+    /**
+    * タイマー時間切れ時にAIに応答を促す関数
+    * @param {string} timerName - 時間切れになったタイマーの名前
+    */
+    async triggerTimerExpiredResponse(timerName) {
+      if (state.isSending) {
+        console.warn("タイマーが切れましたが、現在送信中のため自動応答をスキップします。");
+        return;
+      }
+      console.log(`タイマー「${timerName}」の時間切れ応答を生成します。`);
+      const systemInstructionForTimer = `[システムメモ]
+タイマー「${timerName}」が時間切れになりました。
+この事実を踏まえて、現在の会話の文脈に沿った自然な応答を生成してください。
+例えば、「そういえば、約束の時間だね」「時間切れだ！イベントが発生する」のように、会話を続けてください。
+このシステムメモ自体は応答に含めないでください。`;
+      const userMessage = {
+        role: "user",
+        content: systemInstructionForTimer,
+        timestamp: Date.now(),
+        attachments: [],
+        isHidden: true,
+        isAutoTrigger: true
+      };
+      state.currentMessages.push(userMessage);
+      const messageIndex = state.currentMessages.length - 1;
+      uiUtils.appendMessage(userMessage.role, userMessage.content, messageIndex);
+      const messageElement = elements.messageContainer.querySelector(`.message[data-index="${messageIndex}"]`);
+      if (messageElement) {
+        messageElement.style.display = "none";
+      }
+      await this.handleSend(false, -1, true);
+    },
+    applyWideMode() {
+      document.body.classList.toggle("wide-mode-enabled", state.settings.enableWideMode);
+      updateMessageMaxWidthVar();
+    },
+    getVisibleMessages() {
+      const visibleMessages = [];
+      const processedGroupIds = /* @__PURE__ */ new Set();
+      state.currentMessages.forEach((msg) => {
+        if (msg.isHidden) return;
+        if (msg.isCascaded && msg.siblingGroupId) {
+          if (!processedGroupIds.has(msg.siblingGroupId)) {
+            const siblings = state.currentMessages.filter((m) => m.siblingGroupId === msg.siblingGroupId && !m.isHidden);
+            const selectedSibling = siblings.find((m) => m.isSelected) || siblings[siblings.length - 1];
+            if (selectedSibling) {
+              visibleMessages.push(selectedSibling);
+            }
+            processedGroupIds.add(msg.siblingGroupId);
+          }
+        } else {
+          visibleMessages.push(msg);
+        }
+      });
+      return visibleMessages;
+    },
+    _updateApiUsageCount: /* @__PURE__ */ __name(async function(profileId) {
+      if (!profileId) return;
+      const profileToUpdate = state.profiles.find((p) => p.id === profileId);
+      if (!profileToUpdate) return;
+      const now = /* @__PURE__ */ new Date();
+      const getPacificDate = /* @__PURE__ */ __name((date) => {
+        const options = { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" };
+        const formatter = new Intl.DateTimeFormat("en-CA", options);
+        return formatter.format(date);
+      }, "getPacificDate");
+      const todayPacific = getPacificDate(now);
+      if (!profileToUpdate.apiUsage || profileToUpdate.apiUsage.date !== todayPacific) {
+        profileToUpdate.apiUsage = { date: todayPacific, count: 0 };
+      }
+      profileToUpdate.apiUsage.count++;
+      try {
+        await dbUtils.updateProfile(profileToUpdate);
+        console.log(`[API Count] Profile ${profileId} の使用回数を更新しました。 Count for ${todayPacific}: ${profileToUpdate.apiUsage.count}`);
+        this.updateApiUsageUI();
+        uiUtils.updateProfileSwitcherUI();
+      } catch (error) {
+        console.error(`[API Count] プロファイルID ${profileId} の使用回数保存に失敗:`, error);
+      }
+    }, "_updateApiUsageCount"),
+    _checkAndResetApiUsage: /* @__PURE__ */ __name(async function() {
+      console.log("[API Count] 全プロファイルのAPI使用回数リセットチェックを開始します...");
+      const now = /* @__PURE__ */ new Date();
+      const getPacificDate = /* @__PURE__ */ __name((date) => {
+        const options = { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" };
+        const formatter = new Intl.DateTimeFormat("en-CA", options);
+        return formatter.format(date);
+      }, "getPacificDate");
+      const todayPacific = getPacificDate(now);
+      let profilesWereUpdated = false;
+      for (const profile of state.profiles) {
+        if (profile.apiUsage && profile.apiUsage.date !== todayPacific) {
+          console.log(`[API Count] プロファイル「${profile.name}」(ID: ${profile.id}) の日付が古いため (${profile.apiUsage.date})、使用回数をリセットします。`);
+          delete profile.apiUsage;
+          try {
+            await dbUtils.updateProfile(profile);
+            profilesWereUpdated = true;
+          } catch (error) {
+            console.error(`[API Count] プロファイルID ${profile.id} のリセット保存に失敗:`, error);
+          }
+        }
+      }
+      if (profilesWereUpdated) {
+        console.log("[API Count] 1つ以上のプロファイルが更新されたため、UIを再描画します。");
+        this.applyActiveProfile();
+        uiUtils.updateProfileSwitcherUI();
+      } else {
+        console.log("[API Count] リセットが必要なプロファイルはありませんでした。");
+      }
+    }, "_checkAndResetApiUsage"),
+    updateApiUsageUI: /* @__PURE__ */ __name(function() {
+      const profile = state.activeProfile;
+      const usageContainer = document.getElementById("api-usage-container");
+      const usageText = document.getElementById("api-usage-text");
+      if (!usageContainer || !usageText || !profile) {
+        if (usageContainer) usageContainer.classList.add("hidden");
+        return;
+      }
+      const usage = profile.apiUsage || { count: 0 };
+      if (state.settings.modelName === "gemini-2.5-pro" && state.settings.apiProvider === "gemini") {
+        usageText.textContent = `gemini-2.5-pro 本日の使用回数: ${usage.count} 回 (日本時間16/17時リセット)`;
+        usageContainer.classList.remove("hidden");
+      } else {
+        usageContainer.classList.add("hidden");
+      }
+    }, "updateApiUsageUI"),
+    // プロバイダー変更時のUI更新
+    updateProviderUI(provider) {
+      const isGemini = provider === "gemini";
+      const isZai = provider === "zai";
+      const isOpenRouter = provider === "openrouter";
+      const isBedrock = provider === "bedrock";
+      const isOpenAI = provider === "openai";
+      const isAnthropic = provider === "anthropic";
+      const isGroq = provider === "groq";
+      const isDeepSeek = provider === "deepseek";
+      const isXAI = provider === "xai";
+      const isMistral = provider === "mistral";
+      const containers = [
+        [elements.geminiApiKeyContainer, isGemini],
+        [elements.zaiApiKeyContainer, isZai],
+        [elements.openrouterApiKeyContainer, isOpenRouter],
+        [elements.bedrockApiKeyContainer, isBedrock],
+        [elements.openaiApiKeyContainer, isOpenAI],
+        [elements.anthropicApiKeyContainer, isAnthropic],
+        [elements.groqApiKeyContainer, isGroq],
+        [elements.deepseekApiKeyContainer, isDeepSeek],
+        [elements.xaiApiKeyContainer, isXAI],
+        [elements.mistralApiKeyContainer, isMistral]
+      ];
+      containers.forEach(([el, show]) => {
+        if (el) el.classList.toggle("hidden", !show);
+      });
+      if (elements.modelNameLabel) {
+        elements.modelNameLabel.classList.toggle("hidden", isOpenRouter);
+      }
+      if (elements.modelNameSelect) {
+        elements.modelNameSelect.classList.toggle("hidden", isOpenRouter);
+      }
+      if (elements.openrouterModelInputContainer) {
+        elements.openrouterModelInputContainer.classList.toggle("hidden", !isOpenRouter);
+      }
+    },
+    // プロバイダーに応じたモデルリストの更新
+    updateModelOptions(provider) {
+      if (provider === "openrouter") {
+        if (elements.openrouterModelInput) {
+          const currentModel = state.settings.modelName || DEFAULT_OPENROUTER_MODEL;
+          elements.openrouterModelInput.value = currentModel;
+        }
+        uiUtils.updateModelWarningMessage();
+        this.updateApiUsageUI();
+        return;
+      }
+      const modelSelect = elements.modelNameSelect;
+      if (!modelSelect) return;
+      const userDefinedGroup = elements.userDefinedModelsGroup;
+      const currentValue = modelSelect.value;
+      const optgroups = Array.from(modelSelect.querySelectorAll("optgroup"));
+      optgroups.forEach((group) => {
+        if (group.id !== "user-defined-models-group") {
+          group.remove();
+        }
+      });
+      const options = Array.from(modelSelect.querySelectorAll("option:not([data-user-defined])"));
+      options.forEach((option) => option.remove());
+      let models;
+      if (provider === "zai") {
+        models = ZAI_MODELS;
+      } else if (provider === "bedrock") {
+        models = BEDROCK_MODELS;
+      } else if (provider === "openai") {
+        models = OPENAI_MODELS;
+      } else if (provider === "anthropic") {
+        models = ANTHROPIC_MODELS;
+      } else if (provider === "groq") {
+        models = GROQ_MODELS;
+      } else if (provider === "deepseek") {
+        models = DEEPSEEK_MODELS;
+      } else if (provider === "xai") {
+        models = XAI_MODELS;
+      } else if (provider === "mistral") {
+        models = MISTRAL_MODELS;
+      } else {
+        models = GEMINI_MODELS;
+      }
+      const groups = {};
+      models.forEach((model) => {
+        if (model.group) {
+          if (!groups[model.group]) {
+            const optgroup = document.createElement("optgroup");
+            optgroup.label = model.group;
+            modelSelect.appendChild(optgroup);
+            groups[model.group] = optgroup;
+          }
+          const option = document.createElement("option");
+          option.value = model.value;
+          option.textContent = model.label;
+          groups[model.group].appendChild(option);
+        } else {
+          const option = document.createElement("option");
+          option.value = model.value;
+          option.textContent = model.label;
+          modelSelect.appendChild(option);
+        }
+      });
+      if (userDefinedGroup && userDefinedGroup.parentNode !== modelSelect) {
+        modelSelect.appendChild(userDefinedGroup);
+      }
+      const standardValues = models.map((m) => m.value);
+      if (userDefinedGroup) {
+        userDefinedGroup.innerHTML = "";
+        userDefinedGroup.disabled = false;
+        const customText = state.settings && state.settings.customModelsText || {};
+        const fetchedModels = state.settings && state.settings.fetchedModels || {};
+        const manualIds = (customText[provider] || "").split(",").map((s) => s.trim()).filter(Boolean);
+        manualIds.forEach((id) => {
+          if (!standardValues.includes(id)) {
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = id;
+            opt.dataset.provider = provider;
+            opt.dataset.userDefined = "true";
+            userDefinedGroup.appendChild(opt);
+          }
+        });
+        const allExisting = /* @__PURE__ */ new Set([...standardValues, ...manualIds]);
+        const fetchedIds = (fetchedModels[provider] || []).filter((id) => !allExisting.has(id));
+        if (fetchedIds.length > 0) {
+          const fetchedGroup = document.createElement("optgroup");
+          fetchedGroup.label = "API取得モデル";
+          fetchedIds.forEach((id) => {
+            const opt = document.createElement("option");
+            opt.value = id;
+            opt.textContent = id;
+            opt.dataset.provider = provider;
+            fetchedGroup.appendChild(opt);
+          });
+          modelSelect.appendChild(fetchedGroup);
+        }
+      }
+      const allAvailableValues = Array.from(modelSelect.querySelectorAll("option")).map((o) => o.value);
+      if (allAvailableValues.includes(currentValue)) {
+        modelSelect.value = currentValue;
+      } else {
+        const lastUsed = state.settings.lastModelPerProvider?.[provider];
+        let defaultModel;
+        if (lastUsed && allAvailableValues.includes(lastUsed)) {
+          defaultModel = lastUsed;
+        } else if (provider === "zai") {
+          defaultModel = DEFAULT_ZAI_MODEL;
+        } else if (provider === "openrouter") {
+          defaultModel = DEFAULT_OPENROUTER_MODEL;
+        } else if (provider === "bedrock") {
+          defaultModel = DEFAULT_BEDROCK_MODEL;
+        } else if (provider === "openai") {
+          defaultModel = DEFAULT_OPENAI_MODEL;
+        } else if (provider === "anthropic") {
+          defaultModel = DEFAULT_ANTHROPIC_MODEL;
+        } else if (provider === "groq") {
+          defaultModel = DEFAULT_GROQ_MODEL;
+        } else if (provider === "deepseek") {
+          defaultModel = DEFAULT_DEEPSEEK_MODEL;
+        } else if (provider === "xai") {
+          defaultModel = DEFAULT_XAI_MODEL;
+        } else if (provider === "mistral") {
+          defaultModel = DEFAULT_MISTRAL_MODEL;
+        } else {
+          defaultModel = DEFAULT_MODEL;
+        }
+        modelSelect.value = defaultModel;
+        state.settings.modelName = defaultModel;
+      }
+      uiUtils.updateModelWarningMessage();
+      this.updateApiUsageUI();
+    },
+    // アプリ初期化
+    async initializeApp() {
+      const isSyncReload = sessionStorage.getItem("isSyncReload") === "true";
+      uiUtils.showProgressDialog(isSyncReload ? "データベースを準備中..." : "初期化処理を開始中...");
+      setupBroadcastChannel();
+      let versionNoticeData = null;
+      try {
+        const pendingNoticeRaw = sessionStorage.getItem(VERSION_NOTICE_SESSION_KEY);
+        if (pendingNoticeRaw) {
+          try {
+            versionNoticeData = JSON.parse(pendingNoticeRaw);
+            console.log(`[VersionNotice] ペンディング通知を検出しました。version=${versionNoticeData.version}`);
+          } catch (parseError) {
+            console.error("[VersionNotice] ペンディング通知の解析に失敗しました。削除して再生成します。", parseError);
+            sessionStorage.removeItem(VERSION_NOTICE_SESSION_KEY);
+            versionNoticeData = null;
+          }
+        }
+        if (!versionNoticeData) {
+          const acknowledgedVersion = localStorage.getItem(VERSION_ACK_STORAGE_KEY);
+          const legacyVersion = localStorage.getItem(VERSION_LEGACY_STORAGE_KEY);
+          const currentVersion = APP_VERSION;
+          console.log(`[VersionNotice] バージョンチェック開始。ack=${acknowledgedVersion ?? "none"}, legacy=${legacyVersion ?? "none"}, current=${currentVersion}`);
+          const shouldShowNotice = !acknowledgedVersion || acknowledgedVersion !== currentVersion || legacyVersion && legacyVersion !== currentVersion;
+          if (shouldShowNotice) {
+            const newFeatures = VERSION_HISTORY[currentVersion];
+            let message = `アプリがバージョン ${currentVersion} にアップデートされました。`;
+            if (newFeatures && newFeatures.length > 0) {
+              message += "\n\n主な更新内容:\n- " + newFeatures.join("\n- ");
+            }
+            versionNoticeData = {
+              version: currentVersion,
+              message,
+              shouldPersist: true
+            };
+            sessionStorage.setItem(VERSION_NOTICE_SESSION_KEY, JSON.stringify(versionNoticeData));
+            console.log(`[VersionNotice] 新しいバージョン通知を作成しました。(ack=${acknowledgedVersion ?? "none"}, legacy=${legacyVersion ?? "none"})`);
+          } else {
+            console.log("[VersionNotice] 既に最新バージョンが確認済みのため通知をスキップします。");
+          }
+        }
+      } catch (e) {
+        console.error("バージョンチェック処理中にエラー:", e);
+      }
+      try {
+        if (isSyncReload) uiUtils.updateProgressMessage("データベースを準備中...");
+        await dbUtils.openDB();
+      } catch (dbError) {
+        console.error("初期化中のDBオープンに失敗:", dbError);
+        const shouldReload = await uiUtils.showCustomConfirm(
+          `データベースの起動に失敗しました: ${dbError.message}
+
+ハードリロードを実行しますか？
+（チャット履歴などのデータは保持されます）`
+        );
+        if (shouldReload) {
+          console.log("ユーザーがリロードを選択しました。");
+          window.location.reload(true);
+        } else {
+          elements.appContainer.innerHTML = `<p style="padding: 20px; text-align: center; color: red;">アプリの起動に失敗しました。</p>`;
+        }
+        return;
+      }
+      try {
+        const cleanupFlag = await dbUtils.getSetting("imageStoreCleanup_v1_complete");
+        if (!cleanupFlag || !cleanupFlag.value) {
+          console.log("[Cleanup] 孤児画像データのクリーンアップ処理を開始します...");
+          const allChats = await dbUtils.getAllChats();
+          const activeImageIds = /* @__PURE__ */ new Set();
+          allChats.forEach((chat) => {
+            (chat.messages || []).forEach((message) => {
+              (message.imageIds || []).forEach((id) => activeImageIds.add(id));
+            });
+          });
+          console.log(`[Cleanup] ${activeImageIds.size}件の有効な画像IDを検出しました。`);
+          const allStoredImageIds = await new Promise((resolve, reject) => {
+            const store = dbUtils._getStore(IMAGE_STORE);
+            const request = store.getAllKeys();
+            request.onsuccess = () => resolve(new Set(request.result));
+            request.onerror = (e) => reject(e.target.error);
+          });
+          console.log(`[Cleanup] image_storeには ${allStoredImageIds.size}件の画像が存在します。`);
+          const orphanImageIds = [];
+          allStoredImageIds.forEach((storedId) => {
+            if (!activeImageIds.has(storedId)) {
+              orphanImageIds.push(storedId);
+            }
+          });
+          if (orphanImageIds.length > 0) {
+            console.log(`[Cleanup] ${orphanImageIds.length}件の孤児画像を削除します。`, orphanImageIds);
+            const tx = state.db.transaction(IMAGE_STORE, "readwrite");
+            const store = tx.objectStore(IMAGE_STORE);
+            orphanImageIds.forEach((id) => store.delete(id));
+            await new Promise((resolve, reject) => {
+              tx.oncomplete = resolve;
+              tx.onerror = () => reject(tx.error);
+            });
+            console.log("[Cleanup] 孤児画像の削除が完了しました。");
+          } else {
+            console.log("[Cleanup] 孤児画像は見つかりませんでした。");
+          }
+          await dbUtils.saveSetting("imageStoreCleanup_v1_complete", true);
+          console.log("[Cleanup] クリーンアップ処理が正常に完了しました。");
+        } else {
+          console.log("[Cleanup] 孤児画像データのクリーンアップは既に完了しています。");
+        }
+      } catch (error) {
+        console.error("[Cleanup] 孤児画像データのクリーンアップ中にエラーが発生しました:", error);
+      }
+      const handleAuthCallback = /* @__PURE__ */ __name(async () => {
+        console.log("[SYNC_DEBUG] handleAuthCallback: 開始");
+        const urlParams = new URLSearchParams(window.location.search);
+        const authCode = urlParams.get("code");
+        if (authCode) {
+          const newUrl = window.location.origin + window.location.pathname;
+          window.history.replaceState({}, document.title, newUrl);
+          uiUtils.showProgressDialog("Dropboxと連携中...");
+          try {
+            const REDIRECT_URI = window.location.origin + window.location.pathname;
+            const codeVerifier = sessionStorage.getItem("dropboxCodeVerifier");
+            if (!codeVerifier) {
+              throw new Error("認証セッションが見つかりません。もう一度お試しください。");
+            }
+            await window.dropboxApi.getAccessToken(authCode, REDIRECT_URI, codeVerifier);
+            console.log("Dropbox連携に成功し、トークンを保存しました。");
+            await this.updateDropboxUIState();
+            console.log("[SYNC_DEBUG] handleAuthCallback: 初回連携のため、handlePull(true)を呼び出します。");
+            await this.handlePull(true);
+            console.log("[SYNC_DEBUG] handleAuthCallback: handlePullが完了しました。");
+          } catch (error) {
+            console.error("Dropboxのトークン取得に失敗:", error);
+            uiUtils.hideProgressDialog();
+            await uiUtils.showCustomAlert(`連携に失敗しました: ${error.message}`);
+          } finally {
+            sessionStorage.removeItem("dropboxCodeVerifier");
+          }
+        }
+      }, "handleAuthCallback");
+      await handleAuthCallback();
+      if (typeof marked !== "undefined") {
+        const renderer = new marked.Renderer();
+        const escapeHtmlText = /* @__PURE__ */ __name((t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), "escapeHtmlText");
+        renderer.html = (token) => escapeHtmlText(typeof token === "object" && token !== null ? token.text : token);
+        const originalLinkRenderer = renderer.link;
+        renderer.link = (href, title, text) => {
+          const rawHref = href && typeof href === "object" ? href.href : href;
+          if (typeof rawHref === "string" && /^\s*(javascript|vbscript|data)\s*:/i.test(rawHref)) {
+            const label = href && typeof href === "object" ? href.text : text;
+            return escapeHtmlText(label || rawHref);
+          }
+          const html = originalLinkRenderer.call(renderer, href, title, text);
+          return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
+        };
+        marked.setOptions({ renderer, breaks: true, gfm: true, smartypants: false });
+      } else {
+        console.error("Marked.jsライブラリが読み込まれていません！");
+      }
+      elements.appVersionSpan.textContent = APP_VERSION;
+      window.addEventListener("beforeinstallprompt", (e) => e.preventDefault());
+      window.debug = {
+        getState: /* @__PURE__ */ __name(() => console.log(state), "getState"),
+        getMemory: /* @__PURE__ */ __name(() => console.log(state.currentPersistentMemory), "getMemory"),
+        getChat: /* @__PURE__ */ __name(async (id) => console.log(await dbUtils.getChat(id || state.currentChatId)), "getChat")
+      };
+      registerServiceWorker();
+      this.imageObserver = new IntersectionObserver(async (entries, observer) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            const img = entry.target;
+            const imageId = img.dataset.imageId;
+            observer.unobserve(img);
+            const imageData = await this.getImageBlobById(imageId);
+            if (imageData && imageData.blob) {
+              if (imageData.width && imageData.height) {
+                img.width = imageData.width;
+                img.height = imageData.height;
+              }
+              const objectURL = URL.createObjectURL(imageData.blob);
+              img.src = objectURL;
+              img.alt = "生成された画像";
+            } else {
+              img.alt = "画像の読み込みに失敗しました";
+              img.classList.add("load-error");
+            }
+          }
+        }
+      }, { rootMargin: "200px" });
+      const mutationObserver = new MutationObserver((mutationsList) => {
+        for (const mutation of mutationsList) {
+          if (mutation.type === "childList") {
+            mutation.removedNodes.forEach((node) => {
+              const imagesToRevoke = [];
+              if (node.tagName === "IMG" && node.src.startsWith("blob:")) {
+                imagesToRevoke.push(node);
+              } else if (node.querySelectorAll) {
+                node.querySelectorAll('img[src^="blob:"]').forEach((img) => imagesToRevoke.push(img));
+              }
+              imagesToRevoke.forEach((img) => {
+                console.log(`[Memory] DOMから削除された画像のURLを解放します: ${img.src}`);
+                URL.revokeObjectURL(img.src);
+              });
+            });
+          }
+        }
+      });
+      mutationObserver.observe(elements.messageContainer, { childList: true, subtree: true });
+      try {
+        if (isSyncReload) uiUtils.updateProgressMessage("各種設定を読み込み中...");
+        await this.loadGlobalSettings();
+        if (isSyncReload) uiUtils.updateProgressMessage("プロファイル情報を読み込み中...");
+        await this.loadProfiles();
+        await this._checkAndResetApiUsage();
+        this.updateApiUsageUI();
+        await this.initializeSyncState();
+        await this.updateDropboxUIState();
+        const tokenData = await dbUtils.getSetting("dropboxTokens");
+        let recoveryFlowExecuted = false;
+        if (tokenData && tokenData.value) {
+          const lockData = await window.dropboxApi.checkLockFile();
+          if (lockData && lockData.operation) {
+            recoveryFlowExecuted = true;
+            console.warn(`[Sync Recovery] 同期ロックファイルを検出。中断された操作: ${lockData.operation}`);
+            this.updateSyncStatusUI("syncing", `中断された${lockData.operation === "push" ? "同期" : "復元"}を再開中...`);
+            if (lockData.operation === "push") {
+              state.sync.isDirty = true;
+              await this.handlePush(false);
+            } else if (lockData.operation === "pull") {
+              await this.handlePull(false);
+            }
+          } else if (lockData) {
+            recoveryFlowExecuted = true;
+            console.warn("[Sync Recovery] 操作タイプ不明のロックファイルを検出。ユーザーに選択を促します。");
+            const choice = await this.showRecoveryDialog();
+            if (choice === "pull") {
+              await this.handlePull(true);
+            } else if (choice === "push") {
+              state.sync.isDirty = true;
+              await this.handlePush(true);
+            } else {
+              await window.dropboxApi.deleteLockFile();
+            }
+          }
+        }
+        if (!new URLSearchParams(window.location.search).has("code") && !recoveryFlowExecuted) {
+          console.log("[SYNC_DEBUG] initializeApp: 通常起動のため、handlePull(false)を呼び出します。");
+          await this.handlePull(false);
+        } else {
+          console.log("[SYNC_DEBUG] initializeApp: OAuthコールバックまたは復旧フローが実行されたため、通常のPullはスキップします。");
+        }
+        await this.updateDropboxUIState();
+        const profiles = await dbUtils.getAllProfiles();
+        if (profiles.length === 0) {
+          const oldSettingsArray = await new Promise((resolve, reject) => {
+            const store = dbUtils._getStore(SETTINGS_STORE);
+            const request = store.getAll();
+            request.onsuccess = () => resolve(request.result.filter((s) => s.key !== "dropboxTokens"));
+            request.onerror = (e) => reject(e.target.error);
+          });
+          if (oldSettingsArray.length > 0) {
+            console.log("[Migration] プロファイルが存在せず、古い設定データが見つかったため移行処理を実行します。");
+            const oldSettingsObject = {};
+            oldSettingsArray.forEach((item) => {
+              oldSettingsObject[item.key] = item.value;
+            });
+            const initialProfileSettings = { ...state.settings, ...oldSettingsObject };
+            delete initialProfileSettings.backgroundImageBlob;
+            const defaultProfile = { name: "デフォルトプロファイル", icon: null, createdAt: Date.now(), settings: initialProfileSettings };
+            const newId = await dbUtils.addProfile(defaultProfile);
+            await new Promise((resolve, reject) => {
+              const store = dbUtils._getStore(SETTINGS_STORE, "readwrite");
+              store.clear().onsuccess = () => resolve();
+              store.transaction.onerror = () => reject(store.transaction.error);
+            });
+            await dbUtils.saveSetting("activeProfileId", newId);
+            console.log("[Migration] データ移行が完了しました。");
+            await this.loadProfiles();
+          }
+        }
+        if (isSyncReload) uiUtils.updateProgressMessage("チャット履歴を読み込み中...");
+        const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
+        if (chats && chats.length > 0) {
+          await this.loadChat(chats[0].id);
+        } else {
+          this.startNewChat();
+        }
+      } catch (error) {
+        console.error("初期化中のデータ処理で失敗:", error);
+        const shouldReload = await uiUtils.showCustomConfirm(
+          `データの読み込みに失敗しました: ${error.message}
+
+ハードリロードを実行しますか？
+（チャット履歴などのデータは保持されます）`
+        );
+        if (shouldReload) {
+          console.log("ユーザーがリロードを選択しました。");
+          window.location.reload(true);
+          return;
+        }
+      } finally {
+        if (isSyncReload) uiUtils.updateProgressMessage("画面を描画中...");
+        elements.chatScreen.style.transform = "translateX(0)";
+        elements.historyScreen.style.transform = "translateX(-100%)";
+        elements.settingsScreen.style.transform = "translateX(100%)";
+        uiUtils.showScreen("chat", true);
+        history.replaceState({ screen: "chat" }, "", "#chat");
+        state.currentScreen = "chat";
+        updateMessageMaxWidthVar();
+        this.setupEventListeners();
+        this.updateZoomState();
+        uiUtils.adjustTextareaHeight();
+        uiUtils.setSendingState(false);
+        this.updateAssetCount();
+        this.toggleSummaryButtonVisibility();
+        this.scrollToBottom();
+        this.applyFloatingPanelBehavior();
+        uiUtils.hideProgressDialog();
+        sessionStorage.removeItem("isSyncReload");
+        if (versionNoticeData && versionNoticeData.message) {
+          try {
+            console.log(`[VersionNotice] 通知を表示します。version=${versionNoticeData.version}`);
+            await uiUtils.showCustomAlert(versionNoticeData.message);
+            console.log("[VersionNotice] 通知がユーザーによって確認されました。");
+            if (versionNoticeData.shouldPersist) {
+              localStorage.setItem(VERSION_ACK_STORAGE_KEY, versionNoticeData.version);
+              localStorage.setItem(VERSION_LEGACY_STORAGE_KEY, versionNoticeData.version);
+              console.log(`[VersionNotice] バージョン ${versionNoticeData.version} をACK/LEGACYキーに保存しました。`);
+            }
+          } catch (versionAlertError) {
+            console.error("[VersionNotice] 通知の表示に失敗しました:", versionAlertError);
+          } finally {
+            sessionStorage.removeItem(VERSION_NOTICE_SESSION_KEY);
+          }
+        }
+      }
+    },
+    // イベントリスナーを設定
+    setupEventListeners() {
+      if (!this._popstateBound) {
+        window.addEventListener("popstate", this.handlePopState.bind(this));
+        this._popstateBound = true;
+      }
+      this._setupEventListenersCallCount++;
+      elements.gotoHistoryBtn.addEventListener("click", () => uiUtils.showScreen("history"));
+      elements.gotoSettingsBtn.addEventListener("click", () => uiUtils.showScreen("settings"));
+      elements.backToChatFromHistoryBtn.addEventListener("click", () => uiUtils.showScreen("chat"));
+      elements.backToChatFromSettingsBtn.addEventListener("click", () => uiUtils.showScreen("chat"));
+      const restoreFromCloudBtn = document.getElementById("restore-from-cloud-btn");
+      if (restoreFromCloudBtn && !restoreFromCloudBtn._bound) {
+        restoreFromCloudBtn._bound = true;
+        restoreFromCloudBtn.addEventListener("click", async () => {
+          restoreFromCloudBtn.disabled = true;
+          restoreFromCloudBtn.textContent = "復元中...";
+          try {
+            await this.forceRestoreFromCloud();
+          } finally {
+            restoreFromCloudBtn.disabled = false;
+            restoreFromCloudBtn.textContent = "☁️ クラウドから復元";
+          }
+        });
+      }
+      elements.newChatBtn.addEventListener("click", () => this.confirmStartNewChat());
+      elements.sendButton.addEventListener("click", () => {
+        if (state.isSending) {
+          this.abortRequest();
+        } else {
+          this.handleSend();
+        }
+      });
+      elements.userInput.addEventListener("input", () => uiUtils.adjustTextareaHeight());
+      elements.userInput.addEventListener("keydown", (e) => {
+        if (e.ctrlKey && e.key === "Enter") {
+          e.preventDefault();
+          if (!elements.sendButton.disabled) this.handleSend();
+          return;
+        }
+        if (state.settings.enterToSend && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+          e.preventDefault();
+          if (!elements.sendButton.disabled) this.handleSend();
+        }
+      });
+      elements.systemPromptDetails.addEventListener("toggle", (event) => {
+        if (event.target.open) {
+          this.startEditSystemPrompt();
+        } else if (state.isEditingSystemPrompt) {
+          this.cancelEditSystemPrompt();
+        }
+      });
+      elements.saveSystemPromptBtn.addEventListener("click", () => this.saveCurrentSystemPrompt());
+      elements.cancelSystemPromptBtn.addEventListener("click", () => this.cancelEditSystemPrompt());
+      elements.profileCardHeader.addEventListener("click", (e) => {
+        e.stopPropagation();
+        uiUtils.toggleProfileMenu("header");
+      });
+      elements.profileCardHeaderSettings.addEventListener("click", (e) => {
+        e.stopPropagation();
+        uiUtils.toggleProfileMenu("settings");
+      });
+      document.addEventListener("click", (e) => {
+        const target = e.target;
+        const isHeaderCardClicked = elements.profileCardHeader.contains(target);
+        const isSettingsCardClicked = elements.profileCardHeaderSettings.contains(target);
+        const isHeaderMenuClicked = elements.headerProfileMenu.contains(target);
+        const isSettingsMenuClicked = elements.headerProfileMenuSettings.contains(target);
+        if (!isHeaderCardClicked && !isSettingsCardClicked && !isHeaderMenuClicked && !isSettingsMenuClicked) {
+          elements.headerProfileMenu.classList.add("hidden");
+          elements.headerProfileMenuSettings.classList.add("hidden");
+        }
+      });
+      elements.profileEditNameBtn.addEventListener("click", () => this.editCurrentProfileName());
+      elements.profileIconInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.handleProfileIconChange(file);
+        }
+        e.target.value = null;
+      });
+      elements.profileResetIconBtn.addEventListener("click", () => this.resetProfileIcon());
+      elements.profileSaveNewBtn.addEventListener("click", () => this.saveNewProfile());
+      elements.profileDeleteBtn.addEventListener("click", () => this.deleteCurrentProfile());
+      elements.profileExportBtn.addEventListener("click", () => this.exportProfile());
+      elements.profileImportBtn.addEventListener("click", () => elements.profileImportInput.click());
+      elements.profileImportInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) this.importProfile(file);
+        e.target.value = null;
+      });
+      document.getElementById("reset-api-count-btn").addEventListener("click", async () => {
+        const confirmed = await uiUtils.showCustomConfirm("API使用回数のカウントを0にリセットしますか？");
+        if (confirmed) {
+          const profile = state.activeProfile;
+          if (profile) {
+            if (profile.apiUsage) {
+              delete profile.apiUsage;
+              try {
+                await dbUtils.updateProfile(profile);
+                this.markAsDirtyAndSchedulePush("structural");
+                console.log(`[API Count] カウンターが手動でリセットされました (Profile ID: ${profile.id})`);
+                this.updateApiUsageUI();
+                uiUtils.updateProfileSwitcherUI();
+              } catch (error) {
+                console.error(`[API Count] カウンターリセットの保存に失敗:`, error);
+              }
+            }
+          }
+        }
+      });
+      document.getElementById("clear-sync-error-btn").addEventListener("click", () => {
+        state.sync.lastError = null;
+        dbUtils.saveSetting("syncLastError", null);
+        const newStatus = state.sync.isDirty ? "dirty" : "idle";
+        this.updateSyncStatusUI(newStatus);
+      });
+      const setupInstantSave = /* @__PURE__ */ __name((element, key, eventType = "change", onUpdate = null, getValue = null) => {
+        if (element) {
+          element.addEventListener(eventType, async () => {
+            if (!state.activeProfile) return;
+            let value;
+            if (getValue) {
+              value = getValue();
+            } else {
+              switch (element.type) {
+                case "checkbox":
+                  value = element.checked;
+                  break;
+                case "range":
+                  value = parseFloat(element.value) / 100;
+                  break;
+                case "number":
+                case "select-one":
+                  const rawValue = element.value;
+                  value = parseFloat(rawValue);
+                  if (isNaN(value)) {
+                    value = rawValue === "" ? null : rawValue;
+                  }
+                  break;
+                default:
+                  value = element.value;
+                  break;
+              }
+            }
+            state.settings[key] = value;
+            state.activeProfile.settings[key] = value;
+            await dbUtils.updateProfile(state.activeProfile);
+            appLogic.markAsDirtyAndSchedulePush("structural");
+            if (onUpdate) {
+              onUpdate(value);
+            }
+          });
+        } else {
+          console.warn(`❌ [Debug Settings] '${key}' に対応するDOM要素が見つかりません。`);
+        }
+      }, "setupInstantSave");
+      const settingsMap = {
+        apiProvider: {
+          element: elements.apiProviderSelect,
+          event: "change",
+          onUpdate: /* @__PURE__ */ __name((value) => {
+            this.updateProviderUI(value);
+            this.updateModelOptions(value);
+          }, "onUpdate")
+        },
+        apiKey: { element: elements.apiKeyInput, event: "input" },
+        zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
+        openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
+        bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
+        bedrockSecretKey: { element: elements.bedrockSecretKeyInput, event: "input" },
+        bedrockRegion: { element: elements.bedrockRegionSelect, event: "change" },
+        openaiApiKey: { element: elements.openaiApiKeyInput, event: "input" },
+        anthropicApiKey: { element: elements.anthropicApiKeyInput, event: "input" },
+        anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : "5m", "getValue") },
+        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue") },
+        novelaiApiKey: { element: elements.novelaiApiKeyInput, event: "input" },
+        novelaiModel: { element: elements.novelaiModelSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : "nai-diffusion-4-5-curated", "getValue") },
+        groqApiKey: { element: elements.groqApiKeyInput, event: "input" },
+        deepseekApiKey: { element: elements.deepseekApiKeyInput, event: "input" },
+        xaiApiKey: { element: elements.xaiApiKeyInput, event: "input" },
+        mistralApiKey: { element: elements.mistralApiKeyInput, event: "input" },
+        modelName: {
+          element: elements.modelNameSelect,
+          event: "change",
+          onUpdate: /* @__PURE__ */ __name(() => {
+            uiUtils.updateModelWarningMessage();
+            this.updateApiUsageUI();
+            const sel = elements.modelNameSelect;
+            if (sel) {
+              const opt = sel.options[sel.selectedIndex];
+              if (opt && opt.dataset.provider && opt.dataset.provider !== state.settings.apiProvider) {
+                const newProvider = opt.dataset.provider;
+                state.settings.apiProvider = newProvider;
+                if (elements.apiProviderSelect) {
+                  elements.apiProviderSelect.value = newProvider;
+                  elements.apiProviderSelect.dispatchEvent(new Event("change"));
+                }
+              }
+            }
+          }, "onUpdate"),
+          getValue: /* @__PURE__ */ __name(() => {
+            const provider = state.settings.apiProvider || "gemini";
+            if (provider === "openrouter" && elements.openrouterModelInput) {
+              return elements.openrouterModelInput.value.trim();
+            }
+            return elements.modelNameSelect ? elements.modelNameSelect.value.trim() : "";
+          }, "getValue")
+        },
+        systemPrompt: { element: elements.systemPromptDefaultTextarea, event: "input" },
+        temperature: { element: elements.temperatureInput, event: "input" },
+        maxTokens: { element: elements.maxTokensInput, event: "input" },
+        topK: { element: elements.topKInput, event: "input" },
+        topP: { element: elements.topPInput, event: "input" },
+        thinkingBudget: { element: elements.thinkingBudgetInput, event: "input" },
+        includeThoughts: { element: elements.includeThoughtsToggle, event: "change" },
+        enableThoughtTranslation: { element: elements.enableThoughtTranslationCheckbox, event: "change" },
+        thoughtTranslationModel: { element: elements.thoughtTranslationModelSelect, event: "change" },
+        dummyUser: { element: elements.dummyUserInput, event: "input" },
+        dummyEnabled: { element: elements.dummyEnabledToggle, event: "change" },
+        applyDummyToProofread: { element: elements.applyDummyToProofreadCheckbox, event: "change" },
+        applyDummyToTranslate: { element: elements.applyDummyToTranslateCheckbox, event: "change" },
+        dummyModel: { element: elements.dummyModelInput, event: "input" },
+        reverseDummyOrder: { element: elements.reverseDummyOrderCheckbox, event: "change" },
+        concatDummyModel: { element: elements.concatDummyModelCheckbox, event: "change" },
+        additionalModels: { element: elements.additionalModelsTextarea, event: "input" },
+        enterToSend: { element: elements.enterToSendCheckbox, event: "change" },
+        historySortOrder: { element: elements.historySortOrderSelect, event: "change" },
+        darkMode: { element: elements.darkModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyDarkMode(), "onUpdate") },
+        debugMode: { element: elements.debugModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => {
+          DebugLogger.init();
+          this.toggleDebugLogButtonVisibility(value);
+        }, "onUpdate") },
+        fontFamily: { element: elements.fontFamilyInput, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyFontFamily(), "onUpdate") },
+        hideSystemPromptInChat: { element: elements.hideSystemPromptToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.toggleSystemPromptVisibility(), "onUpdate") },
+        geminiEnableGrounding: { element: elements.geminiEnableGroundingToggle, event: "change" },
+        geminiEnableFunctionCalling: { element: elements.geminiEnableFunctionCallingToggle, event: "change" },
+        enableSwipeNavigation: { element: elements.swipeNavigationToggle, event: "change" },
+        enableProofreading: { element: elements.enableProofreadingCheckbox, event: "change" },
+        proofreadingModelName: { element: elements.proofreadingModelNameSelect, event: "change" },
+        proofreadingSystemInstruction: { element: elements.proofreadingSystemInstructionTextarea, event: "input" },
+        enableAutoRetry: { element: elements.enableAutoRetryCheckbox, event: "change" },
+        maxRetries: { element: elements.maxRetriesInput, event: "input" },
+        useFixedRetryDelay: { element: elements.useFixedRetryDelayCheckbox, event: "change" },
+        fixedRetryDelaySeconds: { element: elements.fixedRetryDelayInput, event: "input" },
+        maxBackoffDelaySeconds: { element: elements.maxBackoffDelayInput, event: "input" },
+        enableApiTimeout: { element: elements.enableApiTimeoutCheckbox, event: "change" },
+        apiTimeoutSeconds: { element: elements.apiTimeoutSecondsInput, event: "input" },
+        googleSearchApiKey: { element: elements.googleSearchApiKeyInput, event: "input" },
+        googleSearchEngineId: { element: elements.googleSearchEngineIdInput, event: "input" },
+        overlayOpacity: { element: elements.overlayOpacitySlider, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyOverlayOpacity(), "onUpdate") },
+        messageOpacity: { element: elements.messageOpacitySlider, event: "input", onUpdate: /* @__PURE__ */ __name((value) => document.documentElement.style.setProperty("--message-bubble-opacity", String(value)), "onUpdate") },
+        headerColor: { element: elements.headerColorInput, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyHeaderColor(), "onUpdate") },
+        forceFunctionCalling: { element: elements.forceFunctionCallingToggle, event: "change" },
+        autoScroll: { element: elements.autoScrollToggle, event: "change" },
+        enableWideMode: { element: elements.enableWideModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.applyWideMode(), "onUpdate") },
+        enableMemory: { element: elements.enableMemoryToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => this.toggleMemoryOptions(value), "onUpdate") },
+        memoryAutoSaveInterval: { element: elements.memoryAutoSaveIntervalSelect, event: "change" },
+        headerAutoHide: { element: elements.headerAutoHideToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => document.body.classList.toggle("header-auto-hide", value), "onUpdate") },
+        dropboxSyncFrequency: { element: elements.dropboxSyncFrequencySelect, event: "change" },
+        summaryModelName: { element: elements.summaryModelNameSelect, event: "change" },
+        summarySystemPrompt: { element: elements.summarySystemPromptTextarea, event: "input" },
+        enableSummaryButton: { element: elements.enableSummaryButtonToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.toggleSummaryButtonVisibility(), "onUpdate") },
+        floatingPanelBehavior: { element: elements.floatingPanelBehaviorSelect, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.applyFloatingPanelBehavior(), "onUpdate") },
+        sdApiUrl: { element: elements.sdApiUrlInput, event: "input" },
+        sdApiUser: { element: elements.sdApiUserInput, event: "input" },
+        sdApiPassword: { element: elements.sdApiPasswordInput, event: "input" },
+        sdEnableQualityChecker: {
+          element: elements.sdEnableQualityCheckerCheckbox,
+          event: "change",
+          onUpdate: /* @__PURE__ */ __name((value) => {
+            elements.sdQualityCheckerOptionsDiv.classList.toggle("hidden", !value);
+          }, "onUpdate")
+        },
+        sdQcModel: { element: elements.sdQcModelSelect, event: "change" },
+        sdQcPrompt: { element: elements.sdQcPromptTextarea, event: "input" },
+        sdQcRetries: { element: elements.sdQcRetriesInput, event: "input" },
+        sdPromptImproveModel: { element: elements.sdPromptImproveModelSelect, event: "change" },
+        sdPromptImproveSystemPrompt: { element: elements.sdPromptImproveSystemPromptTextarea, event: "input" }
+      };
+      for (const key in settingsMap) {
+        const { element, event, onUpdate, getValue } = settingsMap[key];
+        setupInstantSave(element, key, event, onUpdate, getValue);
+      }
+      if (elements.openrouterModelInput) {
+        elements.openrouterModelInput.addEventListener("input", async () => {
+          if (!state.activeProfile) return;
+          const value = elements.openrouterModelInput.value.trim();
+          state.settings.modelName = value;
+          state.activeProfile.settings.modelName = value;
+          await dbUtils.updateProfile(state.activeProfile);
+          appLogic.markAsDirtyAndSchedulePush("structural");
+        });
+      }
+      if (elements.additionalModelsTextarea) {
+        elements.additionalModelsTextarea.addEventListener("blur", () => {
+          uiUtils.updateUserModelOptions();
+        });
+      }
+      elements.memoryToggleBtn.addEventListener("click", () => this.toggleChatMemory());
+      elements.manageMemoryBtn.addEventListener("click", () => this.openMemoryManagementDialog());
+      elements.closeMemoryDialogBtn.addEventListener("click", () => elements.memoryManagementDialog.close());
+      elements.addMemoryBtn.addEventListener("click", () => this.addMemoryItem());
+      elements.deleteAllMemoryBtn.addEventListener("click", () => this.confirmDeleteAllMemory());
+      elements.characterProfileBtn.addEventListener("click", () => this.openCharacterProfileDialog());
+      elements.closeProfileDialogBtn.addEventListener("click", () => elements.characterProfileDialog.close());
+      elements.profileBackBtn.addEventListener("click", () => {
+        elements.characterProfileDialog.classList.remove("details-visible");
+      });
+      elements.overlayOpacitySlider.addEventListener("input", (event) => {
+        elements.overlayOpacityValue.textContent = `${event.target.value}%`;
+      });
+      elements.messageOpacitySlider.addEventListener("input", (event) => {
+        elements.messageOpacityValue.textContent = `${event.target.value}%`;
+      });
+      elements.importHistoryBtn.addEventListener("click", () => elements.importHistoryInput.click());
+      elements.importHistoryInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) this.handleHistoryImport(file);
+        event.target.value = null;
+      });
+      elements.includeThoughtsToggle.addEventListener("change", () => {
+        const isEnabled = elements.includeThoughtsToggle.checked;
+        elements.thoughtTranslationOptionsDiv.classList.toggle("hidden", !isEnabled);
+      });
+      elements.enableApiTimeoutCheckbox.addEventListener("change", () => {
+        uiUtils.updateApiTimeoutOptionsVisibility();
+      });
+      elements.updateAppBtn.addEventListener("click", () => this.updateApp());
+      elements.clearDataBtn.addEventListener("click", () => this.confirmClearAllData());
+      elements.enableProofreadingCheckbox.addEventListener("change", () => {
+        const isEnabled = elements.enableProofreadingCheckbox.checked;
+        elements.proofreadingOptionsDiv.classList.toggle("hidden", !isEnabled);
+      });
+      elements.uploadBackgroundBtn.addEventListener("click", () => elements.backgroundImageInput.click());
+      elements.backgroundImageInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) this.handleBackgroundImageUpload(file);
+        event.target.value = null;
+      });
+      elements.deleteBackgroundBtn.addEventListener("click", () => this.confirmDeleteBackgroundImage());
+      elements.resetHeaderColorBtn.addEventListener("click", () => {
+        state.settings.headerColor = "";
+        elements.headerColorInput.value = state.settings.darkMode ? "#007aff" : "#7faab6";
+        const event = new Event("input", { bubbles: true });
+        elements.headerColorInput.dispatchEvent(event);
+      });
+      elements.messageContainer.addEventListener("click", (event) => {
+        if (event.target.tagName === "IMG" && event.target.closest(".message-content")) {
+          const modalOverlay2 = document.getElementById("image-modal-overlay");
+          const modalImg = document.getElementById("image-modal-img");
+          if (modalOverlay2 && modalImg) {
+            modalImg.src = event.target.src;
+            modalOverlay2.classList.remove("hidden");
+          }
+        }
+      });
+      document.body.addEventListener("click", (event) => {
+        if (!elements.messageContainer.contains(event.target)) {
+          const currentlyShown = elements.messageContainer.querySelector(".message.show-actions");
+          if (currentlyShown) {
+            currentlyShown.classList.remove("show-actions");
+          }
+        }
+      }, true);
+      if ("visualViewport" in window) {
+        window.visualViewport.addEventListener("resize", this.updateZoomState.bind(this));
+        window.visualViewport.addEventListener("scroll", this.updateZoomState.bind(this));
+      } else {
+        console.warn("VisualViewport API is not supported in this browser.");
+      }
+      elements.attachFileBtn.addEventListener("click", () => uiUtils.showFileUploadDialog());
+      elements.selectFilesBtn.addEventListener("click", () => {
+        const fileInput = document.createElement("input");
+        fileInput.type = "file";
+        fileInput.multiple = true;
+        fileInput.style.display = "none";
+        fileInput.addEventListener("change", (event) => {
+          this.handleFileSelection(event.target.files);
+          document.body.removeChild(fileInput);
+        });
+        document.body.appendChild(fileInput);
+        fileInput.click();
+      });
+      elements.confirmAttachBtn.addEventListener("click", () => this.confirmAttachment());
+      elements.cancelAttachBtn.addEventListener("click", () => this.cancelAttachment());
+      elements.fileUploadDialog.addEventListener("close", () => {
+        if (elements.fileUploadDialog.returnValue !== "ok") {
+          this.cancelAttachment();
+        }
+      });
+      document.addEventListener("click", (e) => {
+        const button = e.target.closest("button");
+        if (button && !button.disabled) {
+          this.createRipple(e, button);
+        }
+      });
+      const chatScreen = elements.chatScreen;
+      chatScreen.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!state.isSending) {
+          chatScreen.classList.add("drag-over");
+        }
+      });
+      chatScreen.addEventListener("dragleave", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (event.relatedTarget === null || !chatScreen.contains(event.relatedTarget)) {
+          chatScreen.classList.remove("drag-over");
+        }
+      });
+      chatScreen.addEventListener("drop", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        chatScreen.classList.remove("drag-over");
+        if (state.isSending) return;
+        const files = event.dataTransfer.files;
+        if (files && files.length > 0) {
+          console.log(`${files.length}個のファイルがドロップされました。`);
+          this.handleFileSelection(files);
+          uiUtils.showFileUploadDialog();
+        }
+      });
+      const fileUploadDialog = elements.fileUploadDialog;
+      fileUploadDialog.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      fileUploadDialog.addEventListener("dragleave", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      fileUploadDialog.addEventListener("drop", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        if (state.isSending) return;
+        const files = event.dataTransfer.files;
+        if (files && files.length > 0) {
+          console.log(`${files.length}個のファイルがダイアログにドロップされました。`);
+          this.handleFileSelection(files);
+          uiUtils.updateSelectedFilesUI();
+        }
+      });
+      const modalOverlay = document.getElementById("image-modal-overlay");
+      const modalCloseBtn = document.getElementById("image-modal-close");
+      if (modalOverlay && modalCloseBtn) {
+        modalCloseBtn.addEventListener("click", () => {
+          modalOverlay.classList.add("hidden");
+        });
+        modalOverlay.addEventListener("click", (event) => {
+          if (event.target === modalOverlay) {
+            modalOverlay.classList.add("hidden");
+          }
+        });
+      }
+      elements.enableAutoRetryCheckbox.addEventListener("change", () => {
+        elements.autoRetryOptionsDiv.classList.toggle("hidden", !elements.enableAutoRetryCheckbox.checked);
+      });
+      elements.useFixedRetryDelayCheckbox.addEventListener("change", () => {
+        const useFixed = elements.useFixedRetryDelayCheckbox.checked;
+        elements.fixedRetryDelayContainer.classList.toggle("hidden", !useFixed);
+        elements.maxBackoffDelayContainer.classList.toggle("hidden", useFixed);
+      });
+      elements.modelNameSelect.addEventListener("change", () => {
+        uiUtils.updateModelWarningMessage();
+      });
+      window.addEventListener("beforeunload", () => {
+        const revokeUrls = /* @__PURE__ */ __name((cache, name) => {
+          if (cache.size > 0) {
+            console.log(`[Memory] ページ離脱のため、${cache.size}個の${name}URLを解放します。`);
+            for (const url of cache.values()) {
+              if (url.startsWith("blob:")) {
+                URL.revokeObjectURL(url);
+              }
+            }
+            cache.clear();
+          }
+        }, "revokeUrls");
+        revokeUrls(state.profileIconUrls, "アイコン");
+        revokeUrls(state.videoUrlCache, "動画");
+        revokeUrls(state.imageUrlCache, "チャット画像");
+      });
+      elements.assetExportBtn.addEventListener("click", () => this.handleAssetExport());
+      elements.assetImportBtn.addEventListener("click", () => elements.assetImportInput.click());
+      elements.assetImportInput.addEventListener("change", (event) => {
+        const file = event.target.files[0];
+        if (file) this.handleAssetImport(file);
+        event.target.value = null;
+      });
+      elements.manageAssetsBtn.addEventListener("click", () => this.openAssetManagementDialog());
+      elements.closeAssetDialogBtn.addEventListener("click", () => elements.assetManagementDialog.close());
+      elements.deleteAllAssetsBtn.addEventListener("click", () => this.confirmDeleteAllAssets());
+      elements.floatingPanelBehaviorSelect.addEventListener("change", () => {
+        state.settings.floatingPanelBehavior = elements.floatingPanelBehaviorSelect.value;
+        this.updateCurrentProfile();
+        this.applyFloatingPanelBehavior();
+      });
+      elements.chatStatsBtn.addEventListener("click", () => this.showChatStats());
+      elements.chatStatsCloseBtn.addEventListener("click", () => elements.chatStatsDialog.close());
+      elements.summarizeHistoryBtn.addEventListener("click", () => this.startSummaryProcess());
+      elements.summaryCancelBtn.addEventListener("click", () => elements.summaryDialog.close("cancel"));
+      elements.summaryRegenerateBtn.addEventListener("click", () => this.regenerateSummary());
+      elements.summaryConfirmBtn.addEventListener("click", () => this.confirmSummary());
+      const mainContent = elements.chatScreen.querySelector(".main-content");
+      mainContent.addEventListener("scroll", () => {
+        this.updateScrollButtonsState();
+      });
+      mainContent.addEventListener("click", (event) => {
+        if (state.settings.floatingPanelBehavior !== "on-click") return;
+        const interactiveElements = "A, BUTTON, INPUT, TEXTAREA, SELECT, DETAILS, SUMMARY, IMG, PRE, CODE";
+        if (event.target.closest(interactiveElements) || event.target.closest(".floating-action-panel")) {
+          return;
+        }
+        const panel = elements.floatingActionPanel;
+        if (panel.classList.contains("visible")) {
+          clearTimeout(state.panelFadeOutTimer);
+          panel.classList.remove("visible");
+        } else {
+          this.showActionPanel();
+        }
+      });
+      elements.floatingActionPanel.addEventListener("mouseenter", () => clearTimeout(state.panelFadeOutTimer));
+      elements.floatingActionPanel.addEventListener("mouseleave", () => this.showActionPanel());
+      elements.scrollToTopBtn.addEventListener("click", () => this.scrollToTop());
+      elements.scrollToBottomBtn.addEventListener("click", () => this.scrollToBottom(true));
+      if (elements.scrollBottomFab) {
+        elements.scrollBottomFab.addEventListener("click", () => this.scrollToBottom(true));
+      }
+      let headerHideTimer = null;
+      window.addEventListener("online", () => {
+        console.log("[Network] オンライン状態に復帰しました。同期状態を確認します。");
+        if (state.sync.isDirty || state.sync.lastError) {
+          console.log("[Sync] 同期が必要な変更、またはエラーが検出されたため、自動Pushを実行します。");
+          this.handlePush();
+        }
+      });
+      elements.dropboxAuthBtn.addEventListener("click", async () => {
+        try {
+          const APP_KEY = "wed7l1d3azzuvlj";
+          const REDIRECT_URI = window.location.origin + window.location.pathname;
+          const codeVerifier = appLogic._generateCodeVerifier();
+          const codeChallenge = await appLogic._generateCodeChallenge(codeVerifier);
+          sessionStorage.setItem("dropboxCodeVerifier", codeVerifier);
+          const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${APP_KEY}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&token_access_type=offline&code_challenge=${codeChallenge}&code_challenge_method=S256`;
+          window.location.href = authUrl;
+        } catch (error) {
+          console.error("Dropbox認証の開始に失敗:", error);
+          uiUtils.showCustomAlert("認証処理の開始に失敗しました。");
+        }
+      });
+      elements.dropboxSyncBtn.addEventListener("click", async () => {
+        console.log("手動同期ボタンがクリックされました。");
+        if (state.sync.isSyncing) {
+          uiUtils.showCustomAlert("現在、別の同期処理が実行中です。");
+          return;
+        }
+        const tokenData = await dbUtils.getSetting("dropboxTokens");
+        if (!tokenData || !tokenData.value) {
+          return;
+        }
+        state.sync.isSyncing = true;
+        this.updateSyncStatusUI("syncing", "クラウドの状態を確認中...");
+        uiUtils.showProgressDialog("クラウドの状態を確認中...");
+        try {
+          const cloudMetadataString = await window.dropboxApi.downloadMetadata();
+          if (!cloudMetadataString) {
+            console.log("[Manual Sync] クラウドにデータがありません。Push処理を実行します。");
+            uiUtils.updateProgressMessage("初回データをクラウドに保存中...");
+            state.sync.isSyncing = false;
+            await this._doPush(true);
+            return;
+          }
+          const cloudData = JSON.parse(cloudMetadataString);
+          const cloudSyncId = cloudData.syncId;
+          const localSyncId = state.sync.lastSyncId;
+          console.log(`[Manual Sync] Cloud syncId: ${cloudSyncId}, Local syncId: ${localSyncId}`);
+          if (cloudSyncId !== localSyncId) {
+            console.log("[Manual Sync] syncIdが異なります。Pull処理を実行します。");
+            uiUtils.updateProgressMessage("他のブラウザのデータの変更を同期中...");
+            state.sync.isSyncing = false;
+            await this.handlePull(true);
+            return;
+          }
+          console.log("[Manual Sync] syncIdは一致しています。アセットの整合性を確認します。");
+          uiUtils.updateProgressMessage("アセットの整合性を確認中...");
+          const { localAssets } = await this._prepareExportData();
+          const cloudAssetsList = await window.dropboxApi.listAssets();
+          const localAssetCount = localAssets.size;
+          const cloudAssetCount = cloudAssetsList.length;
+          console.log(`[Manual Sync] Local asset count: ${localAssetCount}, Cloud asset count: ${cloudAssetCount}`);
+          if (localAssetCount !== cloudAssetCount || state.sync.isDirty) {
+            if (state.sync.isDirty) {
+              console.log("[Manual Sync] ローカルに変更（isDirty=true）があるため、Push処理を実行します。");
+              uiUtils.updateProgressMessage("ローカルの変更を同期中...");
+            } else {
+              console.log("[Manual Sync] アセット数が一致しないため、Push処理でクラウドの状態を調整します。");
+              uiUtils.updateProgressMessage("クラウドの状態を調整中...");
+            }
+            state.sync.isSyncing = false;
+            await this._doPush(true);
+            return;
+          }
+          console.log("[Manual Sync] syncIdとアセット数が一致しており、差分はありません。");
+          this.updateSyncStatusUI("idle");
+          uiUtils.hideProgressDialog();
+          await uiUtils.showCustomAlert("データは既に最新の状態です。");
+        } catch (error) {
+          const errorMessage = error.message || "不明なエラーが発生しました。";
+          this.updateSyncStatusUI("error", errorMessage);
+          console.error("[Manual Sync] 手動同期処理中にエラーが発生しました:", error);
+          uiUtils.hideProgressDialog();
+          await uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
+        } finally {
+          state.sync.isSyncing = false;
+        }
+      });
+      elements.syncStatusHeaderIcon.addEventListener("click", () => {
+        uiUtils.showScreen("settings").then(() => {
+          const syncGroup = document.getElementById("data-sync-group");
+          if (syncGroup) {
+            syncGroup.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        });
+      });
+      elements.dropboxRestoreBtn.addEventListener("click", async () => {
+        const confirmed = await uiUtils.showCustomConfirm("クラウドのデータでローカルを上書きします。ローカルの変更は失われます。続けますか？");
+        if (!confirmed) return;
+        try {
+          await appLogic.forceRestoreFromCloud();
+        } catch (error) {
+          console.error("クラウドから復元に失敗:", error);
+          await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
+        }
+      });
+      elements.dropboxDisconnectBtn.addEventListener("click", async () => {
+        const confirmed = await uiUtils.showCustomConfirm("Dropboxとの連携を解除しますか？同期されなくなります。");
+        if (confirmed) {
+          try {
+            await window.dropboxApi.disconnect();
+            await appLogic.updateDropboxUIState();
+            await uiUtils.showCustomAlert("連携を解除しました。");
+          } catch (error) {
+            console.error("Dropbox連携解除に失敗:", error);
+            await uiUtils.showCustomAlert(`連携解除に失敗しました: ${error.message}`);
+          }
+        }
+      });
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        const showHeaderPC = /* @__PURE__ */ __name(() => {
+          if (state.settings.headerAutoHide) {
+            clearTimeout(headerHideTimer);
+            document.body.classList.add("header-force-show");
+          }
+        }, "showHeaderPC");
+        const hideHeaderPC = /* @__PURE__ */ __name(() => {
+          if (state.settings.headerAutoHide) {
+            headerHideTimer = setTimeout(() => {
+              document.body.classList.remove("header-force-show");
+            }, 200);
+          }
+        }, "hideHeaderPC");
+        elements.headerTriggerArea.addEventListener("mouseenter", showHeaderPC);
+        elements.appHeader.addEventListener("mouseenter", showHeaderPC);
+        elements.headerTriggerArea.addEventListener("mouseleave", hideHeaderPC);
+        elements.appHeader.addEventListener("mouseleave", hideHeaderPC);
+      }
+      if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        const mainContent2 = elements.chatScreen.querySelector(".main-content");
+        mainContent2.addEventListener("click", (event) => {
+          if (state.settings.headerAutoHide) {
+            const interactiveElements = "A, BUTTON, INPUT, TEXTAREA, SELECT, DETAILS, SUMMARY, IMG, PRE, CODE";
+            if (!event.target.closest(interactiveElements)) {
+              clearTimeout(headerHideTimer);
+              const body = document.body;
+              const isVisible = body.classList.contains("header-force-show");
+              if (isVisible) {
+                body.classList.remove("header-force-show");
+              } else {
+                body.classList.add("header-force-show");
+                headerHideTimer = setTimeout(() => {
+                  body.classList.remove("header-force-show");
+                }, 5e3);
+              }
+            }
+          }
+        });
+        elements.appHeader.addEventListener("touchstart", () => {
+          if (state.settings.headerAutoHide) {
+            clearTimeout(headerHideTimer);
+          }
+        }, { passive: true });
+      }
+      const resetHeaderVisibility = /* @__PURE__ */ __name(() => {
+        document.body.classList.remove("header-force-show");
+      }, "resetHeaderVisibility");
+      elements.gotoHistoryBtn.addEventListener("click", resetHeaderVisibility);
+      elements.gotoSettingsBtn.addEventListener("click", resetHeaderVisibility);
+      elements.backToChatFromHistoryBtn.addEventListener("click", resetHeaderVisibility);
+      elements.backToChatFromSettingsBtn.addEventListener("click", resetHeaderVisibility);
+      const deleteOldChatsBtn = document.getElementById("delete-old-chats-btn");
+      if (deleteOldChatsBtn) {
+        deleteOldChatsBtn.addEventListener("click", async () => {
+          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
+          const allChats = await dbUtils.getAllChats();
+          const chatsToDelete = allChats.filter((chat) => chat.updatedAt < sevenDaysAgo);
+          if (chatsToDelete.length === 0) {
+            await uiUtils.showCustomAlert("削除対象の古いチャットはありません。");
+            return;
+          }
+          const confirmed = await uiUtils.showCustomConfirm(
+            `${chatsToDelete.length}件の古いチャット（7日以上更新なし）を削除しますか？
+この操作は元に戻せません。`
+          );
+          if (confirmed) {
+            uiUtils.showProgressDialog("古いチャットを削除中...");
+            try {
+              for (const chat of chatsToDelete) {
+                if (chat.id !== state.currentChatId) {
+                  await dbUtils.deleteChat(chat.id);
+                }
+              }
+              this.markAsDirtyAndSchedulePush("structural");
+              await uiUtils.showCustomAlert(`${chatsToDelete.length}件の古いチャットを削除しました。`);
+              await uiUtils.renderHistoryList();
+            } catch (error) {
+              console.error("古いチャットの一括削除エラー:", error);
+              await uiUtils.showCustomAlert(`削除中にエラーが発生しました: ${error.message}`);
+            } finally {
+              uiUtils.hideProgressDialog();
+            }
+          }
+        });
+      }
+      elements.sdTestConnectionBtn.addEventListener("click", async () => {
+        const url = elements.sdApiUrlInput.value.trim().replace(/\/$/, "");
+        if (!url) {
+          return uiUtils.showCustomAlert("先にWebUIのURLを入力してください。");
+        }
+        const endpoint = `${url}/sdapi/v1/progress`;
+        const headers = {};
+        if (elements.sdApiUserInput.value && elements.sdApiPasswordInput.value) {
+          headers["Authorization"] = "Basic " + btoa(`${elements.sdApiUserInput.value}:${elements.sdApiPasswordInput.value}`);
+        }
+        try {
+          const response = await fetch(endpoint, { headers });
+          if (response.ok) {
+            await uiUtils.showCustomAlert("接続に成功しました！");
+          } else {
+            throw new Error(`サーバーからの応答が不正です (ステータス: ${response.status})`);
+          }
+        } catch (error) {
+          console.error("SD接続テストエラー:", error);
+          await uiUtils.showCustomAlert(`接続に失敗しました。
+URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認してください。
+エラー: ${error.message}`);
+        }
+      });
+      elements.sdEnableQualityCheckerCheckbox.addEventListener("change", (event) => {
+        elements.sdQualityCheckerOptionsDiv.classList.toggle("hidden", !event.target.checked);
+      });
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") {
+          this._checkAndResetApiUsage();
+        }
+      });
+      elements.debugLogBtn.addEventListener("click", () => this.openLogDialog());
+      elements.closeLogDialogBtn.addEventListener("click", () => elements.debugLogDialog.close());
+      elements.clearLogsBtn.addEventListener("click", () => this.clearLogs());
+      elements.copyLogsBtn.addEventListener("click", () => this.copyLogsToClipboard());
+    },
+    // popstateイベントハンドラ (戻るボタン/ジェスチャー)
+    handlePopState(event) {
+      const targetScreen = event.state?.screen || "chat";
+      if (targetScreen === state.currentScreen) {
+        console.log(`[popstate] same screen -> ignore: ${targetScreen}`);
+        return;
+      }
+      console.log(`popstate event fired: Navigating to screen '${targetScreen}' from history state.`);
+      uiUtils.showScreen(targetScreen, true);
+    },
+    // ズーム状態を更新
+    updateZoomState() {
+      if ("visualViewport" in window) {
+        const newZoomState = window.visualViewport.scale > ZOOM_THRESHOLD;
+        if (state.isZoomed !== newZoomState) {
+          state.isZoomed = newZoomState;
+          console.log(`Zoom state updated: ${state.isZoomed}`);
+          document.body.classList.toggle("zoomed", state.isZoomed);
+        }
+      }
+    },
+    // --- スワイプ処理 (ズーム対応) ---
+    handleTouchStart(event) {
+      if (!state.settings.enableSwipeNavigation) return;
+      if (event.touches.length > 1 || state.isZoomed) {
+        state.touchStartX = 0;
+        state.touchStartY = 0;
+        state.isSwiping = false;
+        return;
+      }
+      state.touchStartX = event.touches[0].clientX;
+      state.touchStartY = event.touches[0].clientY;
+      state.isSwiping = false;
+      state.touchEndX = state.touchStartX;
+      state.touchEndY = state.touchStartY;
+    },
+    handleTouchMove(event) {
+      if (!state.settings.enableSwipeNavigation) return;
+      if (!state.touchStartX || event.touches.length > 1 || state.isZoomed) {
+        return;
+      }
+      const currentX = event.touches[0].clientX;
+      const currentY = event.touches[0].clientY;
+      const diffX = state.touchStartX - currentX;
+      const diffY = state.touchStartY - currentY;
+      if (Math.abs(diffX) > Math.abs(diffY)) {
+        state.isSwiping = true;
+        event.preventDefault();
+      } else {
+        state.isSwiping = false;
+      }
+      state.touchEndX = currentX;
+      state.touchEndY = currentY;
+    },
+    handleTouchEnd(event) {
+      if (!state.settings.enableSwipeNavigation) {
+        this.resetSwipeState();
+        return;
+      }
+      this.updateZoomState();
+      if (state.isZoomed) {
+        console.log("Zoomed state detected on touchend, skipping swipe navigation.");
+        this.resetSwipeState();
+        return;
+      }
+      if (!state.isSwiping || !state.touchStartX) {
+        this.resetSwipeState();
+        return;
+      }
+      const diffX = state.touchStartX - state.touchEndX;
+      const diffY = state.touchStartY - state.touchEndY;
+      if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(diffX) > Math.abs(diffY)) {
+        if (diffX > 0) {
+          console.log("左スワイプ検出 -> 設定画面へ");
+          uiUtils.showScreen("settings");
+        } else {
+          console.log("右スワイプ検出 -> 履歴画面へ");
+        }
+      } else {
+        console.log("スワイプ距離不足 or 縦移動大");
+      }
+      this.resetSwipeState();
+    },
+    resetSwipeState() {
+      state.touchStartX = 0;
+      state.touchStartY = 0;
+      state.touchEndX = 0;
+      state.touchEndY = 0;
+      state.isSwiping = false;
+    },
+    // -------------------------------
+    // アプリを更新 (キャッシュクリア)
+    async updateApp() {
+      if (!("serviceWorker" in navigator)) {
+        const doReload = await uiUtils.showCustomConfirm("お使いのブラウザはService Workerをサポートしていません。\nページを強制リロードして最新版を取得しますか？");
+        if (doReload) window.location.reload(true);
+        return;
+      }
+      const confirmed = await uiUtils.showCustomConfirm("アプリのキャッシュをクリアして最新版を再取得しますか？ (ページがリロードされます)");
+      if (!confirmed) return;
+      try {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((r) => r.unregister()));
+        window.location.reload(true);
+      } catch (error) {
+        console.error("Service Workerの処理中にエラー:", error);
+        window.location.reload(true);
+      }
+    },
+    // 全データ削除の確認と実行
+    async confirmClearAllData() {
+      const confirmed = await uiUtils.showCustomConfirm("本当にすべてのデータ（チャット履歴、プロファイル、アセット、設定）を削除しますか？この操作は元に戻せません。");
+      if (confirmed) {
+        try {
+          uiUtils.revokeExistingObjectUrl();
+          await dbUtils.clearAllData();
+          await uiUtils.showCustomAlert("すべてのデータが削除されました。アプリをリセットします。");
+          window.location.reload();
+        } catch (error) {
+          await uiUtils.showCustomAlert(`データ削除中にエラーが発生しました: ${error}`);
+        }
+      }
+    },
+    createRipple(event, button) {
+      const existingRipple = button.querySelector(".ripple");
+      if (existingRipple) {
+        existingRipple.remove();
+      }
+      const circle = document.createElement("span");
+      const diameter = Math.max(button.clientWidth, button.clientHeight);
+      const radius = diameter / 2;
+      circle.style.width = circle.style.height = `${diameter}px`;
+      const rect = button.getBoundingClientRect();
+      circle.style.left = `${event.clientX - rect.left - radius}px`;
+      circle.style.top = `${event.clientY - rect.top - radius}px`;
+      circle.classList.add("ripple");
+      button.appendChild(circle);
+      setTimeout(() => {
+        if (circle.parentElement) {
+          circle.remove();
+        }
+      }, 600);
+    },
+    // --- Function Calling用ヘルパー ---
+    async updateOpacitySettings(opacitySettings) {
+      let settingsChanged = false;
+      const changedItems = [];
+      if (typeof opacitySettings.overlay === "number" && opacitySettings.overlay >= 0 && opacitySettings.overlay <= 1) {
+        state.settings.overlayOpacity = opacitySettings.overlay;
+        await dbUtils.saveSetting("overlayOpacity", state.settings.overlayOpacity);
+        document.documentElement.style.setProperty("--overlay-opacity-value", state.settings.overlayOpacity);
+        changedItems.push(`オーバーレイの濃さを${Math.round(opacitySettings.overlay * 100)}%に`);
+        settingsChanged = true;
+      }
+      if (typeof opacitySettings.message_bubble === "number" && opacitySettings.message_bubble >= 0.1 && opacitySettings.message_bubble <= 1) {
+        state.settings.messageOpacity = opacitySettings.message_bubble;
+        await dbUtils.saveSetting("messageOpacity", state.settings.messageOpacity);
+        changedItems.push(`メッセージバブルの濃さを${Math.round(opacitySettings.message_bubble * 100)}%に`);
+        settingsChanged = true;
+      }
+      if (settingsChanged) {
+        uiUtils.applySettingsToUI();
+        const message = `${changedItems.join("、")}変更しました。`;
+        return { success: true, message };
+      } else {
+        return { success: false, message: "有効な値が指定されなかったため、UIは変更されませんでした。" };
+      }
+    },
+    applyFloatingPanelBehavior() {
+      const behavior = state.settings.floatingPanelBehavior;
+      const panel = elements.floatingActionPanel;
+      clearTimeout(state.panelFadeOutTimer);
+      if (behavior === "always") {
+        panel.classList.add("visible");
+      } else if (behavior === "hidden") {
+        panel.classList.remove("visible");
+      } else {
+        panel.classList.remove("visible");
+      }
+    },
+    showActionPanel() {
+      const behavior = state.settings.floatingPanelBehavior;
+      const panel = elements.floatingActionPanel;
+      if (behavior === "always" || behavior === "hidden") {
+        return;
+      }
+      clearTimeout(state.panelFadeOutTimer);
+      panel.classList.add("visible");
+      state.panelFadeOutTimer = setTimeout(() => {
+        panel.classList.remove("visible");
+      }, 5e3);
+    },
+    updateScrollButtonsState() {
+      const mainContent = elements.chatScreen.querySelector(".main-content");
+      if (!mainContent) return;
+      const isAtTop = mainContent.scrollTop < 50;
+      const isAtBottom = mainContent.scrollHeight - mainContent.scrollTop - mainContent.clientHeight < 50;
+      elements.scrollToTopBtn.disabled = isAtTop;
+      elements.scrollToBottomBtn.disabled = isAtBottom;
+      if (elements.scrollBottomFab) {
+        elements.scrollBottomFab.classList.toggle("hidden", isAtBottom);
+      }
+    },
+    scrollToTop() {
+      const mainContent = elements.chatScreen.querySelector(".main-content");
+      if (!mainContent) return;
+      const startY = mainContent.scrollTop;
+      const endY = 0;
+      const distance = endY - startY;
+      const duration = 300;
+      let startTime = null;
+      if (distance === 0) return;
+      const step = /* @__PURE__ */ __name((currentTime) => {
+        if (startTime === null) startTime = currentTime;
+        const elapsed = currentTime - startTime;
+        const t = Math.min(elapsed / duration, 1);
+        const easedT = 1 - Math.pow(1 - t, 3);
+        mainContent.scrollTop = startY + distance * easedT;
+        if (elapsed < duration) {
+          requestAnimationFrame(step);
+        } else {
+          mainContent.scrollTop = endY;
+        }
+      }, "step");
+      requestAnimationFrame(step);
+    },
+    scrollToBottom(force = false) {
+      const mainContent = elements.chatScreen.querySelector(".main-content");
+      if (!mainContent) return;
+      if (!state.settings.autoScroll && !force) {
+        return;
+      }
+      const startY = mainContent.scrollTop;
+      const duration = 300;
+      let startTime = null;
+      const step = /* @__PURE__ */ __name((currentTime) => {
+        if (startTime === null) startTime = currentTime;
+        const elapsed = currentTime - startTime;
+        const endY = mainContent.scrollHeight - mainContent.clientHeight;
+        const distance = endY - startY;
+        const t = Math.min(elapsed / duration, 1);
+        const easedT = 1 - Math.pow(1 - t, 3);
+        mainContent.scrollTop = startY + distance * easedT;
+        if (elapsed < duration) {
+          requestAnimationFrame(step);
+        } else {
+          mainContent.scrollTop = mainContent.scrollHeight;
+        }
+      }, "step");
+      requestAnimationFrame(step);
+    },
+    // --- デバッグログUI関連 ---
+    toggleDebugLogButtonVisibility(isEnabled) {
+      elements.debugLogBtn.classList.toggle("hidden", !isEnabled);
+    },
+    openLogDialog() {
+      this.renderLogDialogContent();
+      elements.debugLogDialog.showModal();
+    },
+    renderLogDialogContent() {
+      const logs = DebugLogger.getLogs();
+      const container = elements.logContainer;
+      const fragment = document.createDocumentFragment();
+      const LOG_TRUNCATE_THRESHOLD = 200;
+      if (logs.length === 0) {
+        container.innerHTML = '<div class="log-entry">ログはありません。</div>';
+        return;
+      }
+      logs.forEach((log) => {
+        const entryDiv = document.createElement("div");
+        entryDiv.classList.add("log-entry", `log-type-${log.type}`);
+        const timestampSpan = document.createElement("span");
+        timestampSpan.className = "log-timestamp";
+        timestampSpan.textContent = log.timestamp.toLocaleTimeString("ja-JP", { hour12: false });
+        const typeSpan = document.createElement("span");
+        typeSpan.className = "log-type";
+        typeSpan.textContent = `[${log.type}]`;
+        entryDiv.appendChild(timestampSpan);
+        entryDiv.appendChild(typeSpan);
+        const messageText = log.args.join(" ");
+        if (messageText.length > LOG_TRUNCATE_THRESHOLD) {
+          entryDiv.classList.add("collapsible");
+          const summarySpan = document.createElement("span");
+          summarySpan.className = "log-summary";
+          summarySpan.textContent = messageText.substring(0, LOG_TRUNCATE_THRESHOLD) + "... (クリックして展開)";
+          const fullSpan = document.createElement("span");
+          fullSpan.className = "log-full hidden";
+          fullSpan.textContent = messageText;
+          entryDiv.appendChild(summarySpan);
+          entryDiv.appendChild(fullSpan);
+          entryDiv.addEventListener("click", () => {
+            summarySpan.classList.toggle("hidden");
+            fullSpan.classList.toggle("hidden");
+          });
+        } else {
+          const messageNode = document.createTextNode(messageText);
+          entryDiv.appendChild(messageNode);
+        }
+        fragment.appendChild(entryDiv);
+      });
+      container.innerHTML = "";
+      container.appendChild(fragment);
+      container.scrollTop = container.scrollHeight;
+    },
+    clearLogs() {
+      DebugLogger.clearLogs();
+      this.renderLogDialogContent();
+    },
+    async copyLogsToClipboard() {
+      const logs = DebugLogger.getLogs();
+      if (logs.length === 0) {
+        await uiUtils.showCustomAlert("コピーするログがありません。");
+        return;
+      }
+      const textToCopy = logs.map((log) => {
+        const time = log.timestamp.toISOString();
+        const message = log.args.join(" ");
+        return `${time} [${log.type}] ${message}`;
+      }).join("\n");
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        await uiUtils.showCustomAlert("ログをクリップボードにコピーしました。");
+      } catch (err) {
+        console.error("クリップボードへのコピーに失敗:", err);
+        await uiUtils.showCustomAlert("クリップボードへのコピーに失敗しました。");
+      }
+    }
+  };
+
+  // src/app-logic/sync.js
+  var syncMethods = {
+    // 復旧ダイアログを表示するヘルパー関数
+    async showRecoveryDialog() {
+      const pullConfirm = await uiUtils.showCustomConfirm(
+        "【同期エラーの復旧】\n\n前回の同期が正常に完了しなかったようです。\n\nクラウドのデータで現在のブラウザのデータを上書き復元しますか？ (推奨)\n\n※「キャンセル」を押すと、ローカルのデータでクラウドを上書きする選択肢が表示されます。"
+      );
+      if (pullConfirm) {
+        return "pull";
+      }
+      const pushConfirm = await uiUtils.showCustomConfirm(
+        "【同期エラーの復旧】\n\n現在のブラウザのデータで、クラウド上のデータを強制的に上書きしますか？\n\n※ 他のデバイスで行った変更が失われる可能性があります。"
+      );
+      if (pushConfirm) {
+        return "push";
+      }
+      return "cancel";
+    },
+    /**
+     * 同期関連の初期化処理
+     */
+    async initializeSyncState() {
+      const [lastSyncIdSetting, isDirtySetting, lastErrorSetting] = await Promise.all([
+        dbUtils.getSetting("lastSyncId"),
+        dbUtils.getSetting("syncIsDirty"),
+        dbUtils.getSetting("syncLastError")
+      ]);
+      state.sync.lastSyncId = lastSyncIdSetting ? lastSyncIdSetting.value : null;
+      state.sync.isDirty = isDirtySetting ? isDirtySetting.value : false;
+      state.sync.lastError = lastErrorSetting ? lastErrorSetting.value : null;
+      console.log(`[Sync] 同期状態を初期化しました。lastSyncId: ${state.sync.lastSyncId}, isDirty: ${state.sync.isDirty}, lastError:`, state.sync.lastError);
+    },
+    /**
+     * ローカルデータに変更があったことを記録し、設定に応じてPush処理をスケジュールする
+     * @param {boolean} [forcePush=false] - trueの場合、同期頻度の設定を無視して即時Pushを実行する
+     */
+    markAsDirtyAndSchedulePush(type = "message") {
+      const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
+      const normalizedType = type === true ? "structural" : type;
+      console.log(`[SYNC_DEBUG ${timestamp}] markAsDirtyAndSchedulePush called. type=${normalizedType}, isSending=${state.isSending}, isSyncing=${state.sync.isSyncing}, isDirty=${state.sync.isDirty}`);
+      const tokenDataPromise = dbUtils.getSetting("dropboxTokens");
+      if (!tokenDataPromise) {
+        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Dropbox not connected.`);
+        return;
+      }
+      if (state.sync.isSyncing) {
+        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Already syncing.`);
+        return;
+      }
+      if (!state.sync.isDirty) {
+        state.sync.isDirty = true;
+        dbUtils.saveSetting("syncIsDirty", true);
+        console.log(`[SYNC_DEBUG ${timestamp}] -> State set to DIRTY.`);
+      }
+      this.updateSyncStatusUI("dirty");
+      if (normalizedType === "message" && state.isSending) {
+        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: AI is responding (isSending=true).`);
+        return;
+      }
+      const frequency = state.settings.dropboxSyncFrequency;
+      if (frequency === "manual") {
+        if (normalizedType === "message") {
+          console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Manual sync mode for message update.`);
+          return;
+        }
+        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Structural change detected in manual sync mode. Forcing push.`);
+        this.handlePush();
+        return;
+      }
+      if (normalizedType !== "message") {
+        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Non-message change detected. Triggering push immediately.`);
+        this.handlePush();
+        return;
+      }
+      state.syncMessageCounter++;
+      console.log(`[SYNC_DEBUG ${timestamp}] Message counter incremented to: ${state.syncMessageCounter}`);
+      if (state.sync.pushTimeoutId) {
+        clearTimeout(state.sync.pushTimeoutId);
+        state.sync.pushTimeoutId = null;
+      }
+      if (frequency === "instant") {
+        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Instant mode, pushing immediately.`);
+        this.handlePush();
+        state.syncMessageCounter = 0;
+        return;
+      }
+      const threshold = parseInt(frequency, 10);
+      if (!isNaN(threshold)) {
+        if (state.syncMessageCounter >= threshold) {
+          console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Threshold (${threshold}) reached. Triggering push immediately.`);
+          this.handlePush();
+          state.syncMessageCounter = 0;
+        } else {
+          console.log(`[SYNC_DEBUG ${timestamp}] -> WAITING: Threshold (${threshold}) not reached yet.`);
+        }
+        return;
+      }
+      console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Unrecognized frequency '${frequency}'. Triggering push as fallback.`);
+      this.handlePush();
+      state.syncMessageCounter = 0;
+    },
+    /**
+     * 同期競合時の3択ダイアログ（マージ / クラウドで上書き / キャンセル）
+     * @private
+     */
+    _showSyncConflictDialog(isDirty) {
+      return new Promise((resolve) => {
+        const dialog = document.createElement("dialog");
+        dialog.style.cssText = "padding:20px;max-width:420px;width:90%;border-radius:12px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;";
+        const subMsg = isDirty ? "このデバイスには未同期の変更があります。" : "このデバイスにもローカルのデータが存在します。";
+        dialog.innerHTML = `
+                <div style="font-weight:bold;margin-bottom:10px;font-size:1.05em;">【データの競合】</div>
+                <p style="font-size:0.9em;margin-bottom:16px;line-height:1.6;">クラウドに別のデバイスで更新されたデータがあります。<br>${subMsg}</p>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                    <button data-result="merge" style="padding:10px 14px;background:#2196a8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        両方残す（推奨）<br><span style="font-size:0.8em;opacity:0.85;">両デバイスのチャット・プロジェクトをまとめる</span>
+                    </button>
+                    <button data-result="overwrite" style="padding:10px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
+                        クラウドに合わせる<br><span style="font-size:0.8em;opacity:0.85;">⚠️ このブラウザのログは全て消えます</span>
+                    </button>
+                    <button data-result="cancel" style="padding:10px 14px;background:transparent;color:var(--text-primary);border:1px solid var(--border-primary);border-radius:8px;cursor:pointer;font-size:0.9em;">キャンセル</button>
+                </div>`;
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        const cleanup = /* @__PURE__ */ __name((result) => {
+          dialog.close();
+          document.body.removeChild(dialog);
+          resolve(result);
+        }, "cleanup");
+        dialog.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-result]");
+          if (btn) cleanup(btn.dataset.result);
+        });
+        dialog.addEventListener("cancel", () => cleanup("cancel"));
+      });
+    },
+    /**
+     * ローカルとクラウドのデータをマージしてインポートし、マージ結果をCloudにPushする
+     * @private
+     */
+    async _mergeAndSyncWithCloud(cloudMetadataString, isManual) {
+      const cloudParsed = JSON.parse(cloudMetadataString);
+      if (cloudParsed.version !== "2.0" || !cloudParsed.data) throw new Error("クラウドデータの形式が無効です。");
+      const cloudData = cloudParsed.data;
+      if (isManual) uiUtils.showProgressDialog("ローカルデータを収集中...");
+      const { metadataJson } = await this._prepareExportData();
+      const localData = JSON.parse(metadataJson).data;
+      if (isManual) uiUtils.updateProgressMessage("データをマージ中...");
+      const chatMap = /* @__PURE__ */ new Map();
+      [...localData.chats || [], ...cloudData.chats || []].forEach((chat) => {
+        const existing = chatMap.get(chat.id);
+        if (!existing || (chat.updatedAt || 0) > (existing.updatedAt || 0)) chatMap.set(chat.id, chat);
+      });
+      const projectMap = /* @__PURE__ */ new Map();
+      [...localData.projects || [], ...cloudData.projects || []].forEach((p) => {
+        const existing = projectMap.get(p.id);
+        if (!existing || (p.updatedAt || 0) > (existing.updatedAt || 0)) projectMap.set(p.id, p);
+      });
+      const memoryMap = /* @__PURE__ */ new Map();
+      [...localData.memories || [], ...cloudData.memories || []].forEach((m) => {
+        const existing = memoryMap.get(m.profileId);
+        if (!existing) {
+          memoryMap.set(m.profileId, { ...m });
+        } else {
+          existing.items = [.../* @__PURE__ */ new Set([...existing.items || [], ...m.items || []])];
+        }
+      });
+      const profileMap = /* @__PURE__ */ new Map();
+      [...cloudData.profiles || [], ...localData.profiles || []].forEach((p) => {
+        if (!profileMap.has(p.id)) profileMap.set(p.id, p);
+      });
+      const assetMap = /* @__PURE__ */ new Map();
+      [...cloudData.assets || [], ...localData.assets || []].forEach((a) => {
+        if (a.assetId && !assetMap.has(a.assetId)) assetMap.set(a.assetId, a);
+      });
+      const mergedMetadata = {
+        version: "2.0",
+        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        syncId: "sync_merge_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
+        data: {
+          profiles: Array.from(profileMap.values()),
+          chats: Array.from(chatMap.values()),
+          memories: Array.from(memoryMap.values()),
+          projects: Array.from(projectMap.values()),
+          assets: Array.from(assetMap.values()),
+          settings: localData.settings
+        }
+      };
+      if (isManual) uiUtils.updateProgressMessage("マージデータをインポート中...");
+      await this.importDataFromString(JSON.stringify(mergedMetadata));
+      state.sync.lastSyncId = cloudParsed.syncId;
+      await dbUtils.saveSetting("lastSyncId", cloudParsed.syncId);
+      state.sync.isDirty = true;
+      await dbUtils.saveSetting("syncIsDirty", true);
+      state.sync.isSyncing = false;
+      if (isManual) uiUtils.showProgressDialog("マージ結果をクラウドにアップロード中...");
+      await this._doPush(isManual);
+      await dbUtils.saveSetting("activeProjectId", null);
+      if (isManual) {
+        sessionStorage.setItem("isSyncReload", "true");
+        const localCnt = (localData.chats || []).length;
+        const cloudCnt = (cloudData.chats || []).length;
+        await uiUtils.showCustomAlert(
+          `マージが完了しました。
+
+ローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット
+
+アプリを再起動します。`
+        );
+        window.location.reload();
+      } else {
+        console.log(`[Sync Merge] 自動マージ完了。ローカル${(localData.chats || []).length}件 + クラウド${(cloudData.chats || []).length}件 → ${chatMap.size}件。ソフトリロードします。`);
+        await this._softReloadAfterMerge();
+      }
+    },
+    async _softReloadAfterMerge() {
+      try {
+        this.updateSyncStatusUI("syncing", "データを更新中...");
+        if (window.state) window.state.activeProjectId = null;
+        const projSelect = document.getElementById("header-project-select");
+        if (projSelect) projSelect.value = "";
+        await this.loadProfiles();
+        if (window.dbUtils.getAllProjects) {
+          window.projectsCache = await window.dbUtils.getAllProjects();
+        }
+        const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+        const chats = await getAllUnfiltered();
+        if (chats && chats.length > 0) {
+          const targetId = state.currentChatId && chats.some((c) => c.id === state.currentChatId) ? state.currentChatId : chats[0].id;
+          await this.loadChat(targetId);
+        } else {
+          this.startNewChat();
+        }
+        if (state.currentScreen === "history") {
+          await this.renderHistoryList();
+        }
+        this.updateSyncStatusUI("success", "同期完了");
+        console.log("[Sync Merge] ソフトリロード完了。");
+      } catch (e) {
+        console.error("[Sync Merge] ソフトリロード中にエラーが発生しました:", e);
+        this.updateSyncStatusUI("error", "更新エラー");
+      }
+    },
+    /**
+     * [V2 Core Push] 実際にアップロード処理を行うコア関数
+     * @private
+     */
+    async _doPush(isManual = false) {
+      console.log(`[SYNC_DEBUG] _doPush: 開始。isManual = ${isManual}`);
+      if (state.sync.isSyncing) {
+        console.log("[Sync Core Push V2] 既に別の同期処理が実行中のため、今回の要求はスキップします。");
+        return;
+      }
+      state.sync.isSyncing = true;
+      const updateProgress = /* @__PURE__ */ __name((message) => {
+        console.log(`[SYNC_DEBUG] updateProgress: isManual=${isManual}, message="${message}"`);
+        this.updateSyncStatusUI("syncing", message);
+        if (isManual) {
+          console.log(`[SYNC_DEBUG] updateProgress: isManual=trueのため、updateProgressMessageを呼び出します。`);
+          uiUtils.updateProgressMessage(message);
+        }
+      }, "updateProgress");
+      updateProgress("同期準備中...");
+      try {
+        await window.dropboxApi.uploadLockFile("push");
+        updateProgress("クラウドの状態を確認中...");
+        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
+        if (cloudMetadataString) {
+          const cloudData = JSON.parse(cloudMetadataString);
+          if (cloudData.syncId !== state.sync.lastSyncId) {
+            console.warn(`[Sync Push] 競合を検出。自動マージのためPullに切り替えます。Local: ${state.sync.lastSyncId}, Cloud: ${cloudData.syncId}`);
+            state.sync.isSyncing = false;
+            await window.dropboxApi.deleteLockFile();
+            await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+            return;
+            if (isManual) uiUtils.showProgressDialog("同期を再開しています...");
+            console.log("[Sync Push] ユーザーが上書きを承認しました。Push処理を続行します。");
+          }
+        }
+        await window.dropboxApi.ensureAssetsFolderExists();
+        updateProgress("ローカルデータを準備中...");
+        const { metadataJson, localAssets } = await this._prepareExportData();
+        const localAssetIds = new Set(localAssets.keys());
+        if (cloudMetadataString) {
+          const cloudDataForCheck = JSON.parse(cloudMetadataString);
+          const cloudChatCount = cloudDataForCheck.data && cloudDataForCheck.data.chats ? cloudDataForCheck.data.chats.length : 0;
+          const localMetaObj = JSON.parse(metadataJson);
+          const localChatCount = localMetaObj.data && localMetaObj.data.chats ? localMetaObj.data.chats.length : 0;
+          if (localChatCount === 0 && cloudChatCount > 0) {
+            console.error(`[Sync Push] 安全チェック失敗: ローカルチャット数=${localChatCount}, クラウドチャット数=${cloudChatCount}。クラウドの上書きを中止します。`);
+            state.sync.isSyncing = false;
+            this.updateSyncStatusUI("error", "ローカルデータが空のため同期を中断しました");
+            if (isManual) {
+              uiUtils.hideProgressDialog();
+              await uiUtils.showCustomAlert("安全のため同期を中断しました。\n\nローカルのチャット履歴が空ですが、クラウドにはデータが存在します。\nクラウドからデータを復元してから再試行してください。");
+            }
+            await window.dropboxApi.deleteLockFile();
+            return;
+          }
+        }
+        const cloudAssetsList = await window.dropboxApi.listAssets();
+        const cloudAssetIds = new Set(cloudAssetsList.map((asset) => asset.name));
+        const assetsToUploadArray = Array.from(localAssets.entries()).filter(([assetId]) => !cloudAssetIds.has(assetId)).map(([assetId, asset]) => ({ assetId, asset }));
+        const assetsToDelete = Array.from(cloudAssetIds).filter((id) => !localAssetIds.has(id));
+        if (assetsToUploadArray.length > 0) {
+          console.log(`[Sync Core Push V2] ${assetsToUploadArray.length}個のアセットをバッチアップロードします。`);
+          const progressCallback = /* @__PURE__ */ __name((current, total) => {
+            updateProgress(`アセットをアップロード中 (${current}/${total})`);
+          }, "progressCallback");
+          await window.dropboxApi.uploadAssetsInBatches(assetsToUploadArray, progressCallback);
+        } else {
+          console.log("[Sync Core Push V2] アップロードする新規アセットはありません。");
+        }
+        const metadataObj = JSON.parse(metadataJson);
+        const referencedAssetIds = /* @__PURE__ */ new Set();
+        (metadataObj.data.profiles || []).forEach((p) => {
+          if (p.iconAssetId) referencedAssetIds.add(p.iconAssetId);
+        });
+        (metadataObj.data.assets || []).forEach((a) => {
+          if (a.assetId) referencedAssetIds.add(a.assetId);
+        });
+        (metadataObj.data.chats || []).forEach((c) => {
+          (c.messages || []).forEach((m) => {
+            if (m.imageIds) m.imageIds.forEach((id) => {
+              if (id) referencedAssetIds.add(id);
+            });
+            if (m.attachments) m.attachments.forEach((att) => {
+              if (att.assetId) referencedAssetIds.add(att.assetId);
+            });
+          });
+        });
+        const safeToDelete = assetsToDelete.filter((id) => !referencedAssetIds.has(id));
+        if (safeToDelete.length > 0) {
+          console.log(`[Sync Core Push V2] ${safeToDelete.length}個の不要なアセットを削除します。`);
+          updateProgress(`${safeToDelete.length}個の不要アセットを削除中...`);
+          await window.dropboxApi.deleteAssets(safeToDelete);
+        }
+        if (assetsToDelete.length !== safeToDelete.length) {
+          console.warn(`[Sync Core Push V2] ${assetsToDelete.length - safeToDelete.length}個のアセットはローカルにないがメタデータに参照されているため削除をスキップしました。`);
+        }
+        updateProgress("最終データを保存中...");
+        const parsedMetadata = JSON.parse(metadataJson);
+        await window.dropboxApi.uploadMetadata(metadataJson);
+        const syncTimestamp = new Date(parsedMetadata.exportedAt).getTime();
+        state.sync.lastSyncId = parsedMetadata.syncId;
+        state.sync.isDirty = false;
+        state.sync.lastError = null;
+        await Promise.all([
+          dbUtils.saveSetting("lastSyncId", parsedMetadata.syncId),
+          dbUtils.saveSetting("syncIsDirty", false),
+          dbUtils.saveSetting("syncLastError", null),
+          dbUtils.saveSetting("lastSyncTimestamp", syncTimestamp)
+        ]);
+        if (broadcastChannel) {
+          broadcastChannel.postMessage({
+            type: "SYNC_COMPLETED",
+            newSyncId: parsedMetadata.syncId,
+            sourceTabId: state.tabId
+          });
+        }
+        this.updateSyncStatusUI("idle");
+        await this.updateDropboxUIState();
+        console.log(`[Sync Core Push V2] Push成功。新しいsyncId: ${parsedMetadata.syncId}`);
+        if (isManual) {
+          uiUtils.hideProgressDialog();
+        }
+      } catch (error) {
+        const errorMessage = error.message || "不明なアップロードエラーが発生しました。";
+        this.updateSyncStatusUI("error", errorMessage);
+        console.error("[Sync Core Push V2] Push処理中にエラーが発生しました:", error);
+        if (isManual) {
+          uiUtils.hideProgressDialog();
+          uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
+        }
+      } finally {
+        state.sync.isSyncing = false;
+        await window.dropboxApi.deleteLockFile();
+        console.log(`[SYNC_DEBUG] _doPush: 終了。`);
+      }
+    },
+    /**
+     * [Push Gatekeeper] ローカルの変更をDropboxにアップロードする処理の呼び出しを管理する
+     */
+    handlePush(isManual = false) {
+      if (state.sync.isSyncing || !state.sync.isDirty) {
+        return;
+      }
+      dbUtils.getSetting("dropboxTokens").then((tokenData) => {
+        if (!tokenData || !tokenData.value) {
+          return;
+        }
+        if (isManual) {
+          uiUtils.showProgressDialog("同期を開始しています...");
+        }
+        this._doPush(isManual).catch((error) => {
+          console.error("[Sync Push] バックグラウンドPush処理でエラー:", error);
+          if (isManual) {
+            uiUtils.hideProgressDialog();
+            uiUtils.showCustomAlert(`同期に失敗しました: ${error.message}`);
+          }
+        });
+      });
+    },
+    /**
+     * 「クラウドから復元」ボタン専用: sync状態を無視してDropboxから強制取得・インポートする
+     */
+    async forceRestoreFromCloud() {
+      const tokenData = await dbUtils.getSetting("dropboxTokens");
+      if (!tokenData || !tokenData.value) {
+        await uiUtils.showCustomAlert("Dropboxが接続されていません。設定画面で連携してください。");
+        return;
+      }
+      uiUtils.showProgressDialog("クラウドからデータを取得中...");
+      try {
+        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
+        if (!cloudMetadataString) {
+          uiUtils.hideProgressDialog();
+          await uiUtils.showCustomAlert("クラウドにデータが見つかりませんでした。\nDropboxの接続状態を確認してください。");
+          return;
+        }
+        const importResult = await this.importDataFromString(cloudMetadataString);
+        await Promise.all([
+          dbUtils.saveSetting("lastSyncId", importResult.syncId),
+          dbUtils.saveSetting("syncIsDirty", false),
+          dbUtils.saveSetting("syncLastError", null)
+        ]);
+        uiUtils.hideProgressDialog();
+        await uiUtils.showCustomAlert("クラウドからデータを復元しました。再起動します。");
+        await dbUtils.saveSetting("activeProjectId", null);
+        sessionStorage.setItem("isSyncReload", "true");
+        window.location.reload();
+      } catch (error) {
+        uiUtils.hideProgressDialog();
+        console.error("[ForceRestore] エラー:", error);
+        await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
+      }
+    },
+    /**
+     * [V2 Pull] Dropboxからデータをダウンロードして同期する
+     */
+    async handlePull(isManual = false) {
+      console.log(`[SYNC_DEBUG] handlePull: 開始。isManual = ${isManual}`);
+      if (state.sync.isSyncing) {
+        console.log(`[Sync Pull] スキップしました (isSyncing: ${state.sync.isSyncing})`);
+        return;
+      }
+      const tokenData = await dbUtils.getSetting("dropboxTokens");
+      if (!tokenData || !tokenData.value) {
+        console.log("[Sync Pull] Dropbox未連携のためスキップしました。");
+        return;
+      }
+      console.log("[Sync Pull V2] Pull処理を開始します。");
+      state.sync.isSyncing = true;
+      this.updateSyncStatusUI("syncing", "クラウドと通信中...");
+      if (isManual) {
+        console.log("[SYNC_DEBUG] handlePull: isManual=trueのため、showProgressDialogを呼び出します。");
+        uiUtils.showProgressDialog("クラウドと通信中...");
+      }
+      try {
+        await window.dropboxApi.uploadLockFile("pull");
+        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
+        if (cloudMetadataString === null) {
+          console.log("[Sync Pull V2] クラウドにファイルが見つかりません。");
+          const getAllUnfiltered2 = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+          const localChats = await getAllUnfiltered2();
+          if (localChats.length > 0 || state.sync.isDirty) {
+            console.log("[Sync Pull V2] ローカルにデータが存在するため、初回Pushを実行します。");
+            if (isManual) {
+              console.log("[SYNC_DEBUG] handlePull: isManual=trueのため、updateProgressMessageを呼び出します。");
+              uiUtils.updateProgressMessage("初回データをクラウドに保存中...");
+            }
+            state.sync.isSyncing = false;
+            await window.dropboxApi.deleteLockFile();
+            console.log(`[SYNC_DEBUG] handlePull: _doPushを呼び出します。isManual = ${isManual}`);
+            await this._doPush(isManual);
+          } else {
+            console.log("[Sync Pull V2] ローカルもクラウドも空のため、同期処理は不要です。");
+            this.updateSyncStatusUI("idle");
+            if (isManual) uiUtils.hideProgressDialog();
+          }
+          return;
+        }
+        const cloudData = JSON.parse(cloudMetadataString);
+        const cloudSyncId = cloudData.syncId;
+        console.log(`[Sync Pull V2] Cloud syncId: ${cloudSyncId}, Local lastSyncId: ${state.sync.lastSyncId}`);
+        if (cloudSyncId !== state.sync.lastSyncId) {
+          const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+          const localChats = await getAllUnfiltered();
+          const localHasData = localChats.length > 0;
+          if (state.sync.isDirty || localHasData) {
+            console.log("[Sync Pull] 競合を検出。自動マージを実行します。");
+            if (isManual) uiUtils.showProgressDialog("データをマージ中...");
+            await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
+            return;
+          }
+          const importResult = await this.importDataFromString(cloudMetadataString);
+          const removedAssetInfo = importResult.removedAssetInfo;
+          state.sync.lastSyncId = importResult.syncId;
+          state.sync.isDirty = false;
+          state.sync.lastError = null;
+          const syncTimestamp = new Date(importResult.exportedAt).getTime();
+          await Promise.all([
+            dbUtils.saveSetting("lastSyncId", importResult.syncId),
+            dbUtils.saveSetting("syncIsDirty", false),
+            dbUtils.saveSetting("syncLastError", null),
+            dbUtils.saveSetting("lastSyncTimestamp", syncTimestamp)
+          ]);
+          if (broadcastChannel) {
+            broadcastChannel.postMessage({
+              type: "SYNC_COMPLETED",
+              newSyncId: importResult.syncId,
+              sourceTabId: state.tabId
+            });
+          }
+          this.updateSyncStatusUI("idle");
+          if (isManual) uiUtils.hideProgressDialog();
+          await dbUtils.saveSetting("activeProjectId", null);
+          if (isManual) {
+            sessionStorage.setItem("isSyncReload", "true");
+            let finalMessage = "クラウドからデータを同期しました。アプリを再起動します。";
+            if (removedAssetInfo && Object.keys(removedAssetInfo).length > 0) {
+              let cleanupDetails = "\n\n【通知】\nクラウド上で実体が見つからなかったため、以下のチャットから画像添付の記録を削除しました：\n";
+              for (const chatTitle in removedAssetInfo) {
+                cleanupDetails += `・「${chatTitle}」から ${removedAssetInfo[chatTitle].length} 件
+`;
+              }
+              finalMessage += cleanupDetails;
+            }
+            await uiUtils.showCustomAlert(finalMessage);
+            window.location.reload();
+          } else {
+            console.log("[Sync Pull] クラウドから自動インポート完了。ソフトリロードします。");
+            await this._softReloadAfterMerge();
+          }
+        } else {
+          console.log("[Sync Pull V2] ローカルは既に最新です。同期は不要です。");
+          await dbUtils.saveSetting("lastSyncTimestamp", Date.now());
+          this.updateSyncStatusUI("idle");
+          await this.updateDropboxUIState();
+          if (isManual) {
+            uiUtils.hideProgressDialog();
+          }
+        }
+      } catch (error) {
+        const errorMessage = error.message || "不明な同期エラーが発生しました。";
+        this.updateSyncStatusUI("error", errorMessage);
+        console.error("[Sync Pull V2] Pull処理中にエラーが発生しました:", error);
+        if (isManual) {
+          uiUtils.hideProgressDialog();
+          await uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
+        }
+      } finally {
+        state.sync.isSyncing = false;
+        await window.dropboxApi.deleteLockFile();
+        console.log(`[SYNC_DEBUG] handlePull: 終了。`);
+      }
+    },
+    /**
+     * [V2] 同期用にメタデータとアセットリストを分離して準備する
+     * @param {boolean} isManual - 手動実行かどうか
+     * @returns {Promise<{metadataJson: string, localAssets: Map<string, {blob: Blob, hash: string}>}>}
+     */
+    async _prepareExportData() {
+      try {
+        const [profiles, chats, memories, projects, allSettings] = await Promise.all([
+          dbUtils.getAllProfiles().then((data) => JSON.parse(JSON.stringify(data))),
+          (window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils))().then((data) => JSON.parse(JSON.stringify(data))),
+          dbUtils.getAllMemories().then((data) => JSON.parse(JSON.stringify(data))),
+          window.dbUtils.getAllProjects().then((data) => JSON.parse(JSON.stringify(data))),
+          new Promise((res, rej) => {
+            const store = dbUtils._getStore(SETTINGS_STORE);
+            const request = store.getAll();
+            request.onsuccess = () => res(JSON.parse(JSON.stringify(request.result)));
+            request.onerror = (e) => rej(e.target.error);
+          })
+        ]);
+        const imageAssets = await dbUtils.getAllAssets();
+        const chatImages = await new Promise((res, rej) => {
+          const store = dbUtils._getStore("image_store");
+          const request = store.getAll();
+          request.onsuccess = () => res(request.result);
+          request.onerror = (e) => rej(e.target.error);
+        });
+        const settingsForExport = allSettings.filter(
+          (setting) => !["dropboxTokens", "syncIsDirty", "syncLastError", "lastSyncId"].includes(setting.key)
+        );
+        const localAssets = /* @__PURE__ */ new Map();
+        const addAsset = /* @__PURE__ */ __name((assetId, blob) => {
+          if (!assetId || !blob) return;
+          localAssets.set(assetId, { blob, hash: null });
+        }, "addAsset");
+        for (const profile of profiles) {
+          const originalProfile = await dbUtils.getProfile(profile.id);
+          if (originalProfile && originalProfile.icon instanceof Blob) {
+            const assetId = `profile_${profile.id}_icon.webp`;
+            addAsset(assetId, originalProfile.icon);
+            profile.iconAssetId = assetId;
+          }
+          delete profile.icon;
+        }
+        for (const asset of imageAssets) {
+          if (asset.blob) {
+            if (!asset.assetId) {
+              const safeName = asset.name.replace(/[^a-zA-Z0-9]/g, "_");
+              asset.assetId = `asset_${safeName}_${new Date(asset.createdAt).getTime()}.webp`;
+              asset._needsUpdate = true;
+            }
+            addAsset(asset.assetId, asset.blob);
+          }
+        }
+        for (const image of chatImages) {
+          if (image.id && image.blob) {
+            addAsset(image.id, image.blob);
+          }
+        }
+        console.log("[Data Export V2] チャット履歴内の添付ファイルのアセット化とデータクレンジングを開始します...");
+        const blobsToSaveToImageStore = [];
+        const allDbChats = await dbUtils.getAllChats();
+        for (const chat of allDbChats) {
+          if (chat.messages) {
+            for (const message of chat.messages) {
+              if (message.imageIds && Array.isArray(message.imageIds)) {
+                message.imageIds = message.imageIds.filter((id) => id && typeof id === "string" && id.trim() !== "");
+              }
+              if (message.attachments && message.attachments.length > 0) {
+                const newImageIdsForMessage = [];
+                for (const attachment of message.attachments) {
+                  if (!attachment.assetId && attachment.base64Data) {
+                    attachment.assetId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                    if (!chat._needsUpdate) chat._needsUpdate = true;
+                    try {
+                      const blob = await this.base64ToBlob(attachment.base64Data, attachment.mimeType);
+                      addAsset(attachment.assetId, blob);
+                      newImageIdsForMessage.push(attachment.assetId);
+                      blobsToSaveToImageStore.push({ id: attachment.assetId, blob });
+                    } catch (e) {
+                      console.error(`[Data Export V2] 新規添付ファイルのアセット化に失敗:`, e);
+                    }
+                  } else if (attachment.assetId) {
+                    const imgData = chatImages.find((img) => img.id === attachment.assetId);
+                    if (imgData && imgData.blob) {
+                      addAsset(attachment.assetId, imgData.blob);
+                    } else {
+                      console.warn(`[Data Export V2] 既存アセット(ID: ${attachment.assetId})のBlobがimage_storeに見つかりません。`);
+                    }
+                  }
+                }
+                if (newImageIdsForMessage.length > 0) {
+                  if (!message.imageIds) message.imageIds = [];
+                  message.imageIds.push(...newImageIdsForMessage);
+                }
+              }
+            }
+          }
+        }
+        console.log("[Data Export V2] アセット化とクレンジングが完了しました。");
+        if (blobsToSaveToImageStore.length > 0) {
+          console.log(`[Data Export V2] ${blobsToSaveToImageStore.length}件の新規アセットBlobをimage_storeに永続化します。`);
+          const tx = state.db.transaction("image_store", "readwrite");
+          const store = tx.objectStore("image_store");
+          for (const item of blobsToSaveToImageStore) {
+            store.put(item);
+          }
+        }
+        const assetsToUpdate = imageAssets.filter((a) => a._needsUpdate);
+        if (assetsToUpdate.length > 0) {
+          console.log(`[Data Export V2] ${assetsToUpdate.length}件のimage_assetsにassetIdを永続化します。`);
+          const tx = state.db.transaction("image_assets", "readwrite");
+          const store = tx.objectStore("image_assets");
+          for (const asset of assetsToUpdate) {
+            delete asset._needsUpdate;
+            store.put(asset);
+          }
+        }
+        const chatsToUpdate = allDbChats.filter((c) => c._needsUpdate);
+        if (chatsToUpdate.length > 0) {
+          console.log(`[Data Export V2] ${chatsToUpdate.length}件のチャットにattachmentのassetIdを永続化します。`);
+          const tx = state.db.transaction(CHATS_STORE, "readwrite");
+          const store = tx.objectStore(CHATS_STORE);
+          for (const chat of chatsToUpdate) {
+            const chatForDb = JSON.parse(JSON.stringify(chat));
+            chatForDb.messages.forEach((msg) => {
+              if (msg.attachments) {
+                msg.attachments.forEach((att) => delete att.base64Data);
+              }
+            });
+            delete chatForDb._needsUpdate;
+            store.put(chatForDb);
+            if (chat.id === state.currentChatId) {
+              state.currentMessages = chat.messages;
+            }
+          }
+        }
+        for (const chat of chats) {
+          if (chat.messages) {
+            for (const message of chat.messages) {
+              if (message.attachments && message.attachments.length > 0) {
+                for (const attachment of message.attachments) {
+                  if (!attachment.base64Data && attachment.assetId) {
+                    const assetBlobData = localAssets.get(attachment.assetId);
+                    if (assetBlobData && assetBlobData.blob) {
+                      try {
+                        attachment.base64Data = await this.fileToBase64(assetBlobData.blob);
+                      } catch (e) {
+                        console.error(`[Data Export V2] エクスポート中に assetId: ${attachment.assetId} から base64Data の復元に失敗しました。`, e);
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        const syncId = "sync_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
+        const metadata = {
+          version: "2.0",
+          exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          syncId,
+          data: {
+            profiles,
+            chats,
+            memories,
+            projects,
+            assets: imageAssets.map((a) => ({ name: a.name, assetId: a.assetId, createdAt: a.createdAt })),
+            settings: settingsForExport
+          }
+        };
+        console.log(`[Data Export V2] データ準備完了。syncId: ${syncId}, アセット数: ${localAssets.size}`);
+        return {
+          metadataJson: JSON.stringify(metadata),
+          localAssets
+        };
+      } catch (error) {
+        console.error("[Data Export V2] エクスポート準備中にエラー:", error);
+        throw new Error("データのエクスポート準備に失敗しました。");
+      }
+    },
+    async importDataFromString(jsonString) {
+      console.log("[Data Import V2] 文字列からのデータインポートを開始します。");
+      uiUtils.showProgressDialog("インポートデータを準備中...");
+      try {
+        const parsedData = JSON.parse(jsonString);
+        if (parsedData.version !== "2.0" || !parsedData.data) {
+          throw new Error("インポートデータの形式が無効か、バージョンが古いです。");
+        }
+        const cloudData = parsedData.data;
+        const localAssetsBeforeClear = /* @__PURE__ */ new Map();
+        const localImageAssets = await dbUtils.getAllAssets();
+        localImageAssets.forEach((asset) => {
+          if (asset.assetId && asset.blob) localAssetsBeforeClear.set(asset.assetId, asset.blob);
+        });
+        const localChatImages = await new Promise((res, rej) => {
+          const store = dbUtils._getStore("image_store");
+          const request = store.getAll();
+          request.onsuccess = () => res(request.result);
+          request.onerror = (e) => rej(e.target.error);
+        });
+        localChatImages.forEach((image) => {
+          if (image.id && image.blob) localAssetsBeforeClear.set(image.id, image.blob);
+        });
+        console.log(`[Sync Pull] ローカルに存在するアセットBlob: ${localAssetsBeforeClear.size}件をメモリに保持しました。`);
+        const requiredAssetIds = /* @__PURE__ */ new Set();
+        (cloudData.profiles || []).forEach((p) => {
+          if (p.iconAssetId) requiredAssetIds.add(p.iconAssetId);
+        });
+        (cloudData.assets || []).forEach((a) => {
+          if (a.assetId) requiredAssetIds.add(a.assetId);
+        });
+        (cloudData.chats || []).forEach((c) => {
+          (c.messages || []).forEach((m) => {
+            if (m.imageIds) m.imageIds.forEach((id) => {
+              if (id) requiredAssetIds.add(id);
+            });
+          });
+        });
+        console.log(`[Sync Pull] クラウドが必要とするアセットID: ${requiredAssetIds.size}件`);
+        const assetsToDownloadIds = [...requiredAssetIds].filter((id) => !localAssetsBeforeClear.has(id));
+        console.log(`[Sync Pull] ダウンロードが必要なアセットID: ${assetsToDownloadIds.length}件`);
+        const downloadedAssets = /* @__PURE__ */ new Map();
+        if (assetsToDownloadIds.length > 0) {
+          for (let i = 0; i < assetsToDownloadIds.length; i++) {
+            const assetId = assetsToDownloadIds[i];
+            uiUtils.updateProgressMessage(`アセットをダウンロード中 (${i + 1}/${assetsToDownloadIds.length})`);
+            try {
+              const blob = await window.dropboxApi.downloadAsset(assetId);
+              if (blob) {
+                downloadedAssets.set(assetId, blob);
+              } else {
+                console.warn(`[Sync Pull] アセット(ID: ${assetId})のダウンロードに失敗、またはクラウドに存在しませんでした。`);
+              }
+            } catch (downloadError) {
+              console.error(`[Sync Pull] アセット(ID: ${assetId})のダウンロード中にエラーが発生しました:`, downloadError);
+            }
+          }
+        }
+        const { removedAssetInfo } = await dbUtils.clearAndImportData(cloudData, localAssetsBeforeClear, downloadedAssets, requiredAssetIds);
+        console.log("[Data Import V2] データのインポートに成功しました。");
+        return {
+          ...parsedData,
+          // syncId, exportedAtなどを含む
+          removedAssetInfo
+          // クレンジング情報を追加
+        };
+      } catch (error) {
+        console.error("[Data Import V2] インポート処理中にエラーが発生しました:", error);
+        uiUtils.hideProgressDialog();
+        if (error && error.missingAssetInfo) {
+          const detailLines = Object.entries(error.missingAssetInfo).map(([chatTitle, ids]) => `・${chatTitle}: ${ids.length}件の画像が不足`).join("\n");
+          const message = [
+            "必要な画像アセットが不足しているため同期を中止しました。",
+            "ネットワーク状況またはDropbox上のアセット状態を確認し、再度同期をお試しください。",
+            "不足している画像一覧:",
+            detailLines
+          ].join("\n");
+          const wrappedError = new Error(message);
+          wrappedError.missingAssetInfo = error.missingAssetInfo;
+          wrappedError.code = error.code || "MISSING_ASSETS";
+          throw wrappedError;
+        }
+        throw new Error(`データのインポートに失敗しました: ${error.message}`);
+      }
+    },
+    /**
+     * [PKCE] code_verifierを生成する
+     * @returns {string} ランダムな文字列
+     */
+    _generateCodeVerifier() {
+      const randomBytes = new Uint8Array(32);
+      window.crypto.getRandomValues(randomBytes);
+      return btoa(String.fromCharCode.apply(null, randomBytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    },
+    /**
+     * [PKCE] code_verifierからcode_challengeを生成する
+     * @param {string} verifier - code_verifier
+     * @returns {Promise<string>} SHA-256でハッシュ化されたチャレンジ文字列
+     */
+    async _generateCodeChallenge(verifier) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(verifier);
+      const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(hashBuffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    },
+    async updateDropboxUIState() {
+      const tokenData = await dbUtils.getSetting("dropboxTokens");
+      const isAuthenticated = tokenData && tokenData.value && tokenData.value.access_token;
+      elements.syncStatusHeaderIcon.style.display = isAuthenticated ? "block" : "none";
+      if (isAuthenticated) {
+        document.body.classList.add("dropbox-connected");
+        elements.dropboxAuthState.classList.add("hidden");
+        elements.dropboxConnectedState.classList.remove("hidden");
+        const lastSyncSetting = await dbUtils.getSetting("lastSyncTimestamp");
+        if (lastSyncSetting && lastSyncSetting.value) {
+          const date = new Date(lastSyncSetting.value);
+          elements.lastSyncTimeDisplay.textContent = `最終同期: ${date.toLocaleString("ja-JP")}`;
+        } else {
+          elements.lastSyncTimeDisplay.textContent = `最終同期: なし`;
+        }
+        try {
+          const accountInfo = await window.dropboxApi.testConnection();
+          elements.dropboxUserName.textContent = accountInfo.name.display_name;
+          this.updateSyncStatusUI(state.sync.isDirty ? "dirty" : "idle");
+        } catch (error) {
+          console.error("Dropboxユーザー情報の取得に失敗:", error);
+          elements.dropboxUserName.textContent = "不明なユーザー";
+          this.updateSyncStatusUI("error", "アカウント情報取得失敗");
+        }
+      } else {
+        document.body.classList.remove("dropbox-connected");
+        elements.dropboxAuthState.classList.remove("hidden");
+        elements.dropboxConnectedState.classList.add("hidden");
+        elements.lastSyncTimeDisplay.textContent = "";
+        this.updateSyncStatusUI("not-connected");
+      }
+    },
+    /**
+     * 同期ステータスUIを更新する
+     * @param {string} status - 'idle', 'dirty', 'pushing', 'pulling', 'error'
+     * @param {string} [message] - 表示するカスタムメッセージ
+     */
+    updateSyncStatusUI(status, message) {
+      console.log(`[Sync UI] updateSyncStatusUI called with status: "${status}", message: "${message || ""}"`);
+      if (status === "error" && message) {
+        state.sync.lastError = {
+          message,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+      }
+      const errorDisplay = document.getElementById("sync-error-display");
+      const errorMessageEl = document.getElementById("sync-error-message");
+      const errorTimestampEl = document.getElementById("sync-error-timestamp");
+      if (state.sync.lastError) {
+        errorMessageEl.textContent = state.sync.lastError.message;
+        errorTimestampEl.textContent = `発生日時: ${new Date(state.sync.lastError.timestamp).toLocaleString("ja-JP")}`;
+        errorDisplay.classList.remove("hidden");
+      } else {
+        errorDisplay.classList.add("hidden");
+      }
+      const indicators = [
+        elements.syncStatusHeaderIcon,
+        elements.syncStatusSettingsIcon,
+        // 設定画面のアイコンを追加
+        elements.syncProgressText
+      ].filter(Boolean);
+      const statusMap = {
+        "not-connected": { text: "未連携", icon: "cloud_off" },
+        "idle": { text: "同期済み", icon: "cloud_done" },
+        "dirty": { text: "要同期", icon: "cloud_upload" },
+        "syncing": { text: "同期中...", icon: "cloud_sync" },
+        "error": { text: "同期エラー", icon: "cloud_alert" }
+      };
+      const newStatus = statusMap[status] ? status : "error";
+      const statusInfo = statusMap[newStatus];
+      indicators.forEach((element) => {
+        element.dataset.status = newStatus;
+        if (element.classList.contains("sync-status-header-icon")) {
+          element.textContent = statusInfo.icon;
+          element.title = message || statusInfo.text;
+        } else if (element.id === "sync-progress-text") {
+          if (newStatus === "syncing") {
+            element.textContent = `(${message || statusInfo.text})`;
+          } else {
+            element.textContent = "";
+          }
+        }
+      });
+    }
+  };
+
+  // src/app-logic/chat.js
+  var chatMethods = {
+    // --- スワイプ処理ここまで ---
+    // 新規チャット開始の確認と実行
+    async confirmStartNewChat() {
+      const confirmed = await uiUtils.showCustomConfirm("現在のチャットを保存して新規チャットを開始しますか？");
+      if (!confirmed) {
+        console.log("新規チャットの開始をキャンセルしました。");
+        return;
+      }
+      if (state.isSending) {
+        this.abortRequest();
+      }
+      if (state.editingMessageIndex !== null) {
+        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
+        this.cancelEditMessage(state.editingMessageIndex, msgEl);
+      }
+      if (state.isEditingSystemPrompt) {
+        this.cancelEditSystemPrompt();
+      }
+      if (state.pendingAttachments.length > 0) {
+        state.pendingAttachments = [];
+        uiUtils.updateAttachmentBadgeVisibility();
+      }
+      try {
+        if ((state.currentMessages.length > 0 || state.currentSystemPrompt) && state.currentChatId) {
+          await dbUtils.saveChat();
+        }
+      } catch (error) {
+        console.error("新規チャット開始前のチャット保存失敗:", error);
+        await uiUtils.showCustomAlert("現在のチャットの保存に失敗しました。");
+      }
+      this.startNewChat();
+      uiUtils.showScreen("chat");
+    },
+    // 新規チャットを開始する (状態リセット)
+    startNewChat() {
+      state.pendingCascadeResponses = null;
+      state.currentChatId = null;
+      state.currentMessages = [];
+      state.currentSystemPrompt = state.settings.systemPrompt || "";
+      state.pendingAttachments = [];
+      state.currentPersistentMemory = {};
+      state.currentSummarizedContext = null;
+      state.isMemoryEnabledForChat = true;
+      state.syncMessageCounter = 0;
+      this.toggleMemoryIconVisibility();
+      state.currentScene = { scene_id: "initial", location: "不明な場所" };
+      uiUtils.updateSystemPromptUI();
+      uiUtils.renderChatMessages();
+      uiUtils.updateChatTitle();
+      elements.userInput.value = "";
+      uiUtils.adjustTextareaHeight();
+      uiUtils.setSendingState(false);
+      this.updateCharacterProfileButtonVisibility();
+      state.currentStyleProfiles = {};
+    },
+    // app.js の appLogic オブジェクト内
+    async loadChat(id) {
+      state.pendingCascadeResponses = null;
+      const loadChatStartTime = performance.now();
+      state.syncMessageCounter = 0;
+      state.currentMessages = [];
+      if (state.isSending) {
+        const confirmed = await uiUtils.showCustomConfirm("送信中です。中断して別のチャットを読み込みますか？");
+        if (!confirmed) return;
+        this.abortRequest();
+      }
+      if (state.editingMessageIndex !== null) {
+        const confirmed = await uiUtils.showCustomConfirm("編集中です。変更を破棄して別のチャットを読み込みますか？");
+        if (!confirmed) return;
+        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
+        this.cancelEditMessage(state.editingMessageIndex, msgEl);
+      }
+      if (state.isEditingSystemPrompt) {
+        const confirmed = await uiUtils.showCustomConfirm("システムプロンプト編集中です。変更を破棄して別のチャットを読み込みますか？");
+        if (!confirmed) return;
+        this.cancelEditSystemPrompt();
+      }
+      if (state.pendingAttachments.length > 0) {
+        const confirmedAttach = await uiUtils.showCustomConfirm("添付準備中のファイルがあります。破棄して別のチャットを読み込みますか？");
+        if (!confirmedAttach) return;
+        state.pendingAttachments = [];
+        uiUtils.updateAttachmentBadgeVisibility();
+      }
+      try {
+        const dbGetStartTime = performance.now();
+        const chat = await dbUtils.getChat(id);
+        const dbGetEndTime = performance.now();
+        if (chat) {
+          state.currentChatId = chat.id;
+          state.currentMessages = chat.messages?.map((msg) => ({
+            ...msg,
+            attachments: msg.attachments || []
+          })) || [];
+          state.currentPersistentMemory = chat.persistentMemory || {};
+          state.currentSummarizedContext = chat.summarizedContext || null;
+          state.isMemoryEnabledForChat = chat.isMemoryEnabledForChat !== false;
+          this.toggleMemoryIconVisibility();
+          this.updateCharacterProfileButtonVisibility();
+          let needsSave = false;
+          const groupIds = new Set(state.currentMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
+          groupIds.forEach((gid) => {
+            const siblings = state.currentMessages.filter((m) => m.siblingGroupId === gid);
+            const selected = siblings.filter((m) => m.isSelected);
+            if (selected.length === 0 && siblings.length > 0) {
+              siblings[siblings.length - 1].isSelected = true;
+              needsSave = true;
+            } else if (selected.length > 1) {
+              selected.slice(0, -1).forEach((m) => m.isSelected = false);
+              needsSave = true;
+            }
+          });
+          if (chat.projectId && window.projectsCache) {
+            const proj = window.projectsCache.find((p) => p.id === chat.projectId);
+            state.currentSystemPrompt = proj ? proj.systemPrompt || "" : chat.systemPrompt !== void 0 ? chat.systemPrompt : state.settings.systemPrompt;
+          } else {
+            state.currentSystemPrompt = chat.systemPrompt !== void 0 ? chat.systemPrompt : state.settings.systemPrompt;
+          }
+          state.pendingAttachments = [];
+          uiUtils.updateChatTitle(chat.title);
+          uiUtils.updateSystemPromptUI();
+          const renderStartTime = performance.now();
+          uiUtils.renderChatMessages();
+          const renderEndTime = performance.now();
+          this.scrollToBottom();
+          elements.userInput.value = "";
+          uiUtils.adjustTextareaHeight();
+          uiUtils.setSendingState(false);
+          if (needsSave) {
+            console.log("読み込み時に isSelected を正規化しました。DBに保存します。");
+            await dbUtils.saveChat();
+          }
+        } else {
+          await uiUtils.showCustomAlert("チャット履歴が見つかりませんでした。");
+          this.startNewChat();
+          uiUtils.showScreen("chat");
+        }
+      } catch (error) {
+        await uiUtils.showCustomAlert(`チャットの読み込みエラー: ${error}`);
+        this.startNewChat();
+      }
+      const loadChatEndTime = performance.now();
+    },
+    // チャットを複製
+    async duplicateChat(id) {
+      if (state.isSending) {
+        const conf = await uiUtils.showCustomConfirm("送信中です。中断してチャットを複製しますか？");
+        if (!conf) return;
+        this.abortRequest();
+      }
+      if (state.editingMessageIndex !== null) {
+        const conf = await uiUtils.showCustomConfirm("編集中です。変更を破棄してチャットを複製しますか？");
+        if (!conf) return;
+        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
+        this.cancelEditMessage(state.editingMessageIndex, msgEl);
+      }
+      if (state.isEditingSystemPrompt) {
+        const conf = await uiUtils.showCustomConfirm("システムプロンプト編集中です。変更を破棄してチャットを複製しますか？");
+        if (!conf) return;
+        this.cancelEditSystemPrompt();
+      }
+      if ((state.currentMessages.length > 0 || state.currentSystemPrompt) && state.currentChatId && state.currentChatId !== id) {
+        try {
+          await dbUtils.saveChat();
+        } catch (error) {
+          console.error("複製前の現チャット保存失敗:", error);
+          const conf = await uiUtils.showCustomConfirm("現在のチャット保存に失敗しました。複製を続行しますか？");
+          if (!conf) return;
+        }
+      }
+      if (state.pendingAttachments.length > 0) {
+        const confirmedAttach = await uiUtils.showCustomConfirm("添付準備中のファイルがあります。破棄してチャットを複製しますか？");
+        if (!confirmedAttach) return;
+        state.pendingAttachments = [];
+      }
+      try {
+        const chat = await dbUtils.getChat(id);
+        if (chat) {
+          const originalTitle = chat.title || "無題のチャット";
+          const newTitle = originalTitle.replace(new RegExp(DUPLICATE_SUFFIX.replace(/([().])/g, "\\$1") + "$"), "").trim() + DUPLICATE_SUFFIX;
+          const duplicatedMessages = [];
+          const groupIdMap = /* @__PURE__ */ new Map();
+          (chat.messages || []).forEach((msg) => {
+            const newMsg = JSON.parse(JSON.stringify(msg));
+            newMsg.attachments = msg.attachments ? JSON.parse(JSON.stringify(msg.attachments)) : [];
+            newMsg.isCascaded = msg.isCascaded ?? false;
+            newMsg.isSelected = msg.isSelected ?? false;
+            if (msg.siblingGroupId) {
+              if (!groupIdMap.has(msg.siblingGroupId)) {
+                groupIdMap.set(msg.siblingGroupId, `dup-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`);
+              }
+              newMsg.siblingGroupId = groupIdMap.get(msg.siblingGroupId);
+            } else {
+              delete newMsg.siblingGroupId;
+            }
+            duplicatedMessages.push(newMsg);
+          });
+          const newGroupIds = new Set(duplicatedMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
+          newGroupIds.forEach((gid) => {
+            const siblings = duplicatedMessages.filter((m) => m.siblingGroupId === gid);
+            siblings.forEach((m, idx) => {
+              m.isSelected = idx === siblings.length - 1;
+            });
+          });
+          const newChatData = {
+            messages: duplicatedMessages,
+            systemPrompt: chat.systemPrompt || "",
+            // システムプロンプトもコピー
+            // 永続メモリもディープコピーで複製
+            persistentMemory: JSON.parse(JSON.stringify(chat.persistentMemory || {})),
+            updatedAt: Date.now(),
+            // 更新/作成日時は現在
+            createdAt: Date.now(),
+            title: newTitle
+          };
+          const newChatId = await new Promise((resolve, reject) => {
+            const store = dbUtils._getStore(CHATS_STORE, "readwrite");
+            const request = store.add(newChatData);
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject(event.target.error);
+          });
+          this.markAsDirtyAndSchedulePush(true);
+          console.log("チャット複製完了:", id, "->", newChatId);
+          if (state.currentScreen === "history") {
+            uiUtils.renderHistoryList();
+          } else {
+            await uiUtils.showCustomAlert(`チャット「${newTitle}」を複製しました。`);
+          }
+        } else {
+          await uiUtils.showCustomAlert("複製元のチャットが見つかりません。");
+        }
+      } catch (error) {
+        await uiUtils.showCustomAlert(`チャット複製エラー: ${error}`);
+      }
+    },
+    // チャットをテキストファイルとしてエクスポート
+    async exportChat(chatId, chatTitle) {
+      const confirmed = await uiUtils.showCustomConfirm(`チャット「${chatTitle || "この履歴"}」をテキスト出力しますか？`);
+      if (!confirmed) return;
+      uiUtils.showProgressDialog("エクスポート準備中...");
+      try {
+        let chatToExport;
+        if (state.currentChatId === chatId) {
+          chatToExport = {
+            id: state.currentChatId,
+            title: chatTitle,
+            messages: state.currentMessages,
+            systemPrompt: state.currentSystemPrompt,
+            persistentMemory: state.currentPersistentMemory,
+            summarizedContext: state.currentSummarizedContext,
+            createdAt: null,
+            updatedAt: Date.now()
+          };
+        } else {
+          chatToExport = await dbUtils.getChat(chatId);
+        }
+        if (!chatToExport || (!chatToExport.messages || chatToExport.messages.length === 0) && !chatToExport.systemPrompt) {
+          await uiUtils.showCustomAlert("チャットデータが空です。");
+          return;
+        }
+        let exportText = "";
+        const imageDataBlock = {};
+        const attachmentDataBlock = {};
+        const allImageIds = /* @__PURE__ */ new Set();
+        if (chatToExport.messages) {
+          chatToExport.messages.forEach((msg) => {
+            if (msg.imageIds && msg.imageIds.length > 0) {
+              msg.imageIds.forEach((id) => allImageIds.add(id));
+            }
+            if (msg.attachments && msg.attachments.length > 0) {
+              msg.attachments.forEach((att) => {
+                if (att.base64Data) {
+                  const attachmentId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                  att.attachmentId = attachmentId;
+                  attachmentDataBlock[attachmentId] = {
+                    name: att.name,
+                    mimeType: att.mimeType,
+                    data: att.base64Data
+                  };
+                }
+              });
+            }
+          });
+        }
+        if (allImageIds.size > 0) {
+          uiUtils.updateProgressMessage(`画像データを収集中... (0 / ${allImageIds.size})`);
+          let processedCount = 0;
+          for (const imageId of allImageIds) {
+            try {
+              const imageData = await this.getImageBlobById(imageId);
+              if (imageData && imageData.blob) {
+                const base64Data = await this.fileToBase64(imageData.blob);
+                imageDataBlock[imageId] = {
+                  mimeType: imageData.blob.type,
+                  data: base64Data,
+                  width: imageData.width,
+                  height: imageData.height
+                };
+              }
+            } catch (e) {
+              console.error(`エクスポート中に画像(ID: ${imageId})の処理に失敗しました:`, e);
+            }
+            processedCount++;
+            uiUtils.updateProgressMessage(`画像データを収集中... (${processedCount} / ${allImageIds.size})`);
+          }
+        }
+        uiUtils.updateProgressMessage("テキストデータを生成中...");
+        if (chatToExport.persistentMemory && Object.keys(chatToExport.persistentMemory).length > 0) {
+          try {
+            const metadataToExport = { ...chatToExport.persistentMemory };
+            const metadataJson = JSON.stringify(metadataToExport, null, 2);
+            exportText += `<|#|metadata|#|>
+${metadataJson}
+<|#|/metadata|#|>
+
+`;
+          } catch (e) {
+            console.error("persistentMemoryのJSON化に失敗しました:", e);
+          }
+        }
+        if (chatToExport.systemPrompt) {
+          exportText += `<|#|system|#|>
+${chatToExport.systemPrompt}
+<|#|/system|#|>
+
+`;
+        }
+        if (chatToExport.summarizedContext) {
+          try {
+            const summaryJson = JSON.stringify(chatToExport.summarizedContext, null, 2);
+            exportText += `<|#|summary|#|>
+${summaryJson}
+<|#|/summary|#|>
+
+`;
+          } catch (e) {
+            console.error("summarizedContextのJSON化に失敗しました:", e);
+          }
+        }
+        if (chatToExport.messages) {
+          chatToExport.messages.forEach((msg) => {
+            if (msg.role === "user" || msg.role === "model") {
+              let attributes = "";
+              if (msg.role === "model") {
+                if (msg.isCascaded) attributes += " isCascaded";
+                if (msg.isSelected) attributes += " isSelected";
+                if (msg.imageIds && msg.imageIds.length > 0) {
+                  attributes += ` imageIds="${msg.imageIds.join(",")}"`;
+                }
+              }
+              if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
+                const attachmentIds = msg.attachments.map((a2) => a2.attachmentId).filter(Boolean).join(",");
+                if (attachmentIds) {
+                  attributes += ` attachments="${attachmentIds}"`;
+                }
+              }
+              exportText += `<|#|${msg.role}|#|${attributes.trim()}>
+${msg.content}
+<|#|/${msg.role}|#|>
+
+`;
+            }
+          });
+        }
+        if (Object.keys(imageDataBlock).length > 0) {
+          exportText += `<|#|imagedata|#|>
+${JSON.stringify(imageDataBlock, null, 2)}
+<|#|/imagedata|#|>
+
+`;
+        }
+        if (Object.keys(attachmentDataBlock).length > 0) {
+          exportText += `<|#|attachmentdata|#|>
+${JSON.stringify(attachmentDataBlock, null, 2)}
+<|#|/attachmentdata|#|>
+`;
+        }
+        uiUtils.updateProgressMessage("ファイルをダウンロード中...");
+        const blob = new Blob([exportText.trim()], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const safeTitle = (chatToExport.title || `chat_${chatId}_export`).replace(/[<>:"/\\|?*\s]/g, "_");
+        a.href = url;
+        a.download = `${safeTitle}.txt`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        console.log("チャットエクスポート完了:", chatId);
+      } catch (error) {
+        await uiUtils.showCustomAlert(`エクスポートエラー: ${error}`);
+      } finally {
+        uiUtils.hideProgressDialog();
+      }
+    },
+    // チャット削除の確認と実行 (メッセージペア全体)
+    async confirmDeleteChat(id, title) {
+      const confirmed = await uiUtils.showCustomConfirm(`「${title || "この履歴"}」を削除しますか？`);
+      if (confirmed) {
+        const isDeletingCurrent = state.currentChatId === id;
+        const currentScreenBeforeDelete = state.currentScreen;
+        try {
+          await dbUtils.deleteChat(id);
+          console.log("チャット削除:", id);
+          if (isDeletingCurrent) {
+            console.log("表示中のチャットが削除されたため、内部状態を新規チャットにリセット。");
+            this.startNewChat();
+          }
+          if (currentScreenBeforeDelete === "history") {
+            console.log("履歴画面での操作のため、リストUIを更新します。");
+            await uiUtils.renderHistoryList();
+            const listIsEmpty = elements.historyList.querySelectorAll(".history-item:not(.js-history-item-template)").length === 0;
+            if (listIsEmpty) {
+              console.log("履歴リストが空になりました。");
+              if (!isDeletingCurrent) {
+                this.startNewChat();
+              }
+            }
+          }
+        } catch (error) {
+          await uiUtils.showCustomAlert(`チャット削除エラー: ${error}`);
+          uiUtils.setSendingState(false);
+        }
+      }
+    },
+    // 履歴アイテムのタイトルを編集
+    async editHistoryTitle(chatId, titleElement) {
+      const currentTitle = titleElement.textContent;
+      const newTitle = await uiUtils.showCustomPrompt("新しいタイトル:", currentTitle);
+      const trimmedTitle = newTitle !== null ? newTitle.trim() : "";
+      if (newTitle !== "" && trimmedTitle !== "" && trimmedTitle !== currentTitle) {
+        const finalTitle = trimmedTitle.substring(0, 100);
+        try {
+          await dbUtils.updateChatTitleDb(chatId, finalTitle);
+          titleElement.textContent = finalTitle;
+          titleElement.title = finalTitle;
+          const dateElement = titleElement.closest(".history-item")?.querySelector(".updated-date");
+          if (dateElement) dateElement.textContent = `更新: ${uiUtils.formatDate(Date.now())}`;
+          if (state.currentChatId === chatId) {
+            uiUtils.updateChatTitle(finalTitle);
+          }
+        } catch (error) {
+          await uiUtils.showCustomAlert(`タイトル更新エラー: ${error}`);
+        }
+      } else {
+        console.log("タイトル編集キャンセルまたは変更なし");
+      }
+    },
+    // --- 履歴インポートハンドラ ---
+    async handleHistoryImport(file) {
+      if (!file || !file.type.startsWith("text/plain")) {
+        await uiUtils.showCustomAlert("テキストファイル (.txt) を選択してください。");
+        return;
+      }
+      console.log("履歴インポート開始:", file.name);
+      elements.progressMessage.textContent = "履歴ファイルを解析中...";
+      elements.progressDialog.showModal();
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const textContent = event.target.result;
+        if (!textContent) {
+          elements.progressDialog.close();
+          await uiUtils.showCustomAlert("ファイルの内容が空です。");
+          return;
+        }
+        try {
+          const { messages: importedMessages, systemPrompt: importedSystemPrompt, persistentMemory: importedMemory, summarizedContext: importedSummary, imageData: importedImageData } = this.parseImportedHistory(textContent);
+          if (importedMessages.length === 0 && !importedSystemPrompt && (!importedMemory || Object.keys(importedMemory).length === 0)) {
+            elements.progressDialog.close();
+            await uiUtils.showCustomAlert("ファイルから有効なメッセージ、システムプロンプト、またはメタデータを読み込めませんでした。形式を確認してください。");
+            return;
+          }
+          const imageIdMap = /* @__PURE__ */ new Map();
+          if (importedImageData && Object.keys(importedImageData).length > 0) {
+            elements.progressMessage.textContent = `画像を復元中... (0 / ${Object.keys(importedImageData).length})`;
+            let restoredCount = 0;
+            const totalImages = Object.keys(importedImageData).length;
+            for (const oldId in importedImageData) {
+              try {
+                const { mimeType, data } = importedImageData[oldId];
+                const blob = await this.base64ToBlob(data, mimeType);
+                const newId = await this.saveImageBlob(blob);
+                imageIdMap.set(oldId, newId);
+                restoredCount++;
+                elements.progressMessage.textContent = `画像を復元中... (${restoredCount} / ${totalImages})`;
+              } catch (e) {
+                console.error(`インポート中に画像(旧ID: ${oldId})の復元に失敗:`, e);
+              }
+            }
+          }
+          elements.progressMessage.textContent = "データベースに保存中...";
+          importedMessages.forEach((msg) => {
+            if (msg.imageIds && msg.imageIds.length > 0) {
+              msg.imageIds = msg.imageIds.map((oldId) => imageIdMap.get(oldId) || oldId).filter(Boolean);
+            }
+          });
+          let currentGroupId = null;
+          let lastUserIndex = -1;
+          for (let i = 0; i < importedMessages.length; i++) {
+            const msg = importedMessages[i];
+            if (msg.role === "user") {
+              lastUserIndex = i;
+              currentGroupId = null;
+            } else if (msg.role === "model" && msg.isCascaded) {
+              if (currentGroupId === null && lastUserIndex !== -1) {
+                currentGroupId = `imp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+              }
+              if (currentGroupId) {
+                msg.siblingGroupId = currentGroupId;
+              }
+            } else {
+              currentGroupId = null;
+            }
+          }
+          const groupIds = new Set(importedMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
+          groupIds.forEach((gid) => {
+            const siblings = importedMessages.filter((m) => m.siblingGroupId === gid);
+            const selected = siblings.filter((m) => m.isSelected);
+            if (selected.length === 0 && siblings.length > 0) {
+              siblings[siblings.length - 1].isSelected = true;
+            } else if (selected.length > 1) {
+              selected.slice(0, -1).forEach((m) => m.isSelected = false);
+            }
+          });
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
+          const newTitle = IMPORT_PREFIX + (fileNameWithoutExt || `Imported_${Date.now()}`);
+          const newChatData = {
+            messages: importedMessages,
+            systemPrompt: importedSystemPrompt || "",
+            persistentMemory: importedMemory || {},
+            summarizedContext: importedSummary || null,
+            updatedAt: Date.now(),
+            createdAt: Date.now(),
+            title: newTitle.substring(0, 100)
+          };
+          const newChatId = await new Promise((resolve, reject) => {
+            const store = dbUtils._getStore(CHATS_STORE, "readwrite");
+            const request = store.add(newChatData);
+            request.onsuccess = (event2) => resolve(event2.target.result);
+            request.onerror = (event2) => reject(event2.target.error);
+          });
+          this.markAsDirtyAndSchedulePush(true);
+          console.log("履歴インポート成功:", newChatId);
+          elements.progressDialog.close();
+          await uiUtils.showCustomAlert(`履歴「${newChatData.title}」をインポートしました。`);
+          uiUtils.renderHistoryList();
+        } catch (error) {
+          console.error("履歴インポート処理エラー:", error);
+          elements.progressDialog.close();
+          await uiUtils.showCustomAlert(`履歴のインポート中にエラーが発生しました: ${error.message}`);
+        }
+      };
+      reader.onerror = async (event) => {
+        console.error("ファイル読み込みエラー:", event.target.error);
+        elements.progressDialog.close();
+        await uiUtils.showCustomAlert("ファイルの読み込みに失敗しました。");
+      };
+      reader.readAsText(file);
+    },
+    parseImportedHistory(text) {
+      const messages = [];
+      let systemPrompt = "";
+      let persistentMemory = {};
+      let summarizedContext = null;
+      const imageData = {};
+      const attachmentData = {};
+      let remainingText = text;
+      const dataBlockRegex = /<\|#\|(metadata|summary|imagedata|attachmentdata)\|#\|>([\s\S]*?)<\|#\|\/\1\|#\|>\s*/g;
+      let dataMatch;
+      while ((dataMatch = dataBlockRegex.exec(text)) !== null) {
+        const blockType = dataMatch[1];
+        const blockContent = dataMatch[2].trim();
+        try {
+          const jsonData = JSON.parse(blockContent);
+          switch (blockType) {
+            case "metadata":
+              persistentMemory = jsonData;
+              break;
+            case "summary":
+              summarizedContext = jsonData;
+              break;
+            case "imagedata":
+              Object.assign(imageData, jsonData);
+              break;
+            case "attachmentdata":
+              Object.assign(attachmentData, jsonData);
+              break;
+          }
+        } catch (e) {
+          console.error(`インポートされた ${blockType} のJSONパースに失敗:`, e);
+        }
+        remainingText = remainingText.replace(dataMatch[0], "");
+      }
+      const blockRegex = /<\|#\|(system|user|model)\|#\|([^>]*)>([\s\S]*?)<\|#\|\/\1\|#\|>/g;
+      let match;
+      while ((match = blockRegex.exec(remainingText)) !== null) {
+        const role = match[1];
+        const attributesString = match[2].trim();
+        const content = match[3].trim();
+        if (role === "system" && content) {
+          systemPrompt = content;
+        } else if (role === "user" || role === "model") {
+          const messageData = {
+            role,
+            content,
+            timestamp: Date.now(),
+            attachments: []
+          };
+          const attributeRegex = /(\w+)="([^"]*)"|(\w+)/g;
+          let attrMatch;
+          while ((attrMatch = attributeRegex.exec(attributesString)) !== null) {
+            if (attrMatch[1]) {
+              const key = attrMatch[1];
+              const value = attrMatch[2].replace(/&quot;/g, '"');
+              if (key === "attachments") {
+                const attachmentIds = value.split(",");
+                messageData.attachments = attachmentIds.map((id) => {
+                  const data = attachmentData[id];
+                  if (data) {
+                    return {
+                      name: data.name,
+                      mimeType: data.mimeType,
+                      base64Data: data.data
+                      // fileオブジェクトはインポート時には復元しない
+                    };
+                  }
+                  return null;
+                }).filter(Boolean);
+              } else if (key === "imageIds") {
+                messageData.imageIds = value.split(",");
+              }
+            } else if (attrMatch[3]) {
+              messageData[attrMatch[3]] = true;
+            }
+          }
+          messages.push(messageData);
+        }
+      }
+      console.log(`インポートテキストから ${messages.length} 件のメッセージとシステムプロンプト(${systemPrompt ? "あり" : "なし"})、要約データ(${summarizedContext ? "あり" : "なし"})をパースしました。`);
+      return { messages, systemPrompt, persistentMemory, summarizedContext, imageData };
+    },
+    async autoGenerateTitle() {
+      const userMsgs = state.currentMessages.filter((m) => m.role === "user" && !m.isHidden);
+      const modelMsgs = state.currentMessages.filter((m) => (m.role === "model" || m.role === "assistant") && !m.error && !m.isHidden);
+      console.log(`[AutoTitle] 起動: userMsgs=${userMsgs.length}, modelMsgs=${modelMsgs.length}, chatId=${state.currentChatId}, provider=${state.settings.apiProvider}`);
+      if (userMsgs.length !== 1 || modelMsgs.length < 1) {
+        console.log("[AutoTitle] 条件不一致でスキップ");
+        return;
+      }
+      if (!state.currentChatId) {
+        console.log("[AutoTitle] currentChatId なしでスキップ");
+        return;
+      }
+      const provider = state.settings.apiProvider || "gemini";
+      const firstUserContent = (typeof userMsgs[0].content === "string" ? userMsgs[0].content : JSON.stringify(userMsgs[0].content)).substring(0, 300);
+      const firstModelContent = (typeof modelMsgs[0].content === "string" ? modelMsgs[0].content : "").substring(0, 300);
+      const titlePrompt = `以下の会話の内容を端的に表すタイトルを20文字以内で作成してください。タイトルのみを出力してください（説明・引用符不要）。
+
+ユーザー: ${firstUserContent}
+AI: ${firstModelContent}`;
+      try {
+        let title = null;
+        if (provider === "gemini") {
+          const apiKey = state.settings.apiKey;
+          if (!apiKey) return;
+          const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+          const resp = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ role: "user", parts: [{ text: titlePrompt }] }],
+              generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+              safetySettings: [
+                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+              ]
+            })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            title = data.candidates?.[0]?.content?.parts?.find((p) => p.text && p.thought !== true)?.text?.trim();
+          }
+        } else if (provider === "anthropic") {
+          const apiKey = state.settings.anthropicApiKey;
+          if (!apiKey) return;
+          const resp = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": apiKey,
+              "anthropic-version": "2023-06-01",
+              "anthropic-dangerous-direct-browser-access": "true"
+            },
+            body: JSON.stringify({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 30,
+              messages: [{ role: "user", content: titlePrompt }]
+            })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            title = data.content?.find((c) => c.type === "text")?.text?.trim();
+          }
+        } else {
+          const apiKeyMap = {
+            openai: state.settings.openaiApiKey,
+            groq: state.settings.groqApiKey,
+            deepseek: state.settings.deepseekApiKey,
+            xai: state.settings.xaiApiKey,
+            mistral: state.settings.mistralApiKey,
+            openrouter: state.settings.openrouterApiKey,
+            zai: state.settings.zaiApiKey || state.settings.apiKey
+          };
+          const baseUrlMap = {
+            openai: "https://api.openai.com/v1/chat/completions",
+            groq: GROQ_API_BASE_URL,
+            deepseek: DEEPSEEK_API_BASE_URL,
+            xai: XAI_API_BASE_URL,
+            mistral: MISTRAL_API_BASE_URL,
+            openrouter: OPENROUTER_API_BASE_URL,
+            zai: ZAI_API_BASE_URL
+          };
+          const apiKey = apiKeyMap[provider];
+          const baseUrl = baseUrlMap[provider];
+          if (!apiKey || !baseUrl) return;
+          const resp = await fetch(baseUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: state.settings.modelName,
+              max_tokens: 30,
+              messages: [{ role: "user", content: titlePrompt }]
+            })
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            title = data.choices?.[0]?.message?.content?.trim();
+          }
+        }
+        if (!title) return;
+        title = title.replace(/^["「『\s]+|["」』\s]+$/g, "").substring(0, 25);
+        if (!title) return;
+        await dbUtils.updateChatTitleDb(state.currentChatId, title);
+        uiUtils.updateChatTitle(title);
+        uiUtils.renderHistoryList();
+        console.log(`[AutoTitle] タイトル生成: "${title}"`);
+      } catch (e) {
+        console.warn("[AutoTitle] タイトル自動生成失敗:", e.message || e);
+      }
+    }
+  };
+
   // src/api.js
   function extractSystemText(systemInstruction) {
     if (!systemInstruction) return null;
@@ -5143,3205 +8922,8 @@ ${knowledgeText}`;
     }
   };
 
-  // src/mime-types.js
-  var extensionToMimeTypeMap = {
-    // Text Data
-    pdf: "application/pdf",
-    js: "text/javascript",
-    py: "text/x-python",
-    txt: "text/plain",
-    html: "text/html",
-    htm: "text/html",
-    json: "application/json",
-    css: "text/css",
-    md: "text/markdown",
-    csv: "text/csv",
-    xml: "application/xml",
-    rtf: "application/rtf",
-    java: "text/x-java-source",
-    c: "text/x-c",
-    cpp: "text/x-c++src",
-    hpp: "text/x-c++hdr",
-    h: "text/x-chdr",
-    cs: "text/plain",
-    php: "application/x-httpd-php",
-    rb: "text/x-ruby",
-    go: "text/x-go",
-    swift: "text/x-swift",
-    kt: "text/x-kotlin",
-    kts: "text/x-kotlin",
-    rs: "text/rust",
-    ts: "text/typescript",
-    tsx: "text/typescript",
-    sql: "application/sql",
-    sh: "application/x-sh",
-    yml: "text/yaml",
-    yaml: "text/yaml",
-    // Image Data
-    png: "image/png",
-    jpg: "image/jpeg",
-    jpeg: "image/jpeg",
-    webp: "image/webp",
-    heic: "image/heic",
-    heif: "image/heif",
-    // Video Data
-    mp4: "video/mp4",
-    mpeg: "video/mpeg",
-    mov: "video/mov",
-    avi: "video/avi",
-    flv: "video/x-flv",
-    mpg: "video/mpg",
-    webm: "video/webm",
-    wmv: "video/wmv",
-    "3gp": "video/3gpp",
-    "3gpp": "video/3gpp",
-    // Audio Data
-    wav: "audio/wav",
-    mp3: "audio/mp3",
-    aiff: "audio/aiff",
-    aac: "audio/aac",
-    ogg: "audio/ogg",
-    flac: "audio/flac"
-  };
-
-  // src/app-logic.js
-  var appLogic = {
-    _setupEventListenersCallCount: 0,
-    timerManager: {
-      timers: {},
-      // { timer_name: { timerId: 123, endTime: 167... } }
-      start(name, minutes) {
-        if (this.timers[name]) {
-          clearTimeout(this.timers[name].timerId);
-          console.log(`タイマー「${name}」は上書きされました。`);
-        }
-        const durationMs = minutes * 60 * 1e3;
-        const endTime = Date.now() + durationMs;
-        const timerId = setTimeout(() => {
-          console.log(`タイマー「${name}」が時間切れになりました。自動応答をトリガーします。`);
-          delete this.timers[name];
-          appLogic.triggerTimerExpiredResponse(name);
-        }, durationMs);
-        this.timers[name] = { timerId, endTime };
-        const message = `タイマー「${name}」を${minutes}分で開始しました。`;
-        console.log(`[Timer] ${message}`);
-        return { success: true, message };
-      },
-      check(name) {
-        if (!this.timers[name]) {
-          return { success: false, message: `タイマー「${name}」はセットされていません。` };
-        }
-        const remainingMs = this.timers[name].endTime - Date.now();
-        if (remainingMs <= 0) {
-          return { success: true, status: "expired", message: `タイマー「${name}」は既に時間切れです。` };
-        }
-        const remainingMinutes = Math.floor(remainingMs / 6e4);
-        const remainingSeconds = Math.floor(remainingMs % 6e4 / 1e3);
-        const message = `タイマー「${name}」の残り時間は約${remainingMinutes}分${remainingSeconds}秒です。`;
-        console.log(`[Timer] ${message}`);
-        return { success: true, status: "running", remaining_time: message };
-      },
-      stop(name) {
-        if (!this.timers[name]) {
-          return { success: false, message: `タイマー「${name}」はセットされていません。` };
-        }
-        clearTimeout(this.timers[name].timerId);
-        delete this.timers[name];
-        const message = `タイマー「${name}」を停止しました。`;
-        console.log(`[Timer] ${message}`);
-        return { success: true, message };
-      }
-    },
-    /**
-    * タイマー時間切れ時にAIに応答を促す関数
-    * @param {string} timerName - 時間切れになったタイマーの名前
-    */
-    async triggerTimerExpiredResponse(timerName) {
-      if (state.isSending) {
-        console.warn("タイマーが切れましたが、現在送信中のため自動応答をスキップします。");
-        return;
-      }
-      console.log(`タイマー「${timerName}」の時間切れ応答を生成します。`);
-      const systemInstructionForTimer = `[システムメモ]
-タイマー「${timerName}」が時間切れになりました。
-この事実を踏まえて、現在の会話の文脈に沿った自然な応答を生成してください。
-例えば、「そういえば、約束の時間だね」「時間切れだ！イベントが発生する」のように、会話を続けてください。
-このシステムメモ自体は応答に含めないでください。`;
-      const userMessage = {
-        role: "user",
-        content: systemInstructionForTimer,
-        timestamp: Date.now(),
-        attachments: [],
-        isHidden: true,
-        isAutoTrigger: true
-      };
-      state.currentMessages.push(userMessage);
-      const messageIndex = state.currentMessages.length - 1;
-      uiUtils.appendMessage(userMessage.role, userMessage.content, messageIndex);
-      const messageElement = elements.messageContainer.querySelector(`.message[data-index="${messageIndex}"]`);
-      if (messageElement) {
-        messageElement.style.display = "none";
-      }
-      await this.handleSend(false, -1, true);
-    },
-    async loadGlobalSettings() {
-      try {
-        console.log("[GlobalSettings] 共通設定の読み込みを開始します。");
-        const storedBlob = await dbUtils.getSetting("backgroundImageBlob");
-        if (storedBlob && storedBlob.value instanceof Blob) {
-          state.settings.backgroundImageBlob = storedBlob.value;
-          console.log("[GlobalSettings] 背景画像BlobをDBから読み込みました。");
-        }
-        const storedFetchedModels = await dbUtils.getSetting("fetchedModels");
-        if (storedFetchedModels && storedFetchedModels.value) {
-          state.settings.fetchedModels = storedFetchedModels.value;
-          console.log("[GlobalSettings] API取得モデルをDBから読み込みました。");
-        }
-      } catch (error) {
-        console.error("[GlobalSettings] 共通設定の読み込み中にエラーが発生しました:", error);
-      }
-    },
-    async loadProfiles() {
-      try {
-        console.log("[Profile] プロファイルの読み込みを開始します。");
-        state.profiles = await dbUtils.getAllProfiles();
-        const activeIdSetting = await dbUtils.getSetting("activeProfileId");
-        state.activeProfileId = activeIdSetting ? activeIdSetting.value : null;
-        if (state.profiles.length === 0) {
-          console.warn("[Profile] プロファイルが見つかりません。最初のプロファイルを作成します。");
-          const newProfile = {
-            name: "デフォルトプロファイル",
-            icon: null,
-            createdAt: Date.now(),
-            settings: { ...state.settings }
-          };
-          const newId = await dbUtils.addProfile(newProfile);
-          await dbUtils.saveSetting("activeProfileId", newId);
-          state.profiles = [await dbUtils.getProfile(newId)];
-          state.activeProfileId = newId;
-        }
-        if (!state.activeProfileId || !state.profiles.some((p) => p.id === state.activeProfileId)) {
-          state.activeProfileId = state.profiles[0].id;
-          await dbUtils.saveSetting("activeProfileId", state.activeProfileId);
-          console.log(`[Profile] アクティブなプロファイルが無効でした。最初のプロファイル (ID: ${state.activeProfileId}) をアクティブに設定しました。`);
-        }
-        console.log(`[Profile] ${state.profiles.length}件のプロファイルを読み込みました。アクティブID: ${state.activeProfileId}`);
-        this.applyActiveProfile();
-        uiUtils.updateProfileSwitcherUI();
-      } catch (error) {
-        console.error("[Profile] プロファイルの読み込み中に致命的なエラーが発生しました:", error);
-        await uiUtils.showCustomAlert(`プロファイルの読み込みに失敗しました: ${error}`);
-      }
-    },
-    applyActiveProfile() {
-      state.activeProfile = state.profiles.find((p) => p.id === state.activeProfileId);
-      if (state.activeProfile) {
-        console.log(`[Profile] プロファイル「${state.activeProfile.name}」(ID: ${state.activeProfile.id}) を適用します。`);
-        const newSettings = { ...window.state.settings };
-        const globalFetchedModels = newSettings.fetchedModels;
-        const loadedProfileSettings = state.activeProfile.settings || {};
-        Object.assign(newSettings, loadedProfileSettings);
-        newSettings.fetchedModels = globalFetchedModels;
-        state.settings = newSettings;
-        uiUtils.applySettingsToUI();
-        uiUtils.updateProfileCardUI();
-        DebugLogger.init();
-      } else {
-        console.error(`[Profile] 適用すべきアクティブなプロファイル (ID: ${state.activeProfileId}) が見つかりません。`);
-      }
-    },
-    async switchProfile(newProfileId) {
-      newProfileId = Number(newProfileId);
-      if (newProfileId === state.activeProfileId) return;
-      console.log(`[Profile] プロファイルを ID: ${newProfileId} に切り替えます。`);
-      await dbUtils.saveSetting("activeProfileId", newProfileId);
-      state.activeProfileId = newProfileId;
-      this.applyActiveProfile();
-      uiUtils.updateProfileSwitcherUI();
-    },
-    async saveNewProfile() {
-      if (state.profiles.length >= MAX_PROFILES) {
-        return uiUtils.showCustomAlert(`プロファイルの上限数（${MAX_PROFILES}個）に達しているため、新しいプロファイルを作成できません。`);
-      }
-      const profileName = await uiUtils.showCustomPrompt("新しいプロファイル名を入力してください:", "新規プロファイル");
-      if (!profileName || !profileName.trim()) {
-        console.log("[Profile] 新規保存をキャンセルしました。");
-        return;
-      }
-      const currentSettings = this.getCurrentUiSettings();
-      const newProfile = {
-        name: profileName.trim(),
-        icon: state.activeProfile?.icon || null,
-        createdAt: Date.now(),
-        settings: currentSettings
-      };
-      try {
-        const newId = await dbUtils.addProfile(newProfile);
-        const newlyAddedProfile = await dbUtils.getProfile(newId);
-        state.profiles.push(newlyAddedProfile);
-        await dbUtils.saveSetting("activeProfileId", newId);
-        state.activeProfileId = newId;
-        this.markAsDirtyAndSchedulePush(true);
-        this.applyActiveProfile();
-        uiUtils.updateProfileSwitcherUI();
-        await uiUtils.showCustomAlert(`プロファイル「${newProfile.name}」を保存しました。`);
-      } catch (error) {
-        console.error("[Profile] 新規プロファイルの保存に失敗しました:", error);
-        await uiUtils.showCustomAlert(`プロファイルの保存に失敗しました: ${error}`);
-      }
-    },
-    async updateCurrentProfile() {
-      if (!state.activeProfile) {
-        await uiUtils.showCustomAlert("更新対象のプロファイルが選択されていません。");
-        return;
-      }
-      const updatedProfile = { ...state.activeProfile };
-      try {
-        await dbUtils.updateProfile(updatedProfile);
-        const index = state.profiles.findIndex((p) => p.id === updatedProfile.id);
-        if (index !== -1) {
-          state.profiles[index] = updatedProfile;
-        }
-        this.markAsDirtyAndSchedulePush(true);
-        console.log(`[Profile] プロファイル「${updatedProfile.name}」を更新しました。`);
-        this.applyActiveProfile();
-        uiUtils.updateProfileSwitcherUI();
-      } catch (error) {
-        console.error("[Profile] プロファイルの更新に失敗しました:", error);
-        await uiUtils.showCustomAlert(`プロファイルの更新に失敗しました: ${error.message}`);
-      }
-    },
-    async deleteCurrentProfile() {
-      if (!state.activeProfile) return;
-      if (state.profiles.length <= 1) {
-        await uiUtils.showCustomAlert("最後のプロファイルは削除できません。");
-        return;
-      }
-      const confirmed = await uiUtils.showCustomConfirm(`本当にプロファイル「${state.activeProfile.name}」を削除しますか？`);
-      if (!confirmed) return;
-      try {
-        const idToDelete = state.activeProfileId;
-        await dbUtils.deleteProfile(idToDelete);
-        this.markAsDirtyAndSchedulePush(true);
-        state.profiles = state.profiles.filter((p) => p.id !== idToDelete);
-        if (state.profileIconUrls.has(idToDelete)) {
-          URL.revokeObjectURL(state.profileIconUrls.get(idToDelete));
-          state.profileIconUrls.delete(idToDelete);
-        }
-        const newActiveId = state.profiles[0].id;
-        await dbUtils.saveSetting("activeProfileId", newActiveId);
-        state.activeProfileId = newActiveId;
-        this.applyActiveProfile();
-        uiUtils.updateProfileSwitcherUI();
-        await uiUtils.showCustomAlert("プロファイルを削除しました。");
-      } catch (error) {
-        console.error("[Profile] プロファイルの削除に失敗しました:", error);
-        await uiUtils.showCustomAlert(`プロファイルの削除に失敗しました: ${error}`);
-      }
-    },
-    async editCurrentProfileName() {
-      if (!state.activeProfile) return;
-      const newName = await uiUtils.showCustomPrompt("新しいプロファイル名:", state.activeProfile.name);
-      if (newName && newName.trim() && newName.trim() !== state.activeProfile.name) {
-        state.activeProfile.name = newName.trim();
-        await this.updateCurrentProfile();
-      }
-    },
-    handleProfileIconChange(file) {
-      if (!file || !file.type.startsWith("image/")) return;
-      if (state.activeProfile && state.profileIconUrls.has(state.activeProfile.id)) {
-        const oldUrl = state.profileIconUrls.get(state.activeProfile.id);
-        URL.revokeObjectURL(oldUrl);
-        state.profileIconUrls.delete(state.activeProfile.id);
-        console.log(`[Profile] 古いアイコンキャッシュを破棄しました (ID: ${state.activeProfile.id})`);
-      }
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const blob = new Blob([e.target.result], { type: file.type });
-        if (state.activeProfile) {
-          state.activeProfile.icon = blob;
-          await this.updateCurrentProfile();
-        }
-      };
-      reader.readAsArrayBuffer(file);
-    },
-    async resetProfileIcon() {
-      if (!state.activeProfile) return;
-      const confirmed = await uiUtils.showCustomConfirm("アイコンをデフォルトに戻しますか？");
-      if (confirmed) {
-        state.activeProfile.icon = null;
-        if (state.profileIconUrls.has(state.activeProfile.id)) {
-          URL.revokeObjectURL(state.profileIconUrls.get(state.activeProfile.id));
-          state.profileIconUrls.delete(state.activeProfile.id);
-        }
-        await this.updateCurrentProfile();
-      }
-    },
-    getCurrentUiSettings() {
-      const settings = {};
-      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
-      const numberKeys = ["temperature", "maxTokens", "topK", "topP", "thinkingBudget", "maxRetries", "maxBackoffDelaySeconds", "overlayOpacity", "messageOpacity"];
-      const booleanKeys = ["enterToSend", "darkMode", "geminiEnableGrounding", "geminiEnableFunctionCalling", "enableSwipeNavigation", "enableProofreading", "enableAutoRetry", "useFixedRetryDelay", "reverseDummyOrder", "concatDummyModel", "dummyEnabled", "includeThoughts", "enableThoughtTranslation", "applyDummyToProofread", "applyDummyToTranslate", "forceFunctionCalling", "autoScroll", "enableWideMode", "enableSummaryButton"];
-      settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
-      settings.fixedRetryDelaySeconds = parseFloat(elements.fixedRetryDelayInput.value) || null;
-      settings.hideSystemPromptInChat = elements.hideSystemPromptToggle.checked;
-      settings.floatingPanelBehavior = elements.floatingPanelBehaviorSelect.value;
-      const allowUiChangesEl = document.getElementById("allow-prompt-ui-changes");
-      if (allowUiChangesEl) {
-        settings.allowPromptUiChanges = allowUiChangesEl.checked;
-      }
-      stringKeys.forEach((key) => {
-        if (key === "modelName") {
-          const provider = settings.apiProvider || state.settings.apiProvider || "gemini";
-          if (provider === "openrouter" && elements.openrouterModelInput) {
-            settings[key] = elements.openrouterModelInput.value.trim();
-          } else if (elements.modelNameSelect) {
-            settings[key] = elements.modelNameSelect.value.trim();
-          }
-        } else {
-          const element = elements[key + "Input"] || elements[key + "Select"] || elements[key + "Textarea"];
-          if (element) settings[key] = element.value.trim();
-        }
-      });
-      numberKeys.forEach((key) => {
-        let element;
-        if (key === "overlayOpacity" || key === "messageOpacity") {
-          element = elements[key + "Slider"];
-        } else {
-          element = elements[key + "Input"];
-        }
-        if (element) {
-          const value = key === "overlayOpacity" || key === "messageOpacity" ? parseFloat(element.value) / 100 : parseFloat(element.value);
-          settings[key] = isNaN(value) ? null : value;
-        }
-      });
-      booleanKeys.forEach((key) => {
-        const element = elements[key + "Checkbox"] || elements[key + "Toggle"];
-        if (element) settings[key] = element.checked;
-      });
-      console.log("[Profile] 現在のUIから設定を取得しました:", settings);
-      return settings;
-    },
-    fileToBase64(file) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64String = reader.result.split(",")[1];
-          resolve(base64String);
-        };
-        reader.onerror = (error) => reject(error);
-        reader.readAsDataURL(file);
-      });
-    },
-    base64ToBlob(base64, mimeType) {
-      return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
-    },
-    _prepareApiHistory(baseMessages) {
-      console.log("[API Prep] 履歴をAPIフォーマットに変換します。");
-      const messagesForApi = JSON.parse(JSON.stringify(baseMessages));
-      let historyToProcess;
-      if (state.currentSummarizedContext && state.currentSummarizedContext.summaryText) {
-        console.log("[API Prep] 要約コンテキストを検出。API履歴を圧縮します。");
-        const { summaryText } = state.currentSummarizedContext;
-        const headCount = 5;
-        const tailCount = 15;
-        const headMessages = messagesForApi.slice(0, headCount);
-        const tailMessages = messagesForApi.slice(Math.max(headCount, messagesForApi.length - tailCount));
-        const summaryMessage = {
-          role: "user",
-          content: `【これまでの会話の要約】
-${summaryText}`,
-          timestamp: Date.now(),
-          isHidden: true,
-          // UIには表示されない内部的なメッセージ
-          attachments: []
-        };
-        historyToProcess = [...headMessages, summaryMessage, ...tailMessages];
-        console.log(`[API Prep] 履歴を圧縮しました: Head(${headMessages.length}) + Summary(1) + Tail(${tailMessages.length}) = ${historyToProcess.length}件`);
-      } else {
-        historyToProcess = messagesForApi;
-      }
-      if (state.settings.dummyEnabled) {
-        if (state.settings.reverseDummyOrder) {
-          if (state.settings.dummyModel) {
-            historyToProcess.push({ role: "model", content: state.settings.dummyModel, attachments: [] });
-          }
-          if (state.settings.dummyUser) {
-            historyToProcess.push({ role: "user", content: state.settings.dummyUser, attachments: [] });
-          }
-        } else {
-          if (state.settings.dummyUser) {
-            historyToProcess.push({ role: "user", content: state.settings.dummyUser, attachments: [] });
-          }
-          if (state.settings.dummyModel) {
-            historyToProcess.push({ role: "model", content: state.settings.dummyModel, attachments: [] });
-          }
-        }
-      }
-      return historyToProcess.map((msg) => {
-        const parts = [];
-        let contentText = msg.content || "";
-        if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
-          const fileNames = msg.attachments.map((att) => att.name).join(", ");
-          const attachmentText = `
-
-[添付ファイル: ${fileNames}]`;
-          contentText = (contentText.trim() ? contentText : "") + attachmentText;
-        }
-        if (contentText.trim() !== "" || msg.isHidden) {
-          parts.push({ text: contentText });
-        }
-        if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
-          msg.attachments.forEach((att) => parts.push({ inlineData: { mimeType: att.mimeType, data: att.base64Data } }));
-        }
-        if (msg.generated_images && msg.generated_images.length > 0) {
-          msg.generated_images.forEach((img) => {
-            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
-          });
-        }
-        if (msg.role === "model" && msg.tool_calls) {
-          msg.tool_calls.forEach((toolCall) => parts.push({ functionCall: toolCall.functionCall }));
-        }
-        if (msg.role === "tool") {
-          if (msg.name && msg.response) {
-            parts.push({
-              functionResponse: {
-                name: msg.name,
-                response: msg.response,
-                _toolCallId: msg._toolCallId || msg.tool_call_id
-                // 元のtoolCallIdを保存
-              }
-            });
-          }
-        }
-        return { role: msg.role === "tool" ? "tool" : msg.role === "model" ? "model" : "user", parts };
-      }).filter((c) => c.parts.length > 0);
-    },
-    /**
-     * 画像Blobを受け取り、WebPに変換してimage_storeに保存し、新しいIDを返す
-     * @param {Blob} blob - 保存対象の画像Blob
-     * @returns {Promise<string>} 保存された画像のユニークID
-     */
-    async saveImageBlob(blob) {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const img = new Image();
-          img.onload = async () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0);
-            canvas.toBlob(async (webpBlob) => {
-              if (!webpBlob) {
-                console.warn("WebPへの変換に失敗しました。元の形式で保存します。");
-                webpBlob = blob;
-              }
-              const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-              const imageData = {
-                id: imageId,
-                blob: webpBlob,
-                width: img.naturalWidth,
-                // 幅を追加
-                height: img.naturalHeight,
-                // 高さを追加
-                createdAt: /* @__PURE__ */ new Date()
-              };
-              try {
-                await dbUtils.openDB();
-                const store = dbUtils._getStore(IMAGE_STORE, "readwrite");
-                const request = store.put(imageData);
-                request.onsuccess = () => resolve(imageId);
-                request.onerror = (event) => reject(event.target.error);
-              } catch (dbError) {
-                reject(dbError);
-              }
-            }, "image/webp", 0.9);
-          };
-          img.onerror = () => reject(new Error("画像データの読み込みに失敗しました。"));
-          img.src = e.target.result;
-        };
-        reader.onerror = () => reject(new Error("FileReaderでBlobの読み込みに失敗しました。"));
-        reader.readAsDataURL(blob);
-      });
-    },
-    imageObserver: null,
-    // 画像遅延読み込み用のIntersectionObserver
-    /**
-     * IDを指定してimage_storeから画像Blobを取得する
-     * @param {string} id - 取得する画像のID
-     * @returns {Promise<Blob|null>} 画像のBlobオブジェクト、またはnull
-     */
-    async getImageBlobById(id) {
-      try {
-        await dbUtils.openDB();
-        const store = dbUtils._getStore(IMAGE_STORE, "readonly");
-        return new Promise((resolve, reject) => {
-          const request = store.get(id);
-          request.onsuccess = (event) => {
-            resolve(event.target.result || null);
-          };
-          request.onerror = (event) => reject(event.target.error);
-        });
-      } catch (error) {
-        console.error(`ID(${id})の画像Blob取得エラー:`, error);
-        return null;
-      }
-    },
-    /**
-     * 古い形式の画像データ（チャット履歴埋め込み）を新しいimage_storeに移行する
-     * @param {IDBTransaction} transaction - onupgradeneededから渡されるトランザクション
-     */
-    async migrateImageData() {
-      console.log("[DB Migration] v11データ移行処理のチェックを開始します...");
-      try {
-        const migrationFlag = await dbUtils.getSetting("v11_migration_complete");
-        if (migrationFlag && migrationFlag.value) {
-          console.log("[DB Migration] v11データ移行は既に完了しています。");
-          return;
-        }
-        console.log("[DB Migration] v11データ移行を開始します...");
-        const allChats = await dbUtils.getAllChats();
-        let migratedImageCount = 0;
-        for (const chat of allChats) {
-          let chatModified = false;
-          if (!chat.messages) continue;
-          for (const message of chat.messages) {
-            if (message.generated_images && message.generated_images.length > 0) {
-              message.imageIds = message.imageIds || [];
-              for (const imgData of message.generated_images) {
-                try {
-                  const imageBlob = await this.base64ToBlob(imgData.data, imgData.mimeType);
-                  const newImageId = await this.saveImageBlob(imageBlob);
-                  message.imageIds.push(newImageId);
-                  migratedImageCount++;
-                } catch (error) {
-                  console.error(`[DB Migration] チャット(id:${chat.id})の画像移行中にエラー:`, error);
-                }
-              }
-              delete message.generated_images;
-              chatModified = true;
-            }
-          }
-          if (chatModified) {
-            console.log(`[DB Migration] チャット(id:${chat.id})を更新します。`);
-            await dbUtils.saveChat(chat.title, chat);
-          }
-        }
-        console.log(`[DB Migration] v11データ移行が完了しました。合計 ${migratedImageCount} 枚の画像を移行しました。`);
-        await dbUtils.saveSetting("v11_migration_complete", true);
-      } catch (error) {
-        console.error("[DB Migration] v11データ移行処理中に致命的なエラーが発生しました:", error);
-      }
-    },
-    applyWideMode() {
-      document.body.classList.toggle("wide-mode-enabled", state.settings.enableWideMode);
-      updateMessageMaxWidthVar();
-    },
-    getVisibleMessages() {
-      const visibleMessages = [];
-      const processedGroupIds = /* @__PURE__ */ new Set();
-      state.currentMessages.forEach((msg) => {
-        if (msg.isHidden) return;
-        if (msg.isCascaded && msg.siblingGroupId) {
-          if (!processedGroupIds.has(msg.siblingGroupId)) {
-            const siblings = state.currentMessages.filter((m) => m.siblingGroupId === msg.siblingGroupId && !m.isHidden);
-            const selectedSibling = siblings.find((m) => m.isSelected) || siblings[siblings.length - 1];
-            if (selectedSibling) {
-              visibleMessages.push(selectedSibling);
-            }
-            processedGroupIds.add(msg.siblingGroupId);
-          }
-        } else {
-          visibleMessages.push(msg);
-        }
-      });
-      return visibleMessages;
-    },
-    _updateApiUsageCount: /* @__PURE__ */ __name(async function(profileId) {
-      if (!profileId) return;
-      const profileToUpdate = state.profiles.find((p) => p.id === profileId);
-      if (!profileToUpdate) return;
-      const now = /* @__PURE__ */ new Date();
-      const getPacificDate = /* @__PURE__ */ __name((date) => {
-        const options = { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" };
-        const formatter = new Intl.DateTimeFormat("en-CA", options);
-        return formatter.format(date);
-      }, "getPacificDate");
-      const todayPacific = getPacificDate(now);
-      if (!profileToUpdate.apiUsage || profileToUpdate.apiUsage.date !== todayPacific) {
-        profileToUpdate.apiUsage = { date: todayPacific, count: 0 };
-      }
-      profileToUpdate.apiUsage.count++;
-      try {
-        await dbUtils.updateProfile(profileToUpdate);
-        console.log(`[API Count] Profile ${profileId} の使用回数を更新しました。 Count for ${todayPacific}: ${profileToUpdate.apiUsage.count}`);
-        this.updateApiUsageUI();
-        uiUtils.updateProfileSwitcherUI();
-      } catch (error) {
-        console.error(`[API Count] プロファイルID ${profileId} の使用回数保存に失敗:`, error);
-      }
-    }, "_updateApiUsageCount"),
-    _checkAndResetApiUsage: /* @__PURE__ */ __name(async function() {
-      console.log("[API Count] 全プロファイルのAPI使用回数リセットチェックを開始します...");
-      const now = /* @__PURE__ */ new Date();
-      const getPacificDate = /* @__PURE__ */ __name((date) => {
-        const options = { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" };
-        const formatter = new Intl.DateTimeFormat("en-CA", options);
-        return formatter.format(date);
-      }, "getPacificDate");
-      const todayPacific = getPacificDate(now);
-      let profilesWereUpdated = false;
-      for (const profile of state.profiles) {
-        if (profile.apiUsage && profile.apiUsage.date !== todayPacific) {
-          console.log(`[API Count] プロファイル「${profile.name}」(ID: ${profile.id}) の日付が古いため (${profile.apiUsage.date})、使用回数をリセットします。`);
-          delete profile.apiUsage;
-          try {
-            await dbUtils.updateProfile(profile);
-            profilesWereUpdated = true;
-          } catch (error) {
-            console.error(`[API Count] プロファイルID ${profile.id} のリセット保存に失敗:`, error);
-          }
-        }
-      }
-      if (profilesWereUpdated) {
-        console.log("[API Count] 1つ以上のプロファイルが更新されたため、UIを再描画します。");
-        this.applyActiveProfile();
-        uiUtils.updateProfileSwitcherUI();
-      } else {
-        console.log("[API Count] リセットが必要なプロファイルはありませんでした。");
-      }
-    }, "_checkAndResetApiUsage"),
-    updateApiUsageUI: /* @__PURE__ */ __name(function() {
-      const profile = state.activeProfile;
-      const usageContainer = document.getElementById("api-usage-container");
-      const usageText = document.getElementById("api-usage-text");
-      if (!usageContainer || !usageText || !profile) {
-        if (usageContainer) usageContainer.classList.add("hidden");
-        return;
-      }
-      const usage = profile.apiUsage || { count: 0 };
-      if (state.settings.modelName === "gemini-2.5-pro" && state.settings.apiProvider === "gemini") {
-        usageText.textContent = `gemini-2.5-pro 本日の使用回数: ${usage.count} 回 (日本時間16/17時リセット)`;
-        usageContainer.classList.remove("hidden");
-      } else {
-        usageContainer.classList.add("hidden");
-      }
-    }, "updateApiUsageUI"),
-    // プロバイダー変更時のUI更新
-    updateProviderUI(provider) {
-      const isGemini = provider === "gemini";
-      const isZai = provider === "zai";
-      const isOpenRouter = provider === "openrouter";
-      const isBedrock = provider === "bedrock";
-      const isOpenAI = provider === "openai";
-      const isAnthropic = provider === "anthropic";
-      const isGroq = provider === "groq";
-      const isDeepSeek = provider === "deepseek";
-      const isXAI = provider === "xai";
-      const isMistral = provider === "mistral";
-      const containers = [
-        [elements.geminiApiKeyContainer, isGemini],
-        [elements.zaiApiKeyContainer, isZai],
-        [elements.openrouterApiKeyContainer, isOpenRouter],
-        [elements.bedrockApiKeyContainer, isBedrock],
-        [elements.openaiApiKeyContainer, isOpenAI],
-        [elements.anthropicApiKeyContainer, isAnthropic],
-        [elements.groqApiKeyContainer, isGroq],
-        [elements.deepseekApiKeyContainer, isDeepSeek],
-        [elements.xaiApiKeyContainer, isXAI],
-        [elements.mistralApiKeyContainer, isMistral]
-      ];
-      containers.forEach(([el, show]) => {
-        if (el) el.classList.toggle("hidden", !show);
-      });
-      if (elements.modelNameLabel) {
-        elements.modelNameLabel.classList.toggle("hidden", isOpenRouter);
-      }
-      if (elements.modelNameSelect) {
-        elements.modelNameSelect.classList.toggle("hidden", isOpenRouter);
-      }
-      if (elements.openrouterModelInputContainer) {
-        elements.openrouterModelInputContainer.classList.toggle("hidden", !isOpenRouter);
-      }
-    },
-    // プロバイダーに応じたモデルリストの更新
-    updateModelOptions(provider) {
-      if (provider === "openrouter") {
-        if (elements.openrouterModelInput) {
-          const currentModel = state.settings.modelName || DEFAULT_OPENROUTER_MODEL;
-          elements.openrouterModelInput.value = currentModel;
-        }
-        uiUtils.updateModelWarningMessage();
-        this.updateApiUsageUI();
-        return;
-      }
-      const modelSelect = elements.modelNameSelect;
-      if (!modelSelect) return;
-      const userDefinedGroup = elements.userDefinedModelsGroup;
-      const currentValue = modelSelect.value;
-      const optgroups = Array.from(modelSelect.querySelectorAll("optgroup"));
-      optgroups.forEach((group) => {
-        if (group.id !== "user-defined-models-group") {
-          group.remove();
-        }
-      });
-      const options = Array.from(modelSelect.querySelectorAll("option:not([data-user-defined])"));
-      options.forEach((option) => option.remove());
-      let models;
-      if (provider === "zai") {
-        models = ZAI_MODELS;
-      } else if (provider === "bedrock") {
-        models = BEDROCK_MODELS;
-      } else if (provider === "openai") {
-        models = OPENAI_MODELS;
-      } else if (provider === "anthropic") {
-        models = ANTHROPIC_MODELS;
-      } else if (provider === "groq") {
-        models = GROQ_MODELS;
-      } else if (provider === "deepseek") {
-        models = DEEPSEEK_MODELS;
-      } else if (provider === "xai") {
-        models = XAI_MODELS;
-      } else if (provider === "mistral") {
-        models = MISTRAL_MODELS;
-      } else {
-        models = GEMINI_MODELS;
-      }
-      const groups = {};
-      models.forEach((model) => {
-        if (model.group) {
-          if (!groups[model.group]) {
-            const optgroup = document.createElement("optgroup");
-            optgroup.label = model.group;
-            modelSelect.appendChild(optgroup);
-            groups[model.group] = optgroup;
-          }
-          const option = document.createElement("option");
-          option.value = model.value;
-          option.textContent = model.label;
-          groups[model.group].appendChild(option);
-        } else {
-          const option = document.createElement("option");
-          option.value = model.value;
-          option.textContent = model.label;
-          modelSelect.appendChild(option);
-        }
-      });
-      if (userDefinedGroup && userDefinedGroup.parentNode !== modelSelect) {
-        modelSelect.appendChild(userDefinedGroup);
-      }
-      const standardValues = models.map((m) => m.value);
-      if (userDefinedGroup) {
-        userDefinedGroup.innerHTML = "";
-        userDefinedGroup.disabled = false;
-        const customText = state.settings && state.settings.customModelsText || {};
-        const fetchedModels = state.settings && state.settings.fetchedModels || {};
-        const manualIds = (customText[provider] || "").split(",").map((s) => s.trim()).filter(Boolean);
-        manualIds.forEach((id) => {
-          if (!standardValues.includes(id)) {
-            const opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = id;
-            opt.dataset.provider = provider;
-            opt.dataset.userDefined = "true";
-            userDefinedGroup.appendChild(opt);
-          }
-        });
-        const allExisting = /* @__PURE__ */ new Set([...standardValues, ...manualIds]);
-        const fetchedIds = (fetchedModels[provider] || []).filter((id) => !allExisting.has(id));
-        if (fetchedIds.length > 0) {
-          const fetchedGroup = document.createElement("optgroup");
-          fetchedGroup.label = "API取得モデル";
-          fetchedIds.forEach((id) => {
-            const opt = document.createElement("option");
-            opt.value = id;
-            opt.textContent = id;
-            opt.dataset.provider = provider;
-            fetchedGroup.appendChild(opt);
-          });
-          modelSelect.appendChild(fetchedGroup);
-        }
-      }
-      const allAvailableValues = Array.from(modelSelect.querySelectorAll("option")).map((o) => o.value);
-      if (allAvailableValues.includes(currentValue)) {
-        modelSelect.value = currentValue;
-      } else {
-        const lastUsed = state.settings.lastModelPerProvider?.[provider];
-        let defaultModel;
-        if (lastUsed && allAvailableValues.includes(lastUsed)) {
-          defaultModel = lastUsed;
-        } else if (provider === "zai") {
-          defaultModel = DEFAULT_ZAI_MODEL;
-        } else if (provider === "openrouter") {
-          defaultModel = DEFAULT_OPENROUTER_MODEL;
-        } else if (provider === "bedrock") {
-          defaultModel = DEFAULT_BEDROCK_MODEL;
-        } else if (provider === "openai") {
-          defaultModel = DEFAULT_OPENAI_MODEL;
-        } else if (provider === "anthropic") {
-          defaultModel = DEFAULT_ANTHROPIC_MODEL;
-        } else if (provider === "groq") {
-          defaultModel = DEFAULT_GROQ_MODEL;
-        } else if (provider === "deepseek") {
-          defaultModel = DEFAULT_DEEPSEEK_MODEL;
-        } else if (provider === "xai") {
-          defaultModel = DEFAULT_XAI_MODEL;
-        } else if (provider === "mistral") {
-          defaultModel = DEFAULT_MISTRAL_MODEL;
-        } else {
-          defaultModel = DEFAULT_MODEL;
-        }
-        modelSelect.value = defaultModel;
-        state.settings.modelName = defaultModel;
-      }
-      uiUtils.updateModelWarningMessage();
-      this.updateApiUsageUI();
-    },
-    /**
-     * @private 現在の永続メモリから状況サマリーを生成するヘルパー関数
-     * @returns {string} AI向けのマークダウン形式のサマリー文字列
-     */
-    _buildSummaryForPrompt() {
-      const memory = state.currentPersistentMemory || {};
-      if (Object.keys(memory).length === 0) {
-        return "";
-      }
-      let summary = "【現在の状況サマリー】\n";
-      const sections = [];
-      const characterMemoryEntries = Object.entries(memory).filter(([key]) => key.startsWith("character_memory_"));
-      if (characterMemoryEntries.length > 0) {
-        let content = characterMemoryEntries.map(([key, value]) => {
-          const charName = key.replace("character_memory_", "");
-          return `■ ${charName}
-` + JSON.stringify(value, null, 2);
-        }).join("\n");
-        sections.push(`## キャラクター記憶 (manage_character_memory)
-${content}`);
-      }
-      if (memory.scene_stack && memory.scene_stack.length > 0) {
-        const currentScene = memory.scene_stack[memory.scene_stack.length - 1];
-        let content = Object.entries(currentScene).map(([key, value]) => `- ${key}: ${value}`).join("\n");
-        sections.push(`## シーン (manage_scene)
-${content}`);
-      }
-      if (typeof memory.game_day === "number") {
-        sections.push(`## 日付 (manage_game_date)
-- 現在: ${memory.game_day}日目`);
-      }
-      const statusEntries = Object.entries(memory).filter(([key]) => key.startsWith("character_") && !key.startsWith("character_memory_"));
-      if (statusEntries.length > 0) {
-        let content = statusEntries.map(([key, value]) => {
-          const charName = key.replace("character_", "");
-          const statuses = Object.entries(value).map(([sKey, sValue]) => `${sKey}: ${sValue}`).join(", ");
-          return `- ${charName}: ${statuses}`;
-        }).join("\n");
-        sections.push(`## 主要ステータス (manage_character_status)
-${content}`);
-      }
-      if (memory.inventories && Object.keys(memory.inventories).length > 0) {
-        let content = Object.entries(memory.inventories).map(([charName, items]) => {
-          const itemList = Object.entries(items).map(([itemName, qty]) => `${itemName}(${qty})`).join(", ");
-          return `- ${charName}: ${itemList}`;
-        }).join("\n");
-        sections.push(`## 所持品 (manage_inventory)
-${content}`);
-      }
-      if (memory.style_profiles && Object.keys(memory.style_profiles).length > 0) {
-        let content = Object.entries(memory.style_profiles).map(([charName, profile]) => {
-          const profileDetails = Object.entries(profile).map(([key, value]) => `${key}: ${value}`).join(", ");
-          return `- ${charName}: ${profileDetails}`;
-        }).join("\n");
-        sections.push(`## 口調設定 (manage_style_profile)
-${content}`);
-      }
-      const knownKeys = /* @__PURE__ */ new Set(["scene_stack", "game_day", "inventories", "style_profiles"]);
-      const flagAndMemoryKeys = Object.keys(memory).filter(
-        (key) => !key.startsWith("character_") && !knownKeys.has(key)
-      );
-      if (flagAndMemoryKeys.length > 0) {
-        let flagContent = flagAndMemoryKeys.map((key) => `- ${key}: ${JSON.stringify(memory[key])}`).join("\n");
-        sections.push(`## フラグ・重要設定 (manage_flags, manage_persistent_memory)
-${flagContent}`);
-      }
-      if (sections.length > 0) {
-        summary += sections.join("\n\n");
-        return summary;
-      }
-      return "";
-    },
-    // アプリ初期化
-    async initializeApp() {
-      const isSyncReload = sessionStorage.getItem("isSyncReload") === "true";
-      uiUtils.showProgressDialog(isSyncReload ? "データベースを準備中..." : "初期化処理を開始中...");
-      setupBroadcastChannel();
-      let versionNoticeData = null;
-      try {
-        const pendingNoticeRaw = sessionStorage.getItem(VERSION_NOTICE_SESSION_KEY);
-        if (pendingNoticeRaw) {
-          try {
-            versionNoticeData = JSON.parse(pendingNoticeRaw);
-            console.log(`[VersionNotice] ペンディング通知を検出しました。version=${versionNoticeData.version}`);
-          } catch (parseError) {
-            console.error("[VersionNotice] ペンディング通知の解析に失敗しました。削除して再生成します。", parseError);
-            sessionStorage.removeItem(VERSION_NOTICE_SESSION_KEY);
-            versionNoticeData = null;
-          }
-        }
-        if (!versionNoticeData) {
-          const acknowledgedVersion = localStorage.getItem(VERSION_ACK_STORAGE_KEY);
-          const legacyVersion = localStorage.getItem(VERSION_LEGACY_STORAGE_KEY);
-          const currentVersion = APP_VERSION;
-          console.log(`[VersionNotice] バージョンチェック開始。ack=${acknowledgedVersion ?? "none"}, legacy=${legacyVersion ?? "none"}, current=${currentVersion}`);
-          const shouldShowNotice = !acknowledgedVersion || acknowledgedVersion !== currentVersion || legacyVersion && legacyVersion !== currentVersion;
-          if (shouldShowNotice) {
-            const newFeatures = VERSION_HISTORY[currentVersion];
-            let message = `アプリがバージョン ${currentVersion} にアップデートされました。`;
-            if (newFeatures && newFeatures.length > 0) {
-              message += "\n\n主な更新内容:\n- " + newFeatures.join("\n- ");
-            }
-            versionNoticeData = {
-              version: currentVersion,
-              message,
-              shouldPersist: true
-            };
-            sessionStorage.setItem(VERSION_NOTICE_SESSION_KEY, JSON.stringify(versionNoticeData));
-            console.log(`[VersionNotice] 新しいバージョン通知を作成しました。(ack=${acknowledgedVersion ?? "none"}, legacy=${legacyVersion ?? "none"})`);
-          } else {
-            console.log("[VersionNotice] 既に最新バージョンが確認済みのため通知をスキップします。");
-          }
-        }
-      } catch (e) {
-        console.error("バージョンチェック処理中にエラー:", e);
-      }
-      try {
-        if (isSyncReload) uiUtils.updateProgressMessage("データベースを準備中...");
-        await dbUtils.openDB();
-      } catch (dbError) {
-        console.error("初期化中のDBオープンに失敗:", dbError);
-        const shouldReload = await uiUtils.showCustomConfirm(
-          `データベースの起動に失敗しました: ${dbError.message}
-
-ハードリロードを実行しますか？
-（チャット履歴などのデータは保持されます）`
-        );
-        if (shouldReload) {
-          console.log("ユーザーがリロードを選択しました。");
-          window.location.reload(true);
-        } else {
-          elements.appContainer.innerHTML = `<p style="padding: 20px; text-align: center; color: red;">アプリの起動に失敗しました。</p>`;
-        }
-        return;
-      }
-      try {
-        const cleanupFlag = await dbUtils.getSetting("imageStoreCleanup_v1_complete");
-        if (!cleanupFlag || !cleanupFlag.value) {
-          console.log("[Cleanup] 孤児画像データのクリーンアップ処理を開始します...");
-          const allChats = await dbUtils.getAllChats();
-          const activeImageIds = /* @__PURE__ */ new Set();
-          allChats.forEach((chat) => {
-            (chat.messages || []).forEach((message) => {
-              (message.imageIds || []).forEach((id) => activeImageIds.add(id));
-            });
-          });
-          console.log(`[Cleanup] ${activeImageIds.size}件の有効な画像IDを検出しました。`);
-          const allStoredImageIds = await new Promise((resolve, reject) => {
-            const store = dbUtils._getStore(IMAGE_STORE);
-            const request = store.getAllKeys();
-            request.onsuccess = () => resolve(new Set(request.result));
-            request.onerror = (e) => reject(e.target.error);
-          });
-          console.log(`[Cleanup] image_storeには ${allStoredImageIds.size}件の画像が存在します。`);
-          const orphanImageIds = [];
-          allStoredImageIds.forEach((storedId) => {
-            if (!activeImageIds.has(storedId)) {
-              orphanImageIds.push(storedId);
-            }
-          });
-          if (orphanImageIds.length > 0) {
-            console.log(`[Cleanup] ${orphanImageIds.length}件の孤児画像を削除します。`, orphanImageIds);
-            const tx = state.db.transaction(IMAGE_STORE, "readwrite");
-            const store = tx.objectStore(IMAGE_STORE);
-            orphanImageIds.forEach((id) => store.delete(id));
-            await new Promise((resolve, reject) => {
-              tx.oncomplete = resolve;
-              tx.onerror = () => reject(tx.error);
-            });
-            console.log("[Cleanup] 孤児画像の削除が完了しました。");
-          } else {
-            console.log("[Cleanup] 孤児画像は見つかりませんでした。");
-          }
-          await dbUtils.saveSetting("imageStoreCleanup_v1_complete", true);
-          console.log("[Cleanup] クリーンアップ処理が正常に完了しました。");
-        } else {
-          console.log("[Cleanup] 孤児画像データのクリーンアップは既に完了しています。");
-        }
-      } catch (error) {
-        console.error("[Cleanup] 孤児画像データのクリーンアップ中にエラーが発生しました:", error);
-      }
-      const handleAuthCallback = /* @__PURE__ */ __name(async () => {
-        console.log("[SYNC_DEBUG] handleAuthCallback: 開始");
-        const urlParams = new URLSearchParams(window.location.search);
-        const authCode = urlParams.get("code");
-        if (authCode) {
-          const newUrl = window.location.origin + window.location.pathname;
-          window.history.replaceState({}, document.title, newUrl);
-          uiUtils.showProgressDialog("Dropboxと連携中...");
-          try {
-            const REDIRECT_URI = window.location.origin + window.location.pathname;
-            const codeVerifier = sessionStorage.getItem("dropboxCodeVerifier");
-            if (!codeVerifier) {
-              throw new Error("認証セッションが見つかりません。もう一度お試しください。");
-            }
-            await window.dropboxApi.getAccessToken(authCode, REDIRECT_URI, codeVerifier);
-            console.log("Dropbox連携に成功し、トークンを保存しました。");
-            await this.updateDropboxUIState();
-            console.log("[SYNC_DEBUG] handleAuthCallback: 初回連携のため、handlePull(true)を呼び出します。");
-            await this.handlePull(true);
-            console.log("[SYNC_DEBUG] handleAuthCallback: handlePullが完了しました。");
-          } catch (error) {
-            console.error("Dropboxのトークン取得に失敗:", error);
-            uiUtils.hideProgressDialog();
-            await uiUtils.showCustomAlert(`連携に失敗しました: ${error.message}`);
-          } finally {
-            sessionStorage.removeItem("dropboxCodeVerifier");
-          }
-        }
-      }, "handleAuthCallback");
-      await handleAuthCallback();
-      if (typeof marked !== "undefined") {
-        const renderer = new marked.Renderer();
-        const escapeHtmlText = /* @__PURE__ */ __name((t) => String(t ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), "escapeHtmlText");
-        renderer.html = (token) => escapeHtmlText(typeof token === "object" && token !== null ? token.text : token);
-        const originalLinkRenderer = renderer.link;
-        renderer.link = (href, title, text) => {
-          const rawHref = href && typeof href === "object" ? href.href : href;
-          if (typeof rawHref === "string" && /^\s*(javascript|vbscript|data)\s*:/i.test(rawHref)) {
-            const label = href && typeof href === "object" ? href.text : text;
-            return escapeHtmlText(label || rawHref);
-          }
-          const html = originalLinkRenderer.call(renderer, href, title, text);
-          return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
-        };
-        marked.setOptions({ renderer, breaks: true, gfm: true, smartypants: false });
-      } else {
-        console.error("Marked.jsライブラリが読み込まれていません！");
-      }
-      elements.appVersionSpan.textContent = APP_VERSION;
-      window.addEventListener("beforeinstallprompt", (e) => e.preventDefault());
-      window.debug = {
-        getState: /* @__PURE__ */ __name(() => console.log(state), "getState"),
-        getMemory: /* @__PURE__ */ __name(() => console.log(state.currentPersistentMemory), "getMemory"),
-        getChat: /* @__PURE__ */ __name(async (id) => console.log(await dbUtils.getChat(id || state.currentChatId)), "getChat")
-      };
-      registerServiceWorker();
-      this.imageObserver = new IntersectionObserver(async (entries, observer) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            const img = entry.target;
-            const imageId = img.dataset.imageId;
-            observer.unobserve(img);
-            const imageData = await this.getImageBlobById(imageId);
-            if (imageData && imageData.blob) {
-              if (imageData.width && imageData.height) {
-                img.width = imageData.width;
-                img.height = imageData.height;
-              }
-              const objectURL = URL.createObjectURL(imageData.blob);
-              img.src = objectURL;
-              img.alt = "生成された画像";
-            } else {
-              img.alt = "画像の読み込みに失敗しました";
-              img.classList.add("load-error");
-            }
-          }
-        }
-      }, { rootMargin: "200px" });
-      const mutationObserver = new MutationObserver((mutationsList) => {
-        for (const mutation of mutationsList) {
-          if (mutation.type === "childList") {
-            mutation.removedNodes.forEach((node) => {
-              const imagesToRevoke = [];
-              if (node.tagName === "IMG" && node.src.startsWith("blob:")) {
-                imagesToRevoke.push(node);
-              } else if (node.querySelectorAll) {
-                node.querySelectorAll('img[src^="blob:"]').forEach((img) => imagesToRevoke.push(img));
-              }
-              imagesToRevoke.forEach((img) => {
-                console.log(`[Memory] DOMから削除された画像のURLを解放します: ${img.src}`);
-                URL.revokeObjectURL(img.src);
-              });
-            });
-          }
-        }
-      });
-      mutationObserver.observe(elements.messageContainer, { childList: true, subtree: true });
-      try {
-        if (isSyncReload) uiUtils.updateProgressMessage("各種設定を読み込み中...");
-        await this.loadGlobalSettings();
-        if (isSyncReload) uiUtils.updateProgressMessage("プロファイル情報を読み込み中...");
-        await this.loadProfiles();
-        await this._checkAndResetApiUsage();
-        this.updateApiUsageUI();
-        await this.initializeSyncState();
-        await this.updateDropboxUIState();
-        const tokenData = await dbUtils.getSetting("dropboxTokens");
-        let recoveryFlowExecuted = false;
-        if (tokenData && tokenData.value) {
-          const lockData = await window.dropboxApi.checkLockFile();
-          if (lockData && lockData.operation) {
-            recoveryFlowExecuted = true;
-            console.warn(`[Sync Recovery] 同期ロックファイルを検出。中断された操作: ${lockData.operation}`);
-            this.updateSyncStatusUI("syncing", `中断された${lockData.operation === "push" ? "同期" : "復元"}を再開中...`);
-            if (lockData.operation === "push") {
-              state.sync.isDirty = true;
-              await this.handlePush(false);
-            } else if (lockData.operation === "pull") {
-              await this.handlePull(false);
-            }
-          } else if (lockData) {
-            recoveryFlowExecuted = true;
-            console.warn("[Sync Recovery] 操作タイプ不明のロックファイルを検出。ユーザーに選択を促します。");
-            const choice = await this.showRecoveryDialog();
-            if (choice === "pull") {
-              await this.handlePull(true);
-            } else if (choice === "push") {
-              state.sync.isDirty = true;
-              await this.handlePush(true);
-            } else {
-              await window.dropboxApi.deleteLockFile();
-            }
-          }
-        }
-        if (!new URLSearchParams(window.location.search).has("code") && !recoveryFlowExecuted) {
-          console.log("[SYNC_DEBUG] initializeApp: 通常起動のため、handlePull(false)を呼び出します。");
-          await this.handlePull(false);
-        } else {
-          console.log("[SYNC_DEBUG] initializeApp: OAuthコールバックまたは復旧フローが実行されたため、通常のPullはスキップします。");
-        }
-        await this.updateDropboxUIState();
-        const profiles = await dbUtils.getAllProfiles();
-        if (profiles.length === 0) {
-          const oldSettingsArray = await new Promise((resolve, reject) => {
-            const store = dbUtils._getStore(SETTINGS_STORE);
-            const request = store.getAll();
-            request.onsuccess = () => resolve(request.result.filter((s) => s.key !== "dropboxTokens"));
-            request.onerror = (e) => reject(e.target.error);
-          });
-          if (oldSettingsArray.length > 0) {
-            console.log("[Migration] プロファイルが存在せず、古い設定データが見つかったため移行処理を実行します。");
-            const oldSettingsObject = {};
-            oldSettingsArray.forEach((item) => {
-              oldSettingsObject[item.key] = item.value;
-            });
-            const initialProfileSettings = { ...state.settings, ...oldSettingsObject };
-            delete initialProfileSettings.backgroundImageBlob;
-            const defaultProfile = { name: "デフォルトプロファイル", icon: null, createdAt: Date.now(), settings: initialProfileSettings };
-            const newId = await dbUtils.addProfile(defaultProfile);
-            await new Promise((resolve, reject) => {
-              const store = dbUtils._getStore(SETTINGS_STORE, "readwrite");
-              store.clear().onsuccess = () => resolve();
-              store.transaction.onerror = () => reject(store.transaction.error);
-            });
-            await dbUtils.saveSetting("activeProfileId", newId);
-            console.log("[Migration] データ移行が完了しました。");
-            await this.loadProfiles();
-          }
-        }
-        if (isSyncReload) uiUtils.updateProgressMessage("チャット履歴を読み込み中...");
-        const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
-        if (chats && chats.length > 0) {
-          await this.loadChat(chats[0].id);
-        } else {
-          this.startNewChat();
-        }
-      } catch (error) {
-        console.error("初期化中のデータ処理で失敗:", error);
-        const shouldReload = await uiUtils.showCustomConfirm(
-          `データの読み込みに失敗しました: ${error.message}
-
-ハードリロードを実行しますか？
-（チャット履歴などのデータは保持されます）`
-        );
-        if (shouldReload) {
-          console.log("ユーザーがリロードを選択しました。");
-          window.location.reload(true);
-          return;
-        }
-      } finally {
-        if (isSyncReload) uiUtils.updateProgressMessage("画面を描画中...");
-        elements.chatScreen.style.transform = "translateX(0)";
-        elements.historyScreen.style.transform = "translateX(-100%)";
-        elements.settingsScreen.style.transform = "translateX(100%)";
-        uiUtils.showScreen("chat", true);
-        history.replaceState({ screen: "chat" }, "", "#chat");
-        state.currentScreen = "chat";
-        updateMessageMaxWidthVar();
-        this.setupEventListeners();
-        this.updateZoomState();
-        uiUtils.adjustTextareaHeight();
-        uiUtils.setSendingState(false);
-        this.updateAssetCount();
-        this.toggleSummaryButtonVisibility();
-        this.scrollToBottom();
-        this.applyFloatingPanelBehavior();
-        uiUtils.hideProgressDialog();
-        sessionStorage.removeItem("isSyncReload");
-        if (versionNoticeData && versionNoticeData.message) {
-          try {
-            console.log(`[VersionNotice] 通知を表示します。version=${versionNoticeData.version}`);
-            await uiUtils.showCustomAlert(versionNoticeData.message);
-            console.log("[VersionNotice] 通知がユーザーによって確認されました。");
-            if (versionNoticeData.shouldPersist) {
-              localStorage.setItem(VERSION_ACK_STORAGE_KEY, versionNoticeData.version);
-              localStorage.setItem(VERSION_LEGACY_STORAGE_KEY, versionNoticeData.version);
-              console.log(`[VersionNotice] バージョン ${versionNoticeData.version} をACK/LEGACYキーに保存しました。`);
-            }
-          } catch (versionAlertError) {
-            console.error("[VersionNotice] 通知の表示に失敗しました:", versionAlertError);
-          } finally {
-            sessionStorage.removeItem(VERSION_NOTICE_SESSION_KEY);
-          }
-        }
-      }
-    },
-    // 復旧ダイアログを表示するヘルパー関数
-    async showRecoveryDialog() {
-      const pullConfirm = await uiUtils.showCustomConfirm(
-        "【同期エラーの復旧】\n\n前回の同期が正常に完了しなかったようです。\n\nクラウドのデータで現在のブラウザのデータを上書き復元しますか？ (推奨)\n\n※「キャンセル」を押すと、ローカルのデータでクラウドを上書きする選択肢が表示されます。"
-      );
-      if (pullConfirm) {
-        return "pull";
-      }
-      const pushConfirm = await uiUtils.showCustomConfirm(
-        "【同期エラーの復旧】\n\n現在のブラウザのデータで、クラウド上のデータを強制的に上書きしますか？\n\n※ 他のデバイスで行った変更が失われる可能性があります。"
-      );
-      if (pushConfirm) {
-        return "push";
-      }
-      return "cancel";
-    },
-    /**
-     * 同期関連の初期化処理
-     */
-    async initializeSyncState() {
-      const [lastSyncIdSetting, isDirtySetting, lastErrorSetting] = await Promise.all([
-        dbUtils.getSetting("lastSyncId"),
-        dbUtils.getSetting("syncIsDirty"),
-        dbUtils.getSetting("syncLastError")
-      ]);
-      state.sync.lastSyncId = lastSyncIdSetting ? lastSyncIdSetting.value : null;
-      state.sync.isDirty = isDirtySetting ? isDirtySetting.value : false;
-      state.sync.lastError = lastErrorSetting ? lastErrorSetting.value : null;
-      console.log(`[Sync] 同期状態を初期化しました。lastSyncId: ${state.sync.lastSyncId}, isDirty: ${state.sync.isDirty}, lastError:`, state.sync.lastError);
-    },
-    /**
-     * ローカルデータに変更があったことを記録し、設定に応じてPush処理をスケジュールする
-     * @param {boolean} [forcePush=false] - trueの場合、同期頻度の設定を無視して即時Pushを実行する
-     */
-    markAsDirtyAndSchedulePush(type = "message") {
-      const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-      const normalizedType = type === true ? "structural" : type;
-      console.log(`[SYNC_DEBUG ${timestamp}] markAsDirtyAndSchedulePush called. type=${normalizedType}, isSending=${state.isSending}, isSyncing=${state.sync.isSyncing}, isDirty=${state.sync.isDirty}`);
-      const tokenDataPromise = dbUtils.getSetting("dropboxTokens");
-      if (!tokenDataPromise) {
-        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Dropbox not connected.`);
-        return;
-      }
-      if (state.sync.isSyncing) {
-        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Already syncing.`);
-        return;
-      }
-      if (!state.sync.isDirty) {
-        state.sync.isDirty = true;
-        dbUtils.saveSetting("syncIsDirty", true);
-        console.log(`[SYNC_DEBUG ${timestamp}] -> State set to DIRTY.`);
-      }
-      this.updateSyncStatusUI("dirty");
-      if (normalizedType === "message" && state.isSending) {
-        console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: AI is responding (isSending=true).`);
-        return;
-      }
-      const frequency = state.settings.dropboxSyncFrequency;
-      if (frequency === "manual") {
-        if (normalizedType === "message") {
-          console.log(`[SYNC_DEBUG ${timestamp}] -> SKIPPED: Manual sync mode for message update.`);
-          return;
-        }
-        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Structural change detected in manual sync mode. Forcing push.`);
-        this.handlePush();
-        return;
-      }
-      if (normalizedType !== "message") {
-        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Non-message change detected. Triggering push immediately.`);
-        this.handlePush();
-        return;
-      }
-      state.syncMessageCounter++;
-      console.log(`[SYNC_DEBUG ${timestamp}] Message counter incremented to: ${state.syncMessageCounter}`);
-      if (state.sync.pushTimeoutId) {
-        clearTimeout(state.sync.pushTimeoutId);
-        state.sync.pushTimeoutId = null;
-      }
-      if (frequency === "instant") {
-        console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Instant mode, pushing immediately.`);
-        this.handlePush();
-        state.syncMessageCounter = 0;
-        return;
-      }
-      const threshold = parseInt(frequency, 10);
-      if (!isNaN(threshold)) {
-        if (state.syncMessageCounter >= threshold) {
-          console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Threshold (${threshold}) reached. Triggering push immediately.`);
-          this.handlePush();
-          state.syncMessageCounter = 0;
-        } else {
-          console.log(`[SYNC_DEBUG ${timestamp}] -> WAITING: Threshold (${threshold}) not reached yet.`);
-        }
-        return;
-      }
-      console.log(`[SYNC_DEBUG ${timestamp}] -> EXECUTING: Unrecognized frequency '${frequency}'. Triggering push as fallback.`);
-      this.handlePush();
-      state.syncMessageCounter = 0;
-    },
-    /**
-     * 同期競合時の3択ダイアログ（マージ / クラウドで上書き / キャンセル）
-     * @private
-     */
-    _showSyncConflictDialog(isDirty) {
-      return new Promise((resolve) => {
-        const dialog = document.createElement("dialog");
-        dialog.style.cssText = "padding:20px;max-width:420px;width:90%;border-radius:12px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-primary);font-family:inherit;";
-        const subMsg = isDirty ? "このデバイスには未同期の変更があります。" : "このデバイスにもローカルのデータが存在します。";
-        dialog.innerHTML = `
-                <div style="font-weight:bold;margin-bottom:10px;font-size:1.05em;">【データの競合】</div>
-                <p style="font-size:0.9em;margin-bottom:16px;line-height:1.6;">クラウドに別のデバイスで更新されたデータがあります。<br>${subMsg}</p>
-                <div style="display:flex;flex-direction:column;gap:8px;">
-                    <button data-result="merge" style="padding:10px 14px;background:#2196a8;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
-                        両方残す（推奨）<br><span style="font-size:0.8em;opacity:0.85;">両デバイスのチャット・プロジェクトをまとめる</span>
-                    </button>
-                    <button data-result="overwrite" style="padding:10px 14px;background:#c62828;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:0.9em;text-align:left;line-height:1.5;">
-                        クラウドに合わせる<br><span style="font-size:0.8em;opacity:0.85;">⚠️ このブラウザのログは全て消えます</span>
-                    </button>
-                    <button data-result="cancel" style="padding:10px 14px;background:transparent;color:var(--text-primary);border:1px solid var(--border-primary);border-radius:8px;cursor:pointer;font-size:0.9em;">キャンセル</button>
-                </div>`;
-        document.body.appendChild(dialog);
-        dialog.showModal();
-        const cleanup = /* @__PURE__ */ __name((result) => {
-          dialog.close();
-          document.body.removeChild(dialog);
-          resolve(result);
-        }, "cleanup");
-        dialog.addEventListener("click", (e) => {
-          const btn = e.target.closest("[data-result]");
-          if (btn) cleanup(btn.dataset.result);
-        });
-        dialog.addEventListener("cancel", () => cleanup("cancel"));
-      });
-    },
-    /**
-     * ローカルとクラウドのデータをマージしてインポートし、マージ結果をCloudにPushする
-     * @private
-     */
-    async _mergeAndSyncWithCloud(cloudMetadataString, isManual) {
-      const cloudParsed = JSON.parse(cloudMetadataString);
-      if (cloudParsed.version !== "2.0" || !cloudParsed.data) throw new Error("クラウドデータの形式が無効です。");
-      const cloudData = cloudParsed.data;
-      if (isManual) uiUtils.showProgressDialog("ローカルデータを収集中...");
-      const { metadataJson } = await this._prepareExportData();
-      const localData = JSON.parse(metadataJson).data;
-      if (isManual) uiUtils.updateProgressMessage("データをマージ中...");
-      const chatMap = /* @__PURE__ */ new Map();
-      [...localData.chats || [], ...cloudData.chats || []].forEach((chat) => {
-        const existing = chatMap.get(chat.id);
-        if (!existing || (chat.updatedAt || 0) > (existing.updatedAt || 0)) chatMap.set(chat.id, chat);
-      });
-      const projectMap = /* @__PURE__ */ new Map();
-      [...localData.projects || [], ...cloudData.projects || []].forEach((p) => {
-        const existing = projectMap.get(p.id);
-        if (!existing || (p.updatedAt || 0) > (existing.updatedAt || 0)) projectMap.set(p.id, p);
-      });
-      const memoryMap = /* @__PURE__ */ new Map();
-      [...localData.memories || [], ...cloudData.memories || []].forEach((m) => {
-        const existing = memoryMap.get(m.profileId);
-        if (!existing) {
-          memoryMap.set(m.profileId, { ...m });
-        } else {
-          existing.items = [.../* @__PURE__ */ new Set([...existing.items || [], ...m.items || []])];
-        }
-      });
-      const profileMap = /* @__PURE__ */ new Map();
-      [...cloudData.profiles || [], ...localData.profiles || []].forEach((p) => {
-        if (!profileMap.has(p.id)) profileMap.set(p.id, p);
-      });
-      const assetMap = /* @__PURE__ */ new Map();
-      [...cloudData.assets || [], ...localData.assets || []].forEach((a) => {
-        if (a.assetId && !assetMap.has(a.assetId)) assetMap.set(a.assetId, a);
-      });
-      const mergedMetadata = {
-        version: "2.0",
-        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-        syncId: "sync_merge_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9),
-        data: {
-          profiles: Array.from(profileMap.values()),
-          chats: Array.from(chatMap.values()),
-          memories: Array.from(memoryMap.values()),
-          projects: Array.from(projectMap.values()),
-          assets: Array.from(assetMap.values()),
-          settings: localData.settings
-        }
-      };
-      if (isManual) uiUtils.updateProgressMessage("マージデータをインポート中...");
-      await this.importDataFromString(JSON.stringify(mergedMetadata));
-      state.sync.lastSyncId = cloudParsed.syncId;
-      await dbUtils.saveSetting("lastSyncId", cloudParsed.syncId);
-      state.sync.isDirty = true;
-      await dbUtils.saveSetting("syncIsDirty", true);
-      state.sync.isSyncing = false;
-      if (isManual) uiUtils.showProgressDialog("マージ結果をクラウドにアップロード中...");
-      await this._doPush(isManual);
-      await dbUtils.saveSetting("activeProjectId", null);
-      if (isManual) {
-        sessionStorage.setItem("isSyncReload", "true");
-        const localCnt = (localData.chats || []).length;
-        const cloudCnt = (cloudData.chats || []).length;
-        await uiUtils.showCustomAlert(
-          `マージが完了しました。
-
-ローカル ${localCnt}件 + クラウド ${cloudCnt}件 → ${chatMap.size}件のチャット
-
-アプリを再起動します。`
-        );
-        window.location.reload();
-      } else {
-        console.log(`[Sync Merge] 自動マージ完了。ローカル${(localData.chats || []).length}件 + クラウド${(cloudData.chats || []).length}件 → ${chatMap.size}件。ソフトリロードします。`);
-        await this._softReloadAfterMerge();
-      }
-    },
-    async _softReloadAfterMerge() {
-      try {
-        this.updateSyncStatusUI("syncing", "データを更新中...");
-        if (window.state) window.state.activeProjectId = null;
-        const projSelect = document.getElementById("header-project-select");
-        if (projSelect) projSelect.value = "";
-        await this.loadProfiles();
-        if (window.dbUtils.getAllProjects) {
-          window.projectsCache = await window.dbUtils.getAllProjects();
-        }
-        const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
-        const chats = await getAllUnfiltered();
-        if (chats && chats.length > 0) {
-          const targetId = state.currentChatId && chats.some((c) => c.id === state.currentChatId) ? state.currentChatId : chats[0].id;
-          await this.loadChat(targetId);
-        } else {
-          this.startNewChat();
-        }
-        if (state.currentScreen === "history") {
-          await this.renderHistoryList();
-        }
-        this.updateSyncStatusUI("success", "同期完了");
-        console.log("[Sync Merge] ソフトリロード完了。");
-      } catch (e) {
-        console.error("[Sync Merge] ソフトリロード中にエラーが発生しました:", e);
-        this.updateSyncStatusUI("error", "更新エラー");
-      }
-    },
-    /**
-     * [V2 Core Push] 実際にアップロード処理を行うコア関数
-     * @private
-     */
-    async _doPush(isManual = false) {
-      console.log(`[SYNC_DEBUG] _doPush: 開始。isManual = ${isManual}`);
-      if (state.sync.isSyncing) {
-        console.log("[Sync Core Push V2] 既に別の同期処理が実行中のため、今回の要求はスキップします。");
-        return;
-      }
-      state.sync.isSyncing = true;
-      const updateProgress = /* @__PURE__ */ __name((message) => {
-        console.log(`[SYNC_DEBUG] updateProgress: isManual=${isManual}, message="${message}"`);
-        this.updateSyncStatusUI("syncing", message);
-        if (isManual) {
-          console.log(`[SYNC_DEBUG] updateProgress: isManual=trueのため、updateProgressMessageを呼び出します。`);
-          uiUtils.updateProgressMessage(message);
-        }
-      }, "updateProgress");
-      updateProgress("同期準備中...");
-      try {
-        await window.dropboxApi.uploadLockFile("push");
-        updateProgress("クラウドの状態を確認中...");
-        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
-        if (cloudMetadataString) {
-          const cloudData = JSON.parse(cloudMetadataString);
-          if (cloudData.syncId !== state.sync.lastSyncId) {
-            console.warn(`[Sync Push] 競合を検出。自動マージのためPullに切り替えます。Local: ${state.sync.lastSyncId}, Cloud: ${cloudData.syncId}`);
-            state.sync.isSyncing = false;
-            await window.dropboxApi.deleteLockFile();
-            await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
-            return;
-            if (isManual) uiUtils.showProgressDialog("同期を再開しています...");
-            console.log("[Sync Push] ユーザーが上書きを承認しました。Push処理を続行します。");
-          }
-        }
-        await window.dropboxApi.ensureAssetsFolderExists();
-        updateProgress("ローカルデータを準備中...");
-        const { metadataJson, localAssets } = await this._prepareExportData();
-        const localAssetIds = new Set(localAssets.keys());
-        if (cloudMetadataString) {
-          const cloudDataForCheck = JSON.parse(cloudMetadataString);
-          const cloudChatCount = cloudDataForCheck.data && cloudDataForCheck.data.chats ? cloudDataForCheck.data.chats.length : 0;
-          const localMetaObj = JSON.parse(metadataJson);
-          const localChatCount = localMetaObj.data && localMetaObj.data.chats ? localMetaObj.data.chats.length : 0;
-          if (localChatCount === 0 && cloudChatCount > 0) {
-            console.error(`[Sync Push] 安全チェック失敗: ローカルチャット数=${localChatCount}, クラウドチャット数=${cloudChatCount}。クラウドの上書きを中止します。`);
-            state.sync.isSyncing = false;
-            this.updateSyncStatusUI("error", "ローカルデータが空のため同期を中断しました");
-            if (isManual) {
-              uiUtils.hideProgressDialog();
-              await uiUtils.showCustomAlert("安全のため同期を中断しました。\n\nローカルのチャット履歴が空ですが、クラウドにはデータが存在します。\nクラウドからデータを復元してから再試行してください。");
-            }
-            await window.dropboxApi.deleteLockFile();
-            return;
-          }
-        }
-        const cloudAssetsList = await window.dropboxApi.listAssets();
-        const cloudAssetIds = new Set(cloudAssetsList.map((asset) => asset.name));
-        const assetsToUploadArray = Array.from(localAssets.entries()).filter(([assetId]) => !cloudAssetIds.has(assetId)).map(([assetId, asset]) => ({ assetId, asset }));
-        const assetsToDelete = Array.from(cloudAssetIds).filter((id) => !localAssetIds.has(id));
-        if (assetsToUploadArray.length > 0) {
-          console.log(`[Sync Core Push V2] ${assetsToUploadArray.length}個のアセットをバッチアップロードします。`);
-          const progressCallback = /* @__PURE__ */ __name((current, total) => {
-            updateProgress(`アセットをアップロード中 (${current}/${total})`);
-          }, "progressCallback");
-          await window.dropboxApi.uploadAssetsInBatches(assetsToUploadArray, progressCallback);
-        } else {
-          console.log("[Sync Core Push V2] アップロードする新規アセットはありません。");
-        }
-        const metadataObj = JSON.parse(metadataJson);
-        const referencedAssetIds = /* @__PURE__ */ new Set();
-        (metadataObj.data.profiles || []).forEach((p) => {
-          if (p.iconAssetId) referencedAssetIds.add(p.iconAssetId);
-        });
-        (metadataObj.data.assets || []).forEach((a) => {
-          if (a.assetId) referencedAssetIds.add(a.assetId);
-        });
-        (metadataObj.data.chats || []).forEach((c) => {
-          (c.messages || []).forEach((m) => {
-            if (m.imageIds) m.imageIds.forEach((id) => {
-              if (id) referencedAssetIds.add(id);
-            });
-            if (m.attachments) m.attachments.forEach((att) => {
-              if (att.assetId) referencedAssetIds.add(att.assetId);
-            });
-          });
-        });
-        const safeToDelete = assetsToDelete.filter((id) => !referencedAssetIds.has(id));
-        if (safeToDelete.length > 0) {
-          console.log(`[Sync Core Push V2] ${safeToDelete.length}個の不要なアセットを削除します。`);
-          updateProgress(`${safeToDelete.length}個の不要アセットを削除中...`);
-          await window.dropboxApi.deleteAssets(safeToDelete);
-        }
-        if (assetsToDelete.length !== safeToDelete.length) {
-          console.warn(`[Sync Core Push V2] ${assetsToDelete.length - safeToDelete.length}個のアセットはローカルにないがメタデータに参照されているため削除をスキップしました。`);
-        }
-        updateProgress("最終データを保存中...");
-        const parsedMetadata = JSON.parse(metadataJson);
-        await window.dropboxApi.uploadMetadata(metadataJson);
-        const syncTimestamp = new Date(parsedMetadata.exportedAt).getTime();
-        state.sync.lastSyncId = parsedMetadata.syncId;
-        state.sync.isDirty = false;
-        state.sync.lastError = null;
-        await Promise.all([
-          dbUtils.saveSetting("lastSyncId", parsedMetadata.syncId),
-          dbUtils.saveSetting("syncIsDirty", false),
-          dbUtils.saveSetting("syncLastError", null),
-          dbUtils.saveSetting("lastSyncTimestamp", syncTimestamp)
-        ]);
-        if (broadcastChannel) {
-          broadcastChannel.postMessage({
-            type: "SYNC_COMPLETED",
-            newSyncId: parsedMetadata.syncId,
-            sourceTabId: state.tabId
-          });
-        }
-        this.updateSyncStatusUI("idle");
-        await this.updateDropboxUIState();
-        console.log(`[Sync Core Push V2] Push成功。新しいsyncId: ${parsedMetadata.syncId}`);
-        if (isManual) {
-          uiUtils.hideProgressDialog();
-        }
-      } catch (error) {
-        const errorMessage = error.message || "不明なアップロードエラーが発生しました。";
-        this.updateSyncStatusUI("error", errorMessage);
-        console.error("[Sync Core Push V2] Push処理中にエラーが発生しました:", error);
-        if (isManual) {
-          uiUtils.hideProgressDialog();
-          uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
-        }
-      } finally {
-        state.sync.isSyncing = false;
-        await window.dropboxApi.deleteLockFile();
-        console.log(`[SYNC_DEBUG] _doPush: 終了。`);
-      }
-    },
-    /**
-     * [Push Gatekeeper] ローカルの変更をDropboxにアップロードする処理の呼び出しを管理する
-     */
-    handlePush(isManual = false) {
-      if (state.sync.isSyncing || !state.sync.isDirty) {
-        return;
-      }
-      dbUtils.getSetting("dropboxTokens").then((tokenData) => {
-        if (!tokenData || !tokenData.value) {
-          return;
-        }
-        if (isManual) {
-          uiUtils.showProgressDialog("同期を開始しています...");
-        }
-        this._doPush(isManual).catch((error) => {
-          console.error("[Sync Push] バックグラウンドPush処理でエラー:", error);
-          if (isManual) {
-            uiUtils.hideProgressDialog();
-            uiUtils.showCustomAlert(`同期に失敗しました: ${error.message}`);
-          }
-        });
-      });
-    },
-    /**
-     * 「クラウドから復元」ボタン専用: sync状態を無視してDropboxから強制取得・インポートする
-     */
-    async forceRestoreFromCloud() {
-      const tokenData = await dbUtils.getSetting("dropboxTokens");
-      if (!tokenData || !tokenData.value) {
-        await uiUtils.showCustomAlert("Dropboxが接続されていません。設定画面で連携してください。");
-        return;
-      }
-      uiUtils.showProgressDialog("クラウドからデータを取得中...");
-      try {
-        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
-        if (!cloudMetadataString) {
-          uiUtils.hideProgressDialog();
-          await uiUtils.showCustomAlert("クラウドにデータが見つかりませんでした。\nDropboxの接続状態を確認してください。");
-          return;
-        }
-        const importResult = await this.importDataFromString(cloudMetadataString);
-        await Promise.all([
-          dbUtils.saveSetting("lastSyncId", importResult.syncId),
-          dbUtils.saveSetting("syncIsDirty", false),
-          dbUtils.saveSetting("syncLastError", null)
-        ]);
-        uiUtils.hideProgressDialog();
-        await uiUtils.showCustomAlert("クラウドからデータを復元しました。再起動します。");
-        await dbUtils.saveSetting("activeProjectId", null);
-        sessionStorage.setItem("isSyncReload", "true");
-        window.location.reload();
-      } catch (error) {
-        uiUtils.hideProgressDialog();
-        console.error("[ForceRestore] エラー:", error);
-        await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
-      }
-    },
-    /**
-     * [V2 Pull] Dropboxからデータをダウンロードして同期する
-     */
-    async handlePull(isManual = false) {
-      console.log(`[SYNC_DEBUG] handlePull: 開始。isManual = ${isManual}`);
-      if (state.sync.isSyncing) {
-        console.log(`[Sync Pull] スキップしました (isSyncing: ${state.sync.isSyncing})`);
-        return;
-      }
-      const tokenData = await dbUtils.getSetting("dropboxTokens");
-      if (!tokenData || !tokenData.value) {
-        console.log("[Sync Pull] Dropbox未連携のためスキップしました。");
-        return;
-      }
-      console.log("[Sync Pull V2] Pull処理を開始します。");
-      state.sync.isSyncing = true;
-      this.updateSyncStatusUI("syncing", "クラウドと通信中...");
-      if (isManual) {
-        console.log("[SYNC_DEBUG] handlePull: isManual=trueのため、showProgressDialogを呼び出します。");
-        uiUtils.showProgressDialog("クラウドと通信中...");
-      }
-      try {
-        await window.dropboxApi.uploadLockFile("pull");
-        const cloudMetadataString = await window.dropboxApi.downloadMetadata();
-        if (cloudMetadataString === null) {
-          console.log("[Sync Pull V2] クラウドにファイルが見つかりません。");
-          const getAllUnfiltered2 = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
-          const localChats = await getAllUnfiltered2();
-          if (localChats.length > 0 || state.sync.isDirty) {
-            console.log("[Sync Pull V2] ローカルにデータが存在するため、初回Pushを実行します。");
-            if (isManual) {
-              console.log("[SYNC_DEBUG] handlePull: isManual=trueのため、updateProgressMessageを呼び出します。");
-              uiUtils.updateProgressMessage("初回データをクラウドに保存中...");
-            }
-            state.sync.isSyncing = false;
-            await window.dropboxApi.deleteLockFile();
-            console.log(`[SYNC_DEBUG] handlePull: _doPushを呼び出します。isManual = ${isManual}`);
-            await this._doPush(isManual);
-          } else {
-            console.log("[Sync Pull V2] ローカルもクラウドも空のため、同期処理は不要です。");
-            this.updateSyncStatusUI("idle");
-            if (isManual) uiUtils.hideProgressDialog();
-          }
-          return;
-        }
-        const cloudData = JSON.parse(cloudMetadataString);
-        const cloudSyncId = cloudData.syncId;
-        console.log(`[Sync Pull V2] Cloud syncId: ${cloudSyncId}, Local lastSyncId: ${state.sync.lastSyncId}`);
-        if (cloudSyncId !== state.sync.lastSyncId) {
-          const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
-          const localChats = await getAllUnfiltered();
-          const localHasData = localChats.length > 0;
-          if (state.sync.isDirty || localHasData) {
-            console.log("[Sync Pull] 競合を検出。自動マージを実行します。");
-            if (isManual) uiUtils.showProgressDialog("データをマージ中...");
-            await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
-            return;
-          }
-          const importResult = await this.importDataFromString(cloudMetadataString);
-          const removedAssetInfo = importResult.removedAssetInfo;
-          state.sync.lastSyncId = importResult.syncId;
-          state.sync.isDirty = false;
-          state.sync.lastError = null;
-          const syncTimestamp = new Date(importResult.exportedAt).getTime();
-          await Promise.all([
-            dbUtils.saveSetting("lastSyncId", importResult.syncId),
-            dbUtils.saveSetting("syncIsDirty", false),
-            dbUtils.saveSetting("syncLastError", null),
-            dbUtils.saveSetting("lastSyncTimestamp", syncTimestamp)
-          ]);
-          if (broadcastChannel) {
-            broadcastChannel.postMessage({
-              type: "SYNC_COMPLETED",
-              newSyncId: importResult.syncId,
-              sourceTabId: state.tabId
-            });
-          }
-          this.updateSyncStatusUI("idle");
-          if (isManual) uiUtils.hideProgressDialog();
-          await dbUtils.saveSetting("activeProjectId", null);
-          if (isManual) {
-            sessionStorage.setItem("isSyncReload", "true");
-            let finalMessage = "クラウドからデータを同期しました。アプリを再起動します。";
-            if (removedAssetInfo && Object.keys(removedAssetInfo).length > 0) {
-              let cleanupDetails = "\n\n【通知】\nクラウド上で実体が見つからなかったため、以下のチャットから画像添付の記録を削除しました：\n";
-              for (const chatTitle in removedAssetInfo) {
-                cleanupDetails += `・「${chatTitle}」から ${removedAssetInfo[chatTitle].length} 件
-`;
-              }
-              finalMessage += cleanupDetails;
-            }
-            await uiUtils.showCustomAlert(finalMessage);
-            window.location.reload();
-          } else {
-            console.log("[Sync Pull] クラウドから自動インポート完了。ソフトリロードします。");
-            await this._softReloadAfterMerge();
-          }
-        } else {
-          console.log("[Sync Pull V2] ローカルは既に最新です。同期は不要です。");
-          await dbUtils.saveSetting("lastSyncTimestamp", Date.now());
-          this.updateSyncStatusUI("idle");
-          await this.updateDropboxUIState();
-          if (isManual) {
-            uiUtils.hideProgressDialog();
-          }
-        }
-      } catch (error) {
-        const errorMessage = error.message || "不明な同期エラーが発生しました。";
-        this.updateSyncStatusUI("error", errorMessage);
-        console.error("[Sync Pull V2] Pull処理中にエラーが発生しました:", error);
-        if (isManual) {
-          uiUtils.hideProgressDialog();
-          await uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
-        }
-      } finally {
-        state.sync.isSyncing = false;
-        await window.dropboxApi.deleteLockFile();
-        console.log(`[SYNC_DEBUG] handlePull: 終了。`);
-      }
-    },
-    // イベントリスナーを設定
-    setupEventListeners() {
-      if (!this._popstateBound) {
-        window.addEventListener("popstate", this.handlePopState.bind(this));
-        this._popstateBound = true;
-      }
-      this._setupEventListenersCallCount++;
-      elements.gotoHistoryBtn.addEventListener("click", () => uiUtils.showScreen("history"));
-      elements.gotoSettingsBtn.addEventListener("click", () => uiUtils.showScreen("settings"));
-      elements.backToChatFromHistoryBtn.addEventListener("click", () => uiUtils.showScreen("chat"));
-      elements.backToChatFromSettingsBtn.addEventListener("click", () => uiUtils.showScreen("chat"));
-      const restoreFromCloudBtn = document.getElementById("restore-from-cloud-btn");
-      if (restoreFromCloudBtn && !restoreFromCloudBtn._bound) {
-        restoreFromCloudBtn._bound = true;
-        restoreFromCloudBtn.addEventListener("click", async () => {
-          restoreFromCloudBtn.disabled = true;
-          restoreFromCloudBtn.textContent = "復元中...";
-          try {
-            await this.forceRestoreFromCloud();
-          } finally {
-            restoreFromCloudBtn.disabled = false;
-            restoreFromCloudBtn.textContent = "☁️ クラウドから復元";
-          }
-        });
-      }
-      elements.newChatBtn.addEventListener("click", () => this.confirmStartNewChat());
-      elements.sendButton.addEventListener("click", () => {
-        if (state.isSending) {
-          this.abortRequest();
-        } else {
-          this.handleSend();
-        }
-      });
-      elements.userInput.addEventListener("input", () => uiUtils.adjustTextareaHeight());
-      elements.userInput.addEventListener("keydown", (e) => {
-        if (e.ctrlKey && e.key === "Enter") {
-          e.preventDefault();
-          if (!elements.sendButton.disabled) this.handleSend();
-          return;
-        }
-        if (state.settings.enterToSend && e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-          e.preventDefault();
-          if (!elements.sendButton.disabled) this.handleSend();
-        }
-      });
-      elements.systemPromptDetails.addEventListener("toggle", (event) => {
-        if (event.target.open) {
-          this.startEditSystemPrompt();
-        } else if (state.isEditingSystemPrompt) {
-          this.cancelEditSystemPrompt();
-        }
-      });
-      elements.saveSystemPromptBtn.addEventListener("click", () => this.saveCurrentSystemPrompt());
-      elements.cancelSystemPromptBtn.addEventListener("click", () => this.cancelEditSystemPrompt());
-      elements.profileCardHeader.addEventListener("click", (e) => {
-        e.stopPropagation();
-        uiUtils.toggleProfileMenu("header");
-      });
-      elements.profileCardHeaderSettings.addEventListener("click", (e) => {
-        e.stopPropagation();
-        uiUtils.toggleProfileMenu("settings");
-      });
-      document.addEventListener("click", (e) => {
-        const target = e.target;
-        const isHeaderCardClicked = elements.profileCardHeader.contains(target);
-        const isSettingsCardClicked = elements.profileCardHeaderSettings.contains(target);
-        const isHeaderMenuClicked = elements.headerProfileMenu.contains(target);
-        const isSettingsMenuClicked = elements.headerProfileMenuSettings.contains(target);
-        if (!isHeaderCardClicked && !isSettingsCardClicked && !isHeaderMenuClicked && !isSettingsMenuClicked) {
-          elements.headerProfileMenu.classList.add("hidden");
-          elements.headerProfileMenuSettings.classList.add("hidden");
-        }
-      });
-      elements.profileEditNameBtn.addEventListener("click", () => this.editCurrentProfileName());
-      elements.profileIconInput.addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          this.handleProfileIconChange(file);
-        }
-        e.target.value = null;
-      });
-      elements.profileResetIconBtn.addEventListener("click", () => this.resetProfileIcon());
-      elements.profileSaveNewBtn.addEventListener("click", () => this.saveNewProfile());
-      elements.profileDeleteBtn.addEventListener("click", () => this.deleteCurrentProfile());
-      elements.profileExportBtn.addEventListener("click", () => this.exportProfile());
-      elements.profileImportBtn.addEventListener("click", () => elements.profileImportInput.click());
-      elements.profileImportInput.addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (file) this.importProfile(file);
-        e.target.value = null;
-      });
-      document.getElementById("reset-api-count-btn").addEventListener("click", async () => {
-        const confirmed = await uiUtils.showCustomConfirm("API使用回数のカウントを0にリセットしますか？");
-        if (confirmed) {
-          const profile = state.activeProfile;
-          if (profile) {
-            if (profile.apiUsage) {
-              delete profile.apiUsage;
-              try {
-                await dbUtils.updateProfile(profile);
-                this.markAsDirtyAndSchedulePush("structural");
-                console.log(`[API Count] カウンターが手動でリセットされました (Profile ID: ${profile.id})`);
-                this.updateApiUsageUI();
-                uiUtils.updateProfileSwitcherUI();
-              } catch (error) {
-                console.error(`[API Count] カウンターリセットの保存に失敗:`, error);
-              }
-            }
-          }
-        }
-      });
-      document.getElementById("clear-sync-error-btn").addEventListener("click", () => {
-        state.sync.lastError = null;
-        dbUtils.saveSetting("syncLastError", null);
-        const newStatus = state.sync.isDirty ? "dirty" : "idle";
-        this.updateSyncStatusUI(newStatus);
-      });
-      const setupInstantSave = /* @__PURE__ */ __name((element, key, eventType = "change", onUpdate = null, getValue = null) => {
-        if (element) {
-          element.addEventListener(eventType, async () => {
-            if (!state.activeProfile) return;
-            let value;
-            if (getValue) {
-              value = getValue();
-            } else {
-              switch (element.type) {
-                case "checkbox":
-                  value = element.checked;
-                  break;
-                case "range":
-                  value = parseFloat(element.value) / 100;
-                  break;
-                case "number":
-                case "select-one":
-                  const rawValue = element.value;
-                  value = parseFloat(rawValue);
-                  if (isNaN(value)) {
-                    value = rawValue === "" ? null : rawValue;
-                  }
-                  break;
-                default:
-                  value = element.value;
-                  break;
-              }
-            }
-            state.settings[key] = value;
-            state.activeProfile.settings[key] = value;
-            await dbUtils.updateProfile(state.activeProfile);
-            appLogic.markAsDirtyAndSchedulePush("structural");
-            if (onUpdate) {
-              onUpdate(value);
-            }
-          });
-        } else {
-          console.warn(`❌ [Debug Settings] '${key}' に対応するDOM要素が見つかりません。`);
-        }
-      }, "setupInstantSave");
-      const settingsMap = {
-        apiProvider: {
-          element: elements.apiProviderSelect,
-          event: "change",
-          onUpdate: /* @__PURE__ */ __name((value) => {
-            this.updateProviderUI(value);
-            this.updateModelOptions(value);
-          }, "onUpdate")
-        },
-        apiKey: { element: elements.apiKeyInput, event: "input" },
-        zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
-        openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
-        bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
-        bedrockSecretKey: { element: elements.bedrockSecretKeyInput, event: "input" },
-        bedrockRegion: { element: elements.bedrockRegionSelect, event: "change" },
-        openaiApiKey: { element: elements.openaiApiKeyInput, event: "input" },
-        anthropicApiKey: { element: elements.anthropicApiKeyInput, event: "input" },
-        anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : "5m", "getValue") },
-        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue") },
-        novelaiApiKey: { element: elements.novelaiApiKeyInput, event: "input" },
-        novelaiModel: { element: elements.novelaiModelSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : "nai-diffusion-4-5-curated", "getValue") },
-        groqApiKey: { element: elements.groqApiKeyInput, event: "input" },
-        deepseekApiKey: { element: elements.deepseekApiKeyInput, event: "input" },
-        xaiApiKey: { element: elements.xaiApiKeyInput, event: "input" },
-        mistralApiKey: { element: elements.mistralApiKeyInput, event: "input" },
-        modelName: {
-          element: elements.modelNameSelect,
-          event: "change",
-          onUpdate: /* @__PURE__ */ __name(() => {
-            uiUtils.updateModelWarningMessage();
-            this.updateApiUsageUI();
-            const sel = elements.modelNameSelect;
-            if (sel) {
-              const opt = sel.options[sel.selectedIndex];
-              if (opt && opt.dataset.provider && opt.dataset.provider !== state.settings.apiProvider) {
-                const newProvider = opt.dataset.provider;
-                state.settings.apiProvider = newProvider;
-                if (elements.apiProviderSelect) {
-                  elements.apiProviderSelect.value = newProvider;
-                  elements.apiProviderSelect.dispatchEvent(new Event("change"));
-                }
-              }
-            }
-          }, "onUpdate"),
-          getValue: /* @__PURE__ */ __name(() => {
-            const provider = state.settings.apiProvider || "gemini";
-            if (provider === "openrouter" && elements.openrouterModelInput) {
-              return elements.openrouterModelInput.value.trim();
-            }
-            return elements.modelNameSelect ? elements.modelNameSelect.value.trim() : "";
-          }, "getValue")
-        },
-        systemPrompt: { element: elements.systemPromptDefaultTextarea, event: "input" },
-        temperature: { element: elements.temperatureInput, event: "input" },
-        maxTokens: { element: elements.maxTokensInput, event: "input" },
-        topK: { element: elements.topKInput, event: "input" },
-        topP: { element: elements.topPInput, event: "input" },
-        thinkingBudget: { element: elements.thinkingBudgetInput, event: "input" },
-        includeThoughts: { element: elements.includeThoughtsToggle, event: "change" },
-        enableThoughtTranslation: { element: elements.enableThoughtTranslationCheckbox, event: "change" },
-        thoughtTranslationModel: { element: elements.thoughtTranslationModelSelect, event: "change" },
-        dummyUser: { element: elements.dummyUserInput, event: "input" },
-        dummyEnabled: { element: elements.dummyEnabledToggle, event: "change" },
-        applyDummyToProofread: { element: elements.applyDummyToProofreadCheckbox, event: "change" },
-        applyDummyToTranslate: { element: elements.applyDummyToTranslateCheckbox, event: "change" },
-        dummyModel: { element: elements.dummyModelInput, event: "input" },
-        reverseDummyOrder: { element: elements.reverseDummyOrderCheckbox, event: "change" },
-        concatDummyModel: { element: elements.concatDummyModelCheckbox, event: "change" },
-        additionalModels: { element: elements.additionalModelsTextarea, event: "input" },
-        enterToSend: { element: elements.enterToSendCheckbox, event: "change" },
-        historySortOrder: { element: elements.historySortOrderSelect, event: "change" },
-        darkMode: { element: elements.darkModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyDarkMode(), "onUpdate") },
-        debugMode: { element: elements.debugModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => {
-          DebugLogger.init();
-          this.toggleDebugLogButtonVisibility(value);
-        }, "onUpdate") },
-        fontFamily: { element: elements.fontFamilyInput, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyFontFamily(), "onUpdate") },
-        hideSystemPromptInChat: { element: elements.hideSystemPromptToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.toggleSystemPromptVisibility(), "onUpdate") },
-        geminiEnableGrounding: { element: elements.geminiEnableGroundingToggle, event: "change" },
-        geminiEnableFunctionCalling: { element: elements.geminiEnableFunctionCallingToggle, event: "change" },
-        enableSwipeNavigation: { element: elements.swipeNavigationToggle, event: "change" },
-        enableProofreading: { element: elements.enableProofreadingCheckbox, event: "change" },
-        proofreadingModelName: { element: elements.proofreadingModelNameSelect, event: "change" },
-        proofreadingSystemInstruction: { element: elements.proofreadingSystemInstructionTextarea, event: "input" },
-        enableAutoRetry: { element: elements.enableAutoRetryCheckbox, event: "change" },
-        maxRetries: { element: elements.maxRetriesInput, event: "input" },
-        useFixedRetryDelay: { element: elements.useFixedRetryDelayCheckbox, event: "change" },
-        fixedRetryDelaySeconds: { element: elements.fixedRetryDelayInput, event: "input" },
-        maxBackoffDelaySeconds: { element: elements.maxBackoffDelayInput, event: "input" },
-        enableApiTimeout: { element: elements.enableApiTimeoutCheckbox, event: "change" },
-        apiTimeoutSeconds: { element: elements.apiTimeoutSecondsInput, event: "input" },
-        googleSearchApiKey: { element: elements.googleSearchApiKeyInput, event: "input" },
-        googleSearchEngineId: { element: elements.googleSearchEngineIdInput, event: "input" },
-        overlayOpacity: { element: elements.overlayOpacitySlider, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyOverlayOpacity(), "onUpdate") },
-        messageOpacity: { element: elements.messageOpacitySlider, event: "input", onUpdate: /* @__PURE__ */ __name((value) => document.documentElement.style.setProperty("--message-bubble-opacity", String(value)), "onUpdate") },
-        headerColor: { element: elements.headerColorInput, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.applyHeaderColor(), "onUpdate") },
-        forceFunctionCalling: { element: elements.forceFunctionCallingToggle, event: "change" },
-        autoScroll: { element: elements.autoScrollToggle, event: "change" },
-        enableWideMode: { element: elements.enableWideModeToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.applyWideMode(), "onUpdate") },
-        enableMemory: { element: elements.enableMemoryToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => this.toggleMemoryOptions(value), "onUpdate") },
-        memoryAutoSaveInterval: { element: elements.memoryAutoSaveIntervalSelect, event: "change" },
-        headerAutoHide: { element: elements.headerAutoHideToggle, event: "change", onUpdate: /* @__PURE__ */ __name((value) => document.body.classList.toggle("header-auto-hide", value), "onUpdate") },
-        dropboxSyncFrequency: { element: elements.dropboxSyncFrequencySelect, event: "change" },
-        summaryModelName: { element: elements.summaryModelNameSelect, event: "change" },
-        summarySystemPrompt: { element: elements.summarySystemPromptTextarea, event: "input" },
-        enableSummaryButton: { element: elements.enableSummaryButtonToggle, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.toggleSummaryButtonVisibility(), "onUpdate") },
-        floatingPanelBehavior: { element: elements.floatingPanelBehaviorSelect, event: "change", onUpdate: /* @__PURE__ */ __name(() => this.applyFloatingPanelBehavior(), "onUpdate") },
-        sdApiUrl: { element: elements.sdApiUrlInput, event: "input" },
-        sdApiUser: { element: elements.sdApiUserInput, event: "input" },
-        sdApiPassword: { element: elements.sdApiPasswordInput, event: "input" },
-        sdEnableQualityChecker: {
-          element: elements.sdEnableQualityCheckerCheckbox,
-          event: "change",
-          onUpdate: /* @__PURE__ */ __name((value) => {
-            elements.sdQualityCheckerOptionsDiv.classList.toggle("hidden", !value);
-          }, "onUpdate")
-        },
-        sdQcModel: { element: elements.sdQcModelSelect, event: "change" },
-        sdQcPrompt: { element: elements.sdQcPromptTextarea, event: "input" },
-        sdQcRetries: { element: elements.sdQcRetriesInput, event: "input" },
-        sdPromptImproveModel: { element: elements.sdPromptImproveModelSelect, event: "change" },
-        sdPromptImproveSystemPrompt: { element: elements.sdPromptImproveSystemPromptTextarea, event: "input" }
-      };
-      for (const key in settingsMap) {
-        const { element, event, onUpdate, getValue } = settingsMap[key];
-        setupInstantSave(element, key, event, onUpdate, getValue);
-      }
-      if (elements.openrouterModelInput) {
-        elements.openrouterModelInput.addEventListener("input", async () => {
-          if (!state.activeProfile) return;
-          const value = elements.openrouterModelInput.value.trim();
-          state.settings.modelName = value;
-          state.activeProfile.settings.modelName = value;
-          await dbUtils.updateProfile(state.activeProfile);
-          appLogic.markAsDirtyAndSchedulePush("structural");
-        });
-      }
-      if (elements.additionalModelsTextarea) {
-        elements.additionalModelsTextarea.addEventListener("blur", () => {
-          uiUtils.updateUserModelOptions();
-        });
-      }
-      elements.memoryToggleBtn.addEventListener("click", () => this.toggleChatMemory());
-      elements.manageMemoryBtn.addEventListener("click", () => this.openMemoryManagementDialog());
-      elements.closeMemoryDialogBtn.addEventListener("click", () => elements.memoryManagementDialog.close());
-      elements.addMemoryBtn.addEventListener("click", () => this.addMemoryItem());
-      elements.deleteAllMemoryBtn.addEventListener("click", () => this.confirmDeleteAllMemory());
-      elements.characterProfileBtn.addEventListener("click", () => this.openCharacterProfileDialog());
-      elements.closeProfileDialogBtn.addEventListener("click", () => elements.characterProfileDialog.close());
-      elements.profileBackBtn.addEventListener("click", () => {
-        elements.characterProfileDialog.classList.remove("details-visible");
-      });
-      elements.overlayOpacitySlider.addEventListener("input", (event) => {
-        elements.overlayOpacityValue.textContent = `${event.target.value}%`;
-      });
-      elements.messageOpacitySlider.addEventListener("input", (event) => {
-        elements.messageOpacityValue.textContent = `${event.target.value}%`;
-      });
-      elements.importHistoryBtn.addEventListener("click", () => elements.importHistoryInput.click());
-      elements.importHistoryInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (file) this.handleHistoryImport(file);
-        event.target.value = null;
-      });
-      elements.includeThoughtsToggle.addEventListener("change", () => {
-        const isEnabled = elements.includeThoughtsToggle.checked;
-        elements.thoughtTranslationOptionsDiv.classList.toggle("hidden", !isEnabled);
-      });
-      elements.enableApiTimeoutCheckbox.addEventListener("change", () => {
-        uiUtils.updateApiTimeoutOptionsVisibility();
-      });
-      elements.updateAppBtn.addEventListener("click", () => this.updateApp());
-      elements.clearDataBtn.addEventListener("click", () => this.confirmClearAllData());
-      elements.enableProofreadingCheckbox.addEventListener("change", () => {
-        const isEnabled = elements.enableProofreadingCheckbox.checked;
-        elements.proofreadingOptionsDiv.classList.toggle("hidden", !isEnabled);
-      });
-      elements.uploadBackgroundBtn.addEventListener("click", () => elements.backgroundImageInput.click());
-      elements.backgroundImageInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (file) this.handleBackgroundImageUpload(file);
-        event.target.value = null;
-      });
-      elements.deleteBackgroundBtn.addEventListener("click", () => this.confirmDeleteBackgroundImage());
-      elements.resetHeaderColorBtn.addEventListener("click", () => {
-        state.settings.headerColor = "";
-        elements.headerColorInput.value = state.settings.darkMode ? "#007aff" : "#7faab6";
-        const event = new Event("input", { bubbles: true });
-        elements.headerColorInput.dispatchEvent(event);
-      });
-      elements.messageContainer.addEventListener("click", (event) => {
-        if (event.target.tagName === "IMG" && event.target.closest(".message-content")) {
-          const modalOverlay2 = document.getElementById("image-modal-overlay");
-          const modalImg = document.getElementById("image-modal-img");
-          if (modalOverlay2 && modalImg) {
-            modalImg.src = event.target.src;
-            modalOverlay2.classList.remove("hidden");
-          }
-        }
-      });
-      document.body.addEventListener("click", (event) => {
-        if (!elements.messageContainer.contains(event.target)) {
-          const currentlyShown = elements.messageContainer.querySelector(".message.show-actions");
-          if (currentlyShown) {
-            currentlyShown.classList.remove("show-actions");
-          }
-        }
-      }, true);
-      if ("visualViewport" in window) {
-        window.visualViewport.addEventListener("resize", this.updateZoomState.bind(this));
-        window.visualViewport.addEventListener("scroll", this.updateZoomState.bind(this));
-      } else {
-        console.warn("VisualViewport API is not supported in this browser.");
-      }
-      elements.attachFileBtn.addEventListener("click", () => uiUtils.showFileUploadDialog());
-      elements.selectFilesBtn.addEventListener("click", () => {
-        const fileInput = document.createElement("input");
-        fileInput.type = "file";
-        fileInput.multiple = true;
-        fileInput.style.display = "none";
-        fileInput.addEventListener("change", (event) => {
-          this.handleFileSelection(event.target.files);
-          document.body.removeChild(fileInput);
-        });
-        document.body.appendChild(fileInput);
-        fileInput.click();
-      });
-      elements.confirmAttachBtn.addEventListener("click", () => this.confirmAttachment());
-      elements.cancelAttachBtn.addEventListener("click", () => this.cancelAttachment());
-      elements.fileUploadDialog.addEventListener("close", () => {
-        if (elements.fileUploadDialog.returnValue !== "ok") {
-          this.cancelAttachment();
-        }
-      });
-      document.addEventListener("click", (e) => {
-        const button = e.target.closest("button");
-        if (button && !button.disabled) {
-          this.createRipple(e, button);
-        }
-      });
-      const chatScreen = elements.chatScreen;
-      chatScreen.addEventListener("dragover", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (!state.isSending) {
-          chatScreen.classList.add("drag-over");
-        }
-      });
-      chatScreen.addEventListener("dragleave", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.relatedTarget === null || !chatScreen.contains(event.relatedTarget)) {
-          chatScreen.classList.remove("drag-over");
-        }
-      });
-      chatScreen.addEventListener("drop", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        chatScreen.classList.remove("drag-over");
-        if (state.isSending) return;
-        const files = event.dataTransfer.files;
-        if (files && files.length > 0) {
-          console.log(`${files.length}個のファイルがドロップされました。`);
-          this.handleFileSelection(files);
-          uiUtils.showFileUploadDialog();
-        }
-      });
-      const fileUploadDialog = elements.fileUploadDialog;
-      fileUploadDialog.addEventListener("dragover", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      fileUploadDialog.addEventListener("dragleave", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      fileUploadDialog.addEventListener("drop", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (state.isSending) return;
-        const files = event.dataTransfer.files;
-        if (files && files.length > 0) {
-          console.log(`${files.length}個のファイルがダイアログにドロップされました。`);
-          this.handleFileSelection(files);
-          uiUtils.updateSelectedFilesUI();
-        }
-      });
-      const modalOverlay = document.getElementById("image-modal-overlay");
-      const modalCloseBtn = document.getElementById("image-modal-close");
-      if (modalOverlay && modalCloseBtn) {
-        modalCloseBtn.addEventListener("click", () => {
-          modalOverlay.classList.add("hidden");
-        });
-        modalOverlay.addEventListener("click", (event) => {
-          if (event.target === modalOverlay) {
-            modalOverlay.classList.add("hidden");
-          }
-        });
-      }
-      elements.enableAutoRetryCheckbox.addEventListener("change", () => {
-        elements.autoRetryOptionsDiv.classList.toggle("hidden", !elements.enableAutoRetryCheckbox.checked);
-      });
-      elements.useFixedRetryDelayCheckbox.addEventListener("change", () => {
-        const useFixed = elements.useFixedRetryDelayCheckbox.checked;
-        elements.fixedRetryDelayContainer.classList.toggle("hidden", !useFixed);
-        elements.maxBackoffDelayContainer.classList.toggle("hidden", useFixed);
-      });
-      elements.modelNameSelect.addEventListener("change", () => {
-        uiUtils.updateModelWarningMessage();
-      });
-      window.addEventListener("beforeunload", () => {
-        const revokeUrls = /* @__PURE__ */ __name((cache, name) => {
-          if (cache.size > 0) {
-            console.log(`[Memory] ページ離脱のため、${cache.size}個の${name}URLを解放します。`);
-            for (const url of cache.values()) {
-              if (url.startsWith("blob:")) {
-                URL.revokeObjectURL(url);
-              }
-            }
-            cache.clear();
-          }
-        }, "revokeUrls");
-        revokeUrls(state.profileIconUrls, "アイコン");
-        revokeUrls(state.videoUrlCache, "動画");
-        revokeUrls(state.imageUrlCache, "チャット画像");
-      });
-      elements.assetExportBtn.addEventListener("click", () => this.handleAssetExport());
-      elements.assetImportBtn.addEventListener("click", () => elements.assetImportInput.click());
-      elements.assetImportInput.addEventListener("change", (event) => {
-        const file = event.target.files[0];
-        if (file) this.handleAssetImport(file);
-        event.target.value = null;
-      });
-      elements.manageAssetsBtn.addEventListener("click", () => this.openAssetManagementDialog());
-      elements.closeAssetDialogBtn.addEventListener("click", () => elements.assetManagementDialog.close());
-      elements.deleteAllAssetsBtn.addEventListener("click", () => this.confirmDeleteAllAssets());
-      elements.floatingPanelBehaviorSelect.addEventListener("change", () => {
-        state.settings.floatingPanelBehavior = elements.floatingPanelBehaviorSelect.value;
-        this.updateCurrentProfile();
-        this.applyFloatingPanelBehavior();
-      });
-      elements.chatStatsBtn.addEventListener("click", () => this.showChatStats());
-      elements.chatStatsCloseBtn.addEventListener("click", () => elements.chatStatsDialog.close());
-      elements.summarizeHistoryBtn.addEventListener("click", () => this.startSummaryProcess());
-      elements.summaryCancelBtn.addEventListener("click", () => elements.summaryDialog.close("cancel"));
-      elements.summaryRegenerateBtn.addEventListener("click", () => this.regenerateSummary());
-      elements.summaryConfirmBtn.addEventListener("click", () => this.confirmSummary());
-      const mainContent = elements.chatScreen.querySelector(".main-content");
-      mainContent.addEventListener("scroll", () => {
-        this.updateScrollButtonsState();
-      });
-      mainContent.addEventListener("click", (event) => {
-        if (state.settings.floatingPanelBehavior !== "on-click") return;
-        const interactiveElements = "A, BUTTON, INPUT, TEXTAREA, SELECT, DETAILS, SUMMARY, IMG, PRE, CODE";
-        if (event.target.closest(interactiveElements) || event.target.closest(".floating-action-panel")) {
-          return;
-        }
-        const panel = elements.floatingActionPanel;
-        if (panel.classList.contains("visible")) {
-          clearTimeout(state.panelFadeOutTimer);
-          panel.classList.remove("visible");
-        } else {
-          this.showActionPanel();
-        }
-      });
-      elements.floatingActionPanel.addEventListener("mouseenter", () => clearTimeout(state.panelFadeOutTimer));
-      elements.floatingActionPanel.addEventListener("mouseleave", () => this.showActionPanel());
-      elements.scrollToTopBtn.addEventListener("click", () => this.scrollToTop());
-      elements.scrollToBottomBtn.addEventListener("click", () => this.scrollToBottom(true));
-      if (elements.scrollBottomFab) {
-        elements.scrollBottomFab.addEventListener("click", () => this.scrollToBottom(true));
-      }
-      let headerHideTimer = null;
-      window.addEventListener("online", () => {
-        console.log("[Network] オンライン状態に復帰しました。同期状態を確認します。");
-        if (state.sync.isDirty || state.sync.lastError) {
-          console.log("[Sync] 同期が必要な変更、またはエラーが検出されたため、自動Pushを実行します。");
-          this.handlePush();
-        }
-      });
-      elements.dropboxAuthBtn.addEventListener("click", async () => {
-        try {
-          const APP_KEY = "wed7l1d3azzuvlj";
-          const REDIRECT_URI = window.location.origin + window.location.pathname;
-          const codeVerifier = appLogic._generateCodeVerifier();
-          const codeChallenge = await appLogic._generateCodeChallenge(codeVerifier);
-          sessionStorage.setItem("dropboxCodeVerifier", codeVerifier);
-          const authUrl = `https://www.dropbox.com/oauth2/authorize?client_id=${APP_KEY}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT_URI)}&token_access_type=offline&code_challenge=${codeChallenge}&code_challenge_method=S256`;
-          window.location.href = authUrl;
-        } catch (error) {
-          console.error("Dropbox認証の開始に失敗:", error);
-          uiUtils.showCustomAlert("認証処理の開始に失敗しました。");
-        }
-      });
-      elements.dropboxSyncBtn.addEventListener("click", async () => {
-        console.log("手動同期ボタンがクリックされました。");
-        if (state.sync.isSyncing) {
-          uiUtils.showCustomAlert("現在、別の同期処理が実行中です。");
-          return;
-        }
-        const tokenData = await dbUtils.getSetting("dropboxTokens");
-        if (!tokenData || !tokenData.value) {
-          return;
-        }
-        state.sync.isSyncing = true;
-        this.updateSyncStatusUI("syncing", "クラウドの状態を確認中...");
-        uiUtils.showProgressDialog("クラウドの状態を確認中...");
-        try {
-          const cloudMetadataString = await window.dropboxApi.downloadMetadata();
-          if (!cloudMetadataString) {
-            console.log("[Manual Sync] クラウドにデータがありません。Push処理を実行します。");
-            uiUtils.updateProgressMessage("初回データをクラウドに保存中...");
-            state.sync.isSyncing = false;
-            await this._doPush(true);
-            return;
-          }
-          const cloudData = JSON.parse(cloudMetadataString);
-          const cloudSyncId = cloudData.syncId;
-          const localSyncId = state.sync.lastSyncId;
-          console.log(`[Manual Sync] Cloud syncId: ${cloudSyncId}, Local syncId: ${localSyncId}`);
-          if (cloudSyncId !== localSyncId) {
-            console.log("[Manual Sync] syncIdが異なります。Pull処理を実行します。");
-            uiUtils.updateProgressMessage("他のブラウザのデータの変更を同期中...");
-            state.sync.isSyncing = false;
-            await this.handlePull(true);
-            return;
-          }
-          console.log("[Manual Sync] syncIdは一致しています。アセットの整合性を確認します。");
-          uiUtils.updateProgressMessage("アセットの整合性を確認中...");
-          const { localAssets } = await this._prepareExportData();
-          const cloudAssetsList = await window.dropboxApi.listAssets();
-          const localAssetCount = localAssets.size;
-          const cloudAssetCount = cloudAssetsList.length;
-          console.log(`[Manual Sync] Local asset count: ${localAssetCount}, Cloud asset count: ${cloudAssetCount}`);
-          if (localAssetCount !== cloudAssetCount || state.sync.isDirty) {
-            if (state.sync.isDirty) {
-              console.log("[Manual Sync] ローカルに変更（isDirty=true）があるため、Push処理を実行します。");
-              uiUtils.updateProgressMessage("ローカルの変更を同期中...");
-            } else {
-              console.log("[Manual Sync] アセット数が一致しないため、Push処理でクラウドの状態を調整します。");
-              uiUtils.updateProgressMessage("クラウドの状態を調整中...");
-            }
-            state.sync.isSyncing = false;
-            await this._doPush(true);
-            return;
-          }
-          console.log("[Manual Sync] syncIdとアセット数が一致しており、差分はありません。");
-          this.updateSyncStatusUI("idle");
-          uiUtils.hideProgressDialog();
-          await uiUtils.showCustomAlert("データは既に最新の状態です。");
-        } catch (error) {
-          const errorMessage = error.message || "不明なエラーが発生しました。";
-          this.updateSyncStatusUI("error", errorMessage);
-          console.error("[Manual Sync] 手動同期処理中にエラーが発生しました:", error);
-          uiUtils.hideProgressDialog();
-          await uiUtils.showCustomAlert(`同期に失敗しました: ${errorMessage}`);
-        } finally {
-          state.sync.isSyncing = false;
-        }
-      });
-      elements.syncStatusHeaderIcon.addEventListener("click", () => {
-        uiUtils.showScreen("settings").then(() => {
-          const syncGroup = document.getElementById("data-sync-group");
-          if (syncGroup) {
-            syncGroup.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        });
-      });
-      elements.dropboxRestoreBtn.addEventListener("click", async () => {
-        const confirmed = await uiUtils.showCustomConfirm("クラウドのデータでローカルを上書きします。ローカルの変更は失われます。続けますか？");
-        if (!confirmed) return;
-        try {
-          await appLogic.forceRestoreFromCloud();
-        } catch (error) {
-          console.error("クラウドから復元に失敗:", error);
-          await uiUtils.showCustomAlert(`復元に失敗しました: ${error.message}`);
-        }
-      });
-      elements.dropboxDisconnectBtn.addEventListener("click", async () => {
-        const confirmed = await uiUtils.showCustomConfirm("Dropboxとの連携を解除しますか？同期されなくなります。");
-        if (confirmed) {
-          try {
-            await window.dropboxApi.disconnect();
-            await appLogic.updateDropboxUIState();
-            await uiUtils.showCustomAlert("連携を解除しました。");
-          } catch (error) {
-            console.error("Dropbox連携解除に失敗:", error);
-            await uiUtils.showCustomAlert(`連携解除に失敗しました: ${error.message}`);
-          }
-        }
-      });
-      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-        const showHeaderPC = /* @__PURE__ */ __name(() => {
-          if (state.settings.headerAutoHide) {
-            clearTimeout(headerHideTimer);
-            document.body.classList.add("header-force-show");
-          }
-        }, "showHeaderPC");
-        const hideHeaderPC = /* @__PURE__ */ __name(() => {
-          if (state.settings.headerAutoHide) {
-            headerHideTimer = setTimeout(() => {
-              document.body.classList.remove("header-force-show");
-            }, 200);
-          }
-        }, "hideHeaderPC");
-        elements.headerTriggerArea.addEventListener("mouseenter", showHeaderPC);
-        elements.appHeader.addEventListener("mouseenter", showHeaderPC);
-        elements.headerTriggerArea.addEventListener("mouseleave", hideHeaderPC);
-        elements.appHeader.addEventListener("mouseleave", hideHeaderPC);
-      }
-      if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
-        const mainContent2 = elements.chatScreen.querySelector(".main-content");
-        mainContent2.addEventListener("click", (event) => {
-          if (state.settings.headerAutoHide) {
-            const interactiveElements = "A, BUTTON, INPUT, TEXTAREA, SELECT, DETAILS, SUMMARY, IMG, PRE, CODE";
-            if (!event.target.closest(interactiveElements)) {
-              clearTimeout(headerHideTimer);
-              const body = document.body;
-              const isVisible = body.classList.contains("header-force-show");
-              if (isVisible) {
-                body.classList.remove("header-force-show");
-              } else {
-                body.classList.add("header-force-show");
-                headerHideTimer = setTimeout(() => {
-                  body.classList.remove("header-force-show");
-                }, 5e3);
-              }
-            }
-          }
-        });
-        elements.appHeader.addEventListener("touchstart", () => {
-          if (state.settings.headerAutoHide) {
-            clearTimeout(headerHideTimer);
-          }
-        }, { passive: true });
-      }
-      const resetHeaderVisibility = /* @__PURE__ */ __name(() => {
-        document.body.classList.remove("header-force-show");
-      }, "resetHeaderVisibility");
-      elements.gotoHistoryBtn.addEventListener("click", resetHeaderVisibility);
-      elements.gotoSettingsBtn.addEventListener("click", resetHeaderVisibility);
-      elements.backToChatFromHistoryBtn.addEventListener("click", resetHeaderVisibility);
-      elements.backToChatFromSettingsBtn.addEventListener("click", resetHeaderVisibility);
-      const deleteOldChatsBtn = document.getElementById("delete-old-chats-btn");
-      if (deleteOldChatsBtn) {
-        deleteOldChatsBtn.addEventListener("click", async () => {
-          const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
-          const allChats = await dbUtils.getAllChats();
-          const chatsToDelete = allChats.filter((chat) => chat.updatedAt < sevenDaysAgo);
-          if (chatsToDelete.length === 0) {
-            await uiUtils.showCustomAlert("削除対象の古いチャットはありません。");
-            return;
-          }
-          const confirmed = await uiUtils.showCustomConfirm(
-            `${chatsToDelete.length}件の古いチャット（7日以上更新なし）を削除しますか？
-この操作は元に戻せません。`
-          );
-          if (confirmed) {
-            uiUtils.showProgressDialog("古いチャットを削除中...");
-            try {
-              for (const chat of chatsToDelete) {
-                if (chat.id !== state.currentChatId) {
-                  await dbUtils.deleteChat(chat.id);
-                }
-              }
-              this.markAsDirtyAndSchedulePush("structural");
-              await uiUtils.showCustomAlert(`${chatsToDelete.length}件の古いチャットを削除しました。`);
-              await uiUtils.renderHistoryList();
-            } catch (error) {
-              console.error("古いチャットの一括削除エラー:", error);
-              await uiUtils.showCustomAlert(`削除中にエラーが発生しました: ${error.message}`);
-            } finally {
-              uiUtils.hideProgressDialog();
-            }
-          }
-        });
-      }
-      elements.sdTestConnectionBtn.addEventListener("click", async () => {
-        const url = elements.sdApiUrlInput.value.trim().replace(/\/$/, "");
-        if (!url) {
-          return uiUtils.showCustomAlert("先にWebUIのURLを入力してください。");
-        }
-        const endpoint = `${url}/sdapi/v1/progress`;
-        const headers = {};
-        if (elements.sdApiUserInput.value && elements.sdApiPasswordInput.value) {
-          headers["Authorization"] = "Basic " + btoa(`${elements.sdApiUserInput.value}:${elements.sdApiPasswordInput.value}`);
-        }
-        try {
-          const response = await fetch(endpoint, { headers });
-          if (response.ok) {
-            await uiUtils.showCustomAlert("接続に成功しました！");
-          } else {
-            throw new Error(`サーバーからの応答が不正です (ステータス: ${response.status})`);
-          }
-        } catch (error) {
-          console.error("SD接続テストエラー:", error);
-          await uiUtils.showCustomAlert(`接続に失敗しました。
-URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認してください。
-エラー: ${error.message}`);
-        }
-      });
-      elements.sdEnableQualityCheckerCheckbox.addEventListener("change", (event) => {
-        elements.sdQualityCheckerOptionsDiv.classList.toggle("hidden", !event.target.checked);
-      });
-      document.addEventListener("visibilitychange", () => {
-        if (document.visibilityState === "visible") {
-          this._checkAndResetApiUsage();
-        }
-      });
-      elements.debugLogBtn.addEventListener("click", () => this.openLogDialog());
-      elements.closeLogDialogBtn.addEventListener("click", () => elements.debugLogDialog.close());
-      elements.clearLogsBtn.addEventListener("click", () => this.clearLogs());
-      elements.copyLogsBtn.addEventListener("click", () => this.copyLogsToClipboard());
-    },
-    // popstateイベントハンドラ (戻るボタン/ジェスチャー)
-    handlePopState(event) {
-      const targetScreen = event.state?.screen || "chat";
-      if (targetScreen === state.currentScreen) {
-        console.log(`[popstate] same screen -> ignore: ${targetScreen}`);
-        return;
-      }
-      console.log(`popstate event fired: Navigating to screen '${targetScreen}' from history state.`);
-      uiUtils.showScreen(targetScreen, true);
-    },
-    // ズーム状態を更新
-    updateZoomState() {
-      if ("visualViewport" in window) {
-        const newZoomState = window.visualViewport.scale > ZOOM_THRESHOLD;
-        if (state.isZoomed !== newZoomState) {
-          state.isZoomed = newZoomState;
-          console.log(`Zoom state updated: ${state.isZoomed}`);
-          document.body.classList.toggle("zoomed", state.isZoomed);
-        }
-      }
-    },
-    // --- スワイプ処理 (ズーム対応) ---
-    handleTouchStart(event) {
-      if (!state.settings.enableSwipeNavigation) return;
-      if (event.touches.length > 1 || state.isZoomed) {
-        state.touchStartX = 0;
-        state.touchStartY = 0;
-        state.isSwiping = false;
-        return;
-      }
-      state.touchStartX = event.touches[0].clientX;
-      state.touchStartY = event.touches[0].clientY;
-      state.isSwiping = false;
-      state.touchEndX = state.touchStartX;
-      state.touchEndY = state.touchStartY;
-    },
-    handleTouchMove(event) {
-      if (!state.settings.enableSwipeNavigation) return;
-      if (!state.touchStartX || event.touches.length > 1 || state.isZoomed) {
-        return;
-      }
-      const currentX = event.touches[0].clientX;
-      const currentY = event.touches[0].clientY;
-      const diffX = state.touchStartX - currentX;
-      const diffY = state.touchStartY - currentY;
-      if (Math.abs(diffX) > Math.abs(diffY)) {
-        state.isSwiping = true;
-        event.preventDefault();
-      } else {
-        state.isSwiping = false;
-      }
-      state.touchEndX = currentX;
-      state.touchEndY = currentY;
-    },
-    handleTouchEnd(event) {
-      if (!state.settings.enableSwipeNavigation) {
-        this.resetSwipeState();
-        return;
-      }
-      this.updateZoomState();
-      if (state.isZoomed) {
-        console.log("Zoomed state detected on touchend, skipping swipe navigation.");
-        this.resetSwipeState();
-        return;
-      }
-      if (!state.isSwiping || !state.touchStartX) {
-        this.resetSwipeState();
-        return;
-      }
-      const diffX = state.touchStartX - state.touchEndX;
-      const diffY = state.touchStartY - state.touchEndY;
-      if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(diffX) > Math.abs(diffY)) {
-        if (diffX > 0) {
-          console.log("左スワイプ検出 -> 設定画面へ");
-          uiUtils.showScreen("settings");
-        } else {
-          console.log("右スワイプ検出 -> 履歴画面へ");
-        }
-      } else {
-        console.log("スワイプ距離不足 or 縦移動大");
-      }
-      this.resetSwipeState();
-    },
-    resetSwipeState() {
-      state.touchStartX = 0;
-      state.touchStartY = 0;
-      state.touchEndX = 0;
-      state.touchEndY = 0;
-      state.isSwiping = false;
-    },
-    // --- スワイプ処理ここまで ---
-    // 新規チャット開始の確認と実行
-    async confirmStartNewChat() {
-      const confirmed = await uiUtils.showCustomConfirm("現在のチャットを保存して新規チャットを開始しますか？");
-      if (!confirmed) {
-        console.log("新規チャットの開始をキャンセルしました。");
-        return;
-      }
-      if (state.isSending) {
-        this.abortRequest();
-      }
-      if (state.editingMessageIndex !== null) {
-        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
-        this.cancelEditMessage(state.editingMessageIndex, msgEl);
-      }
-      if (state.isEditingSystemPrompt) {
-        this.cancelEditSystemPrompt();
-      }
-      if (state.pendingAttachments.length > 0) {
-        state.pendingAttachments = [];
-        uiUtils.updateAttachmentBadgeVisibility();
-      }
-      try {
-        if ((state.currentMessages.length > 0 || state.currentSystemPrompt) && state.currentChatId) {
-          await dbUtils.saveChat();
-        }
-      } catch (error) {
-        console.error("新規チャット開始前のチャット保存失敗:", error);
-        await uiUtils.showCustomAlert("現在のチャットの保存に失敗しました。");
-      }
-      this.startNewChat();
-      uiUtils.showScreen("chat");
-    },
-    // 新規チャットを開始する (状態リセット)
-    startNewChat() {
-      state.pendingCascadeResponses = null;
-      state.currentChatId = null;
-      state.currentMessages = [];
-      state.currentSystemPrompt = state.settings.systemPrompt || "";
-      state.pendingAttachments = [];
-      state.currentPersistentMemory = {};
-      state.currentSummarizedContext = null;
-      state.isMemoryEnabledForChat = true;
-      state.syncMessageCounter = 0;
-      this.toggleMemoryIconVisibility();
-      state.currentScene = { scene_id: "initial", location: "不明な場所" };
-      uiUtils.updateSystemPromptUI();
-      uiUtils.renderChatMessages();
-      uiUtils.updateChatTitle();
-      elements.userInput.value = "";
-      uiUtils.adjustTextareaHeight();
-      uiUtils.setSendingState(false);
-      this.updateCharacterProfileButtonVisibility();
-      state.currentStyleProfiles = {};
-    },
-    // app.js の appLogic オブジェクト内
-    async loadChat(id) {
-      state.pendingCascadeResponses = null;
-      const loadChatStartTime = performance.now();
-      state.syncMessageCounter = 0;
-      state.currentMessages = [];
-      if (state.isSending) {
-        const confirmed = await uiUtils.showCustomConfirm("送信中です。中断して別のチャットを読み込みますか？");
-        if (!confirmed) return;
-        this.abortRequest();
-      }
-      if (state.editingMessageIndex !== null) {
-        const confirmed = await uiUtils.showCustomConfirm("編集中です。変更を破棄して別のチャットを読み込みますか？");
-        if (!confirmed) return;
-        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
-        this.cancelEditMessage(state.editingMessageIndex, msgEl);
-      }
-      if (state.isEditingSystemPrompt) {
-        const confirmed = await uiUtils.showCustomConfirm("システムプロンプト編集中です。変更を破棄して別のチャットを読み込みますか？");
-        if (!confirmed) return;
-        this.cancelEditSystemPrompt();
-      }
-      if (state.pendingAttachments.length > 0) {
-        const confirmedAttach = await uiUtils.showCustomConfirm("添付準備中のファイルがあります。破棄して別のチャットを読み込みますか？");
-        if (!confirmedAttach) return;
-        state.pendingAttachments = [];
-        uiUtils.updateAttachmentBadgeVisibility();
-      }
-      try {
-        const dbGetStartTime = performance.now();
-        const chat = await dbUtils.getChat(id);
-        const dbGetEndTime = performance.now();
-        if (chat) {
-          state.currentChatId = chat.id;
-          state.currentMessages = chat.messages?.map((msg) => ({
-            ...msg,
-            attachments: msg.attachments || []
-          })) || [];
-          state.currentPersistentMemory = chat.persistentMemory || {};
-          state.currentSummarizedContext = chat.summarizedContext || null;
-          state.isMemoryEnabledForChat = chat.isMemoryEnabledForChat !== false;
-          this.toggleMemoryIconVisibility();
-          this.updateCharacterProfileButtonVisibility();
-          let needsSave = false;
-          const groupIds = new Set(state.currentMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
-          groupIds.forEach((gid) => {
-            const siblings = state.currentMessages.filter((m) => m.siblingGroupId === gid);
-            const selected = siblings.filter((m) => m.isSelected);
-            if (selected.length === 0 && siblings.length > 0) {
-              siblings[siblings.length - 1].isSelected = true;
-              needsSave = true;
-            } else if (selected.length > 1) {
-              selected.slice(0, -1).forEach((m) => m.isSelected = false);
-              needsSave = true;
-            }
-          });
-          if (chat.projectId && window.projectsCache) {
-            const proj = window.projectsCache.find((p) => p.id === chat.projectId);
-            state.currentSystemPrompt = proj ? proj.systemPrompt || "" : chat.systemPrompt !== void 0 ? chat.systemPrompt : state.settings.systemPrompt;
-          } else {
-            state.currentSystemPrompt = chat.systemPrompt !== void 0 ? chat.systemPrompt : state.settings.systemPrompt;
-          }
-          state.pendingAttachments = [];
-          uiUtils.updateChatTitle(chat.title);
-          uiUtils.updateSystemPromptUI();
-          const renderStartTime = performance.now();
-          uiUtils.renderChatMessages();
-          const renderEndTime = performance.now();
-          this.scrollToBottom();
-          elements.userInput.value = "";
-          uiUtils.adjustTextareaHeight();
-          uiUtils.setSendingState(false);
-          if (needsSave) {
-            console.log("読み込み時に isSelected を正規化しました。DBに保存します。");
-            await dbUtils.saveChat();
-          }
-        } else {
-          await uiUtils.showCustomAlert("チャット履歴が見つかりませんでした。");
-          this.startNewChat();
-          uiUtils.showScreen("chat");
-        }
-      } catch (error) {
-        await uiUtils.showCustomAlert(`チャットの読み込みエラー: ${error}`);
-        this.startNewChat();
-      }
-      const loadChatEndTime = performance.now();
-    },
-    // チャットを複製
-    async duplicateChat(id) {
-      if (state.isSending) {
-        const conf = await uiUtils.showCustomConfirm("送信中です。中断してチャットを複製しますか？");
-        if (!conf) return;
-        this.abortRequest();
-      }
-      if (state.editingMessageIndex !== null) {
-        const conf = await uiUtils.showCustomConfirm("編集中です。変更を破棄してチャットを複製しますか？");
-        if (!conf) return;
-        const msgEl = elements.messageContainer.querySelector(`.message[data-index="${state.editingMessageIndex}"]`);
-        this.cancelEditMessage(state.editingMessageIndex, msgEl);
-      }
-      if (state.isEditingSystemPrompt) {
-        const conf = await uiUtils.showCustomConfirm("システムプロンプト編集中です。変更を破棄してチャットを複製しますか？");
-        if (!conf) return;
-        this.cancelEditSystemPrompt();
-      }
-      if ((state.currentMessages.length > 0 || state.currentSystemPrompt) && state.currentChatId && state.currentChatId !== id) {
-        try {
-          await dbUtils.saveChat();
-        } catch (error) {
-          console.error("複製前の現チャット保存失敗:", error);
-          const conf = await uiUtils.showCustomConfirm("現在のチャット保存に失敗しました。複製を続行しますか？");
-          if (!conf) return;
-        }
-      }
-      if (state.pendingAttachments.length > 0) {
-        const confirmedAttach = await uiUtils.showCustomConfirm("添付準備中のファイルがあります。破棄してチャットを複製しますか？");
-        if (!confirmedAttach) return;
-        state.pendingAttachments = [];
-      }
-      try {
-        const chat = await dbUtils.getChat(id);
-        if (chat) {
-          const originalTitle = chat.title || "無題のチャット";
-          const newTitle = originalTitle.replace(new RegExp(DUPLICATE_SUFFIX.replace(/([().])/g, "\\$1") + "$"), "").trim() + DUPLICATE_SUFFIX;
-          const duplicatedMessages = [];
-          const groupIdMap = /* @__PURE__ */ new Map();
-          (chat.messages || []).forEach((msg) => {
-            const newMsg = JSON.parse(JSON.stringify(msg));
-            newMsg.attachments = msg.attachments ? JSON.parse(JSON.stringify(msg.attachments)) : [];
-            newMsg.isCascaded = msg.isCascaded ?? false;
-            newMsg.isSelected = msg.isSelected ?? false;
-            if (msg.siblingGroupId) {
-              if (!groupIdMap.has(msg.siblingGroupId)) {
-                groupIdMap.set(msg.siblingGroupId, `dup-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`);
-              }
-              newMsg.siblingGroupId = groupIdMap.get(msg.siblingGroupId);
-            } else {
-              delete newMsg.siblingGroupId;
-            }
-            duplicatedMessages.push(newMsg);
-          });
-          const newGroupIds = new Set(duplicatedMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
-          newGroupIds.forEach((gid) => {
-            const siblings = duplicatedMessages.filter((m) => m.siblingGroupId === gid);
-            siblings.forEach((m, idx) => {
-              m.isSelected = idx === siblings.length - 1;
-            });
-          });
-          const newChatData = {
-            messages: duplicatedMessages,
-            systemPrompt: chat.systemPrompt || "",
-            // システムプロンプトもコピー
-            // 永続メモリもディープコピーで複製
-            persistentMemory: JSON.parse(JSON.stringify(chat.persistentMemory || {})),
-            updatedAt: Date.now(),
-            // 更新/作成日時は現在
-            createdAt: Date.now(),
-            title: newTitle
-          };
-          const newChatId = await new Promise((resolve, reject) => {
-            const store = dbUtils._getStore(CHATS_STORE, "readwrite");
-            const request = store.add(newChatData);
-            request.onsuccess = (event) => resolve(event.target.result);
-            request.onerror = (event) => reject(event.target.error);
-          });
-          this.markAsDirtyAndSchedulePush(true);
-          console.log("チャット複製完了:", id, "->", newChatId);
-          if (state.currentScreen === "history") {
-            uiUtils.renderHistoryList();
-          } else {
-            await uiUtils.showCustomAlert(`チャット「${newTitle}」を複製しました。`);
-          }
-        } else {
-          await uiUtils.showCustomAlert("複製元のチャットが見つかりません。");
-        }
-      } catch (error) {
-        await uiUtils.showCustomAlert(`チャット複製エラー: ${error}`);
-      }
-    },
-    async exportProfile() {
-      if (!state.activeProfile) {
-        return uiUtils.showCustomAlert("エクスポートするプロファイルが選択されていません。");
-      }
-      const profileToExport = JSON.parse(JSON.stringify(state.activeProfile));
-      if (state.activeProfile.icon instanceof Blob) {
-        try {
-          const base64Icon = await this.fileToBase64(state.activeProfile.icon);
-          profileToExport.icon = {
-            mimeType: state.activeProfile.icon.type,
-            data: base64Icon
-          };
-        } catch (error) {
-          console.error("アイコンのBase64変換に失敗:", error);
-          return uiUtils.showCustomAlert("アイコンのエクスポート処理に失敗しました。");
-        }
-      }
-      delete profileToExport.id;
-      const jsonString = JSON.stringify(profileToExport, null, 2);
-      const blob = new Blob([jsonString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      const safeName = profileToExport.name.replace(/[\\/:*?"<>|]/g, "_");
-      a.href = url;
-      a.download = `${safeName}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    },
-    async importProfile(file) {
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        try {
-          if (state.profiles.length >= MAX_PROFILES) {
-            return uiUtils.showCustomAlert(`プロファイルの上限数（${MAX_PROFILES}個）に達しているため、プロファイルをインポートできません。`);
-          }
-          const importedData = JSON.parse(event.target.result);
-          if (!importedData.name || !importedData.settings) {
-            throw new Error("無効なファイルです。'name'と'settings'プロパティが必要です。");
-          }
-          let newProfile = { ...importedData };
-          if (newProfile.icon && newProfile.icon.data) {
-            try {
-              newProfile.icon = await this.base64ToBlob(newProfile.icon.data, newProfile.icon.mimeType);
-            } catch (error) {
-              console.error("インポート時のアイコン復元に失敗:", error);
-              newProfile.icon = null;
-            }
-          }
-          let finalName = newProfile.name;
-          const existingNames = state.profiles.map((p) => p.name);
-          while (existingNames.includes(finalName)) {
-            finalName = `${IMPORT_PREFIX}${finalName}`;
-          }
-          newProfile.name = finalName;
-          const newId = await dbUtils.addProfile(newProfile);
-          const newlyAddedProfile = await dbUtils.getProfile(newId);
-          state.profiles.push(newlyAddedProfile);
-          await dbUtils.saveSetting("activeProfileId", newId);
-          state.activeProfileId = newId;
-          this.markAsDirtyAndSchedulePush(true);
-          this.applyActiveProfile();
-          uiUtils.updateProfileSwitcherUI();
-          await uiUtils.showCustomAlert(`プロファイル「${finalName}」をインポートしました。`);
-        } catch (error) {
-          console.error("プロファイルのインポートに失敗:", error);
-          await uiUtils.showCustomAlert(`プロファイルのインポートに失敗しました: ${error.message}`);
-        }
-      };
-      reader.readAsText(file);
-    },
-    // チャットをテキストファイルとしてエクスポート
-    async exportChat(chatId, chatTitle) {
-      const confirmed = await uiUtils.showCustomConfirm(`チャット「${chatTitle || "この履歴"}」をテキスト出力しますか？`);
-      if (!confirmed) return;
-      uiUtils.showProgressDialog("エクスポート準備中...");
-      try {
-        let chatToExport;
-        if (state.currentChatId === chatId) {
-          chatToExport = {
-            id: state.currentChatId,
-            title: chatTitle,
-            messages: state.currentMessages,
-            systemPrompt: state.currentSystemPrompt,
-            persistentMemory: state.currentPersistentMemory,
-            summarizedContext: state.currentSummarizedContext,
-            createdAt: null,
-            updatedAt: Date.now()
-          };
-        } else {
-          chatToExport = await dbUtils.getChat(chatId);
-        }
-        if (!chatToExport || (!chatToExport.messages || chatToExport.messages.length === 0) && !chatToExport.systemPrompt) {
-          await uiUtils.showCustomAlert("チャットデータが空です。");
-          return;
-        }
-        let exportText = "";
-        const imageDataBlock = {};
-        const attachmentDataBlock = {};
-        const allImageIds = /* @__PURE__ */ new Set();
-        if (chatToExport.messages) {
-          chatToExport.messages.forEach((msg) => {
-            if (msg.imageIds && msg.imageIds.length > 0) {
-              msg.imageIds.forEach((id) => allImageIds.add(id));
-            }
-            if (msg.attachments && msg.attachments.length > 0) {
-              msg.attachments.forEach((att) => {
-                if (att.base64Data) {
-                  const attachmentId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                  att.attachmentId = attachmentId;
-                  attachmentDataBlock[attachmentId] = {
-                    name: att.name,
-                    mimeType: att.mimeType,
-                    data: att.base64Data
-                  };
-                }
-              });
-            }
-          });
-        }
-        if (allImageIds.size > 0) {
-          uiUtils.updateProgressMessage(`画像データを収集中... (0 / ${allImageIds.size})`);
-          let processedCount = 0;
-          for (const imageId of allImageIds) {
-            try {
-              const imageData = await this.getImageBlobById(imageId);
-              if (imageData && imageData.blob) {
-                const base64Data = await this.fileToBase64(imageData.blob);
-                imageDataBlock[imageId] = {
-                  mimeType: imageData.blob.type,
-                  data: base64Data,
-                  width: imageData.width,
-                  height: imageData.height
-                };
-              }
-            } catch (e) {
-              console.error(`エクスポート中に画像(ID: ${imageId})の処理に失敗しました:`, e);
-            }
-            processedCount++;
-            uiUtils.updateProgressMessage(`画像データを収集中... (${processedCount} / ${allImageIds.size})`);
-          }
-        }
-        uiUtils.updateProgressMessage("テキストデータを生成中...");
-        if (chatToExport.persistentMemory && Object.keys(chatToExport.persistentMemory).length > 0) {
-          try {
-            const metadataToExport = { ...chatToExport.persistentMemory };
-            const metadataJson = JSON.stringify(metadataToExport, null, 2);
-            exportText += `<|#|metadata|#|>
-${metadataJson}
-<|#|/metadata|#|>
-
-`;
-          } catch (e) {
-            console.error("persistentMemoryのJSON化に失敗しました:", e);
-          }
-        }
-        if (chatToExport.systemPrompt) {
-          exportText += `<|#|system|#|>
-${chatToExport.systemPrompt}
-<|#|/system|#|>
-
-`;
-        }
-        if (chatToExport.summarizedContext) {
-          try {
-            const summaryJson = JSON.stringify(chatToExport.summarizedContext, null, 2);
-            exportText += `<|#|summary|#|>
-${summaryJson}
-<|#|/summary|#|>
-
-`;
-          } catch (e) {
-            console.error("summarizedContextのJSON化に失敗しました:", e);
-          }
-        }
-        if (chatToExport.messages) {
-          chatToExport.messages.forEach((msg) => {
-            if (msg.role === "user" || msg.role === "model") {
-              let attributes = "";
-              if (msg.role === "model") {
-                if (msg.isCascaded) attributes += " isCascaded";
-                if (msg.isSelected) attributes += " isSelected";
-                if (msg.imageIds && msg.imageIds.length > 0) {
-                  attributes += ` imageIds="${msg.imageIds.join(",")}"`;
-                }
-              }
-              if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
-                const attachmentIds = msg.attachments.map((a2) => a2.attachmentId).filter(Boolean).join(",");
-                if (attachmentIds) {
-                  attributes += ` attachments="${attachmentIds}"`;
-                }
-              }
-              exportText += `<|#|${msg.role}|#|${attributes.trim()}>
-${msg.content}
-<|#|/${msg.role}|#|>
-
-`;
-            }
-          });
-        }
-        if (Object.keys(imageDataBlock).length > 0) {
-          exportText += `<|#|imagedata|#|>
-${JSON.stringify(imageDataBlock, null, 2)}
-<|#|/imagedata|#|>
-
-`;
-        }
-        if (Object.keys(attachmentDataBlock).length > 0) {
-          exportText += `<|#|attachmentdata|#|>
-${JSON.stringify(attachmentDataBlock, null, 2)}
-<|#|/attachmentdata|#|>
-`;
-        }
-        uiUtils.updateProgressMessage("ファイルをダウンロード中...");
-        const blob = new Blob([exportText.trim()], { type: "text/plain;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        const safeTitle = (chatToExport.title || `chat_${chatId}_export`).replace(/[<>:"/\\|?*\s]/g, "_");
-        a.href = url;
-        a.download = `${safeTitle}.txt`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        console.log("チャットエクスポート完了:", chatId);
-      } catch (error) {
-        await uiUtils.showCustomAlert(`エクスポートエラー: ${error}`);
-      } finally {
-        uiUtils.hideProgressDialog();
-      }
-    },
-    // チャット削除の確認と実行 (メッセージペア全体)
-    async confirmDeleteChat(id, title) {
-      const confirmed = await uiUtils.showCustomConfirm(`「${title || "この履歴"}」を削除しますか？`);
-      if (confirmed) {
-        const isDeletingCurrent = state.currentChatId === id;
-        const currentScreenBeforeDelete = state.currentScreen;
-        try {
-          await dbUtils.deleteChat(id);
-          console.log("チャット削除:", id);
-          if (isDeletingCurrent) {
-            console.log("表示中のチャットが削除されたため、内部状態を新規チャットにリセット。");
-            this.startNewChat();
-          }
-          if (currentScreenBeforeDelete === "history") {
-            console.log("履歴画面での操作のため、リストUIを更新します。");
-            await uiUtils.renderHistoryList();
-            const listIsEmpty = elements.historyList.querySelectorAll(".history-item:not(.js-history-item-template)").length === 0;
-            if (listIsEmpty) {
-              console.log("履歴リストが空になりました。");
-              if (!isDeletingCurrent) {
-                this.startNewChat();
-              }
-            }
-          }
-        } catch (error) {
-          await uiUtils.showCustomAlert(`チャット削除エラー: ${error}`);
-          uiUtils.setSendingState(false);
-        }
-      }
-    },
-    // 履歴アイテムのタイトルを編集
-    async editHistoryTitle(chatId, titleElement) {
-      const currentTitle = titleElement.textContent;
-      const newTitle = await uiUtils.showCustomPrompt("新しいタイトル:", currentTitle);
-      const trimmedTitle = newTitle !== null ? newTitle.trim() : "";
-      if (newTitle !== "" && trimmedTitle !== "" && trimmedTitle !== currentTitle) {
-        const finalTitle = trimmedTitle.substring(0, 100);
-        try {
-          await dbUtils.updateChatTitleDb(chatId, finalTitle);
-          titleElement.textContent = finalTitle;
-          titleElement.title = finalTitle;
-          const dateElement = titleElement.closest(".history-item")?.querySelector(".updated-date");
-          if (dateElement) dateElement.textContent = `更新: ${uiUtils.formatDate(Date.now())}`;
-          if (state.currentChatId === chatId) {
-            uiUtils.updateChatTitle(finalTitle);
-          }
-        } catch (error) {
-          await uiUtils.showCustomAlert(`タイトル更新エラー: ${error}`);
-        }
-      } else {
-        console.log("タイトル編集キャンセルまたは変更なし");
-      }
-    },
+  // src/app-logic/message.js
+  var messageMethods = {
     async proofreadText(textToProofread) {
       console.log("--- 校正処理開始 ---");
       const {
@@ -8800,280 +9382,6 @@ ${JSON.stringify(attachmentDataBlock, null, 2)}
         state.abortController.abort();
       } else {
         console.log("中断するアクティブなリクエストがありません。");
-      }
-    },
-    // --- 履歴インポートハンドラ ---
-    async handleHistoryImport(file) {
-      if (!file || !file.type.startsWith("text/plain")) {
-        await uiUtils.showCustomAlert("テキストファイル (.txt) を選択してください。");
-        return;
-      }
-      console.log("履歴インポート開始:", file.name);
-      elements.progressMessage.textContent = "履歴ファイルを解析中...";
-      elements.progressDialog.showModal();
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const textContent = event.target.result;
-        if (!textContent) {
-          elements.progressDialog.close();
-          await uiUtils.showCustomAlert("ファイルの内容が空です。");
-          return;
-        }
-        try {
-          const { messages: importedMessages, systemPrompt: importedSystemPrompt, persistentMemory: importedMemory, summarizedContext: importedSummary, imageData: importedImageData } = this.parseImportedHistory(textContent);
-          if (importedMessages.length === 0 && !importedSystemPrompt && (!importedMemory || Object.keys(importedMemory).length === 0)) {
-            elements.progressDialog.close();
-            await uiUtils.showCustomAlert("ファイルから有効なメッセージ、システムプロンプト、またはメタデータを読み込めませんでした。形式を確認してください。");
-            return;
-          }
-          const imageIdMap = /* @__PURE__ */ new Map();
-          if (importedImageData && Object.keys(importedImageData).length > 0) {
-            elements.progressMessage.textContent = `画像を復元中... (0 / ${Object.keys(importedImageData).length})`;
-            let restoredCount = 0;
-            const totalImages = Object.keys(importedImageData).length;
-            for (const oldId in importedImageData) {
-              try {
-                const { mimeType, data } = importedImageData[oldId];
-                const blob = await this.base64ToBlob(data, mimeType);
-                const newId = await this.saveImageBlob(blob);
-                imageIdMap.set(oldId, newId);
-                restoredCount++;
-                elements.progressMessage.textContent = `画像を復元中... (${restoredCount} / ${totalImages})`;
-              } catch (e) {
-                console.error(`インポート中に画像(旧ID: ${oldId})の復元に失敗:`, e);
-              }
-            }
-          }
-          elements.progressMessage.textContent = "データベースに保存中...";
-          importedMessages.forEach((msg) => {
-            if (msg.imageIds && msg.imageIds.length > 0) {
-              msg.imageIds = msg.imageIds.map((oldId) => imageIdMap.get(oldId) || oldId).filter(Boolean);
-            }
-          });
-          let currentGroupId = null;
-          let lastUserIndex = -1;
-          for (let i = 0; i < importedMessages.length; i++) {
-            const msg = importedMessages[i];
-            if (msg.role === "user") {
-              lastUserIndex = i;
-              currentGroupId = null;
-            } else if (msg.role === "model" && msg.isCascaded) {
-              if (currentGroupId === null && lastUserIndex !== -1) {
-                currentGroupId = `imp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
-              }
-              if (currentGroupId) {
-                msg.siblingGroupId = currentGroupId;
-              }
-            } else {
-              currentGroupId = null;
-            }
-          }
-          const groupIds = new Set(importedMessages.filter((m) => m.siblingGroupId).map((m) => m.siblingGroupId));
-          groupIds.forEach((gid) => {
-            const siblings = importedMessages.filter((m) => m.siblingGroupId === gid);
-            const selected = siblings.filter((m) => m.isSelected);
-            if (selected.length === 0 && siblings.length > 0) {
-              siblings[siblings.length - 1].isSelected = true;
-            } else if (selected.length > 1) {
-              selected.slice(0, -1).forEach((m) => m.isSelected = false);
-            }
-          });
-          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, "");
-          const newTitle = IMPORT_PREFIX + (fileNameWithoutExt || `Imported_${Date.now()}`);
-          const newChatData = {
-            messages: importedMessages,
-            systemPrompt: importedSystemPrompt || "",
-            persistentMemory: importedMemory || {},
-            summarizedContext: importedSummary || null,
-            updatedAt: Date.now(),
-            createdAt: Date.now(),
-            title: newTitle.substring(0, 100)
-          };
-          const newChatId = await new Promise((resolve, reject) => {
-            const store = dbUtils._getStore(CHATS_STORE, "readwrite");
-            const request = store.add(newChatData);
-            request.onsuccess = (event2) => resolve(event2.target.result);
-            request.onerror = (event2) => reject(event2.target.error);
-          });
-          this.markAsDirtyAndSchedulePush(true);
-          console.log("履歴インポート成功:", newChatId);
-          elements.progressDialog.close();
-          await uiUtils.showCustomAlert(`履歴「${newChatData.title}」をインポートしました。`);
-          uiUtils.renderHistoryList();
-        } catch (error) {
-          console.error("履歴インポート処理エラー:", error);
-          elements.progressDialog.close();
-          await uiUtils.showCustomAlert(`履歴のインポート中にエラーが発生しました: ${error.message}`);
-        }
-      };
-      reader.onerror = async (event) => {
-        console.error("ファイル読み込みエラー:", event.target.error);
-        elements.progressDialog.close();
-        await uiUtils.showCustomAlert("ファイルの読み込みに失敗しました。");
-      };
-      reader.readAsText(file);
-    },
-    parseImportedHistory(text) {
-      const messages = [];
-      let systemPrompt = "";
-      let persistentMemory = {};
-      let summarizedContext = null;
-      const imageData = {};
-      const attachmentData = {};
-      let remainingText = text;
-      const dataBlockRegex = /<\|#\|(metadata|summary|imagedata|attachmentdata)\|#\|>([\s\S]*?)<\|#\|\/\1\|#\|>\s*/g;
-      let dataMatch;
-      while ((dataMatch = dataBlockRegex.exec(text)) !== null) {
-        const blockType = dataMatch[1];
-        const blockContent = dataMatch[2].trim();
-        try {
-          const jsonData = JSON.parse(blockContent);
-          switch (blockType) {
-            case "metadata":
-              persistentMemory = jsonData;
-              break;
-            case "summary":
-              summarizedContext = jsonData;
-              break;
-            case "imagedata":
-              Object.assign(imageData, jsonData);
-              break;
-            case "attachmentdata":
-              Object.assign(attachmentData, jsonData);
-              break;
-          }
-        } catch (e) {
-          console.error(`インポートされた ${blockType} のJSONパースに失敗:`, e);
-        }
-        remainingText = remainingText.replace(dataMatch[0], "");
-      }
-      const blockRegex = /<\|#\|(system|user|model)\|#\|([^>]*)>([\s\S]*?)<\|#\|\/\1\|#\|>/g;
-      let match;
-      while ((match = blockRegex.exec(remainingText)) !== null) {
-        const role = match[1];
-        const attributesString = match[2].trim();
-        const content = match[3].trim();
-        if (role === "system" && content) {
-          systemPrompt = content;
-        } else if (role === "user" || role === "model") {
-          const messageData = {
-            role,
-            content,
-            timestamp: Date.now(),
-            attachments: []
-          };
-          const attributeRegex = /(\w+)="([^"]*)"|(\w+)/g;
-          let attrMatch;
-          while ((attrMatch = attributeRegex.exec(attributesString)) !== null) {
-            if (attrMatch[1]) {
-              const key = attrMatch[1];
-              const value = attrMatch[2].replace(/&quot;/g, '"');
-              if (key === "attachments") {
-                const attachmentIds = value.split(",");
-                messageData.attachments = attachmentIds.map((id) => {
-                  const data = attachmentData[id];
-                  if (data) {
-                    return {
-                      name: data.name,
-                      mimeType: data.mimeType,
-                      base64Data: data.data
-                      // fileオブジェクトはインポート時には復元しない
-                    };
-                  }
-                  return null;
-                }).filter(Boolean);
-              } else if (key === "imageIds") {
-                messageData.imageIds = value.split(",");
-              }
-            } else if (attrMatch[3]) {
-              messageData[attrMatch[3]] = true;
-            }
-          }
-          messages.push(messageData);
-        }
-      }
-      console.log(`インポートテキストから ${messages.length} 件のメッセージとシステムプロンプト(${systemPrompt ? "あり" : "なし"})、要約データ(${summarizedContext ? "あり" : "なし"})をパースしました。`);
-      return { messages, systemPrompt, persistentMemory, summarizedContext, imageData };
-    },
-    // -------------------------------
-    // --- 背景画像ハンドラ ---
-    async handleBackgroundImageUpload(file) {
-      const maxSize = 5 * 1024 * 1024;
-      if (file.size > maxSize) {
-        await uiUtils.showCustomAlert(`画像サイズが大きすぎます (${(maxSize / 1024 / 1024).toFixed(1)}MB以下にしてください)`);
-        return;
-      }
-      if (!file.type.startsWith("image/")) {
-        await uiUtils.showCustomAlert("画像ファイルを選択してください (JPEG, PNG, GIF, WebPなど)");
-        return;
-      }
-      try {
-        const blob = file;
-        state.settings.backgroundImageBlob = blob;
-        await dbUtils.saveSetting("backgroundImageBlob", blob);
-        uiUtils.applyBackgroundImage();
-      } catch (error) {
-        console.error("背景画像の保存・適用エラー:", error);
-        state.settings.backgroundImageBlob = null;
-        await dbUtils.saveSetting("backgroundImageBlob", null);
-        uiUtils.applyBackgroundImage();
-      }
-    },
-    // 背景画像削除の確認
-    async confirmDeleteBackgroundImage() {
-      const confirmed = await uiUtils.showCustomConfirm("背景画像を削除しますか？");
-      if (confirmed) {
-        await this.handleBackgroundImageDelete();
-      }
-    },
-    // 背景画像削除処理
-    async handleBackgroundImageDelete() {
-      try {
-        uiUtils.revokeExistingObjectUrl();
-        await dbUtils.saveSetting("backgroundImageBlob", null);
-        state.settings.backgroundImageBlob = null;
-        state.isTemporaryBackgroundActive = false;
-        elements.chatScreen.classList.remove("background-visible");
-        document.documentElement.style.removeProperty("--chat-background-image");
-        uiUtils.updateBackgroundSettingsUI();
-      } catch (error) {
-        console.error("背景画像削除エラー:", error);
-        await uiUtils.showCustomAlert(`背景画像の削除中にエラーが発生しました: ${error}`);
-      }
-    },
-    // -------------------------------
-    // アプリを更新 (キャッシュクリア)
-    async updateApp() {
-      if (!("serviceWorker" in navigator)) {
-        const doReload = await uiUtils.showCustomConfirm("お使いのブラウザはService Workerをサポートしていません。\nページを強制リロードして最新版を取得しますか？");
-        if (doReload) window.location.reload(true);
-        return;
-      }
-      const confirmed = await uiUtils.showCustomConfirm("アプリのキャッシュをクリアして最新版を再取得しますか？ (ページがリロードされます)");
-      if (!confirmed) return;
-      try {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map((name) => caches.delete(name)));
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        await Promise.all(registrations.map((r) => r.unregister()));
-        window.location.reload(true);
-      } catch (error) {
-        console.error("Service Workerの処理中にエラー:", error);
-        window.location.reload(true);
-      }
-    },
-    // 全データ削除の確認と実行
-    async confirmClearAllData() {
-      const confirmed = await uiUtils.showCustomConfirm("本当にすべてのデータ（チャット履歴、プロファイル、アセット、設定）を削除しますか？この操作は元に戻せません。");
-      if (confirmed) {
-        try {
-          uiUtils.revokeExistingObjectUrl();
-          await dbUtils.clearAllData();
-          await uiUtils.showCustomAlert("すべてのデータが削除されました。アプリをリセットします。");
-          window.location.reload();
-        } catch (error) {
-          await uiUtils.showCustomAlert(`データ削除中にエラーが発生しました: ${error}`);
-        }
       }
     },
     async executeToolCalls(toolCalls, historyForFunctions, responseTextForQc = "") {
@@ -9728,147 +10036,6 @@ ${JSON.stringify(attachmentDataBlock, null, 2)}
         }
       }
     },
-    // --- ファイルアップロード関連ロジック ---
-    async handleFileSelection(fileList) {
-      if (!fileList || fileList.length === 0) return;
-      const newFiles = Array.from(fileList);
-      let addedCount = 0;
-      const skippedFiles = {
-        duplicate: [],
-        size: [],
-        totalSize: []
-      };
-      let currentTotalSize = state.selectedFilesForUpload.reduce((sum, item) => sum + item.file.size, 0);
-      elements.selectFilesBtn.disabled = true;
-      elements.selectFilesBtn.textContent = "処理中...";
-      for (const file of newFiles) {
-        if (file.size > MAX_FILE_SIZE) {
-          skippedFiles.size.push(file.name);
-          continue;
-        }
-        if (currentTotalSize + file.size > MAX_TOTAL_ATTACHMENT_SIZE) {
-          skippedFiles.totalSize.push(file.name);
-          continue;
-        }
-        const isDuplicate = state.selectedFilesForUpload.some(
-          (existingItem) => existingItem.file.name === file.name && existingItem.file.size === file.size
-        );
-        if (isDuplicate) {
-          skippedFiles.duplicate.push(file.name);
-          continue;
-        }
-        state.selectedFilesForUpload.push({ file });
-        currentTotalSize += file.size;
-        addedCount++;
-      }
-      elements.selectFilesBtn.disabled = false;
-      elements.selectFilesBtn.textContent = "ファイルを選択";
-      let alertMessage = "";
-      if (skippedFiles.duplicate.length > 0) {
-        alertMessage += `以下のファイルは既に追加されているためスキップしました:
-- ${skippedFiles.duplicate.join("\n- ")}
-
-`;
-      }
-      if (skippedFiles.size.length > 0) {
-        alertMessage += `以下のファイルはサイズが大きすぎるため(${formatFileSize(MAX_FILE_SIZE)}以下)スキップしました:
-- ${skippedFiles.size.join("\n- ")}
-
-`;
-      }
-      if (skippedFiles.totalSize.length > 0) {
-        alertMessage += `合計サイズ上限(${formatFileSize(MAX_TOTAL_ATTACHMENT_SIZE)})を超えるため、以下のファイルはスキップしました:
-- ${skippedFiles.totalSize.join("\n- ")}
-
-`;
-      }
-      if (alertMessage) {
-        await uiUtils.showCustomAlert(alertMessage.trim());
-      }
-      uiUtils.updateSelectedFilesUI();
-      console.log(`${addedCount}個のファイルが選択リストに新しく追加されました。`);
-    },
-    removeSelectedFile(indexToRemove) {
-      if (indexToRemove >= 0 && indexToRemove < state.selectedFilesForUpload.length) {
-        const removedFile = state.selectedFilesForUpload.splice(indexToRemove, 1)[0];
-        console.log(`ファイル "${removedFile.file.name}" をリストから削除しました。`);
-        uiUtils.updateSelectedFilesUI();
-      }
-    },
-    async confirmAttachment() {
-      if (state.selectedFilesForUpload.length === 0) {
-        state.pendingAttachments = [];
-        console.log("添付ファイルリストが空の状態で確定されました。送信待ちリストをクリアします。");
-        elements.fileUploadDialog.close("ok");
-        uiUtils.adjustTextareaHeight();
-        uiUtils.updateAttachmentBadgeVisibility();
-        return;
-      }
-      elements.confirmAttachBtn.disabled = true;
-      elements.confirmAttachBtn.textContent = "処理中...";
-      const attachmentsToAdd = [];
-      let encodingError = false;
-      for (const item of state.selectedFilesForUpload) {
-        try {
-          const base64Data = await this.fileToBase64(item.file);
-          const rehydratedBlob = await this.base64ToBlob(base64Data, item.file.type);
-          let browserMimeType = item.file.type || "";
-          const fileName = item.file.name;
-          const fileExtension = fileName.slice((fileName.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
-          let guessedMimeType = null;
-          if (fileExtension && extensionToMimeTypeMap[fileExtension]) {
-            guessedMimeType = extensionToMimeTypeMap[fileExtension];
-          }
-          let finalMimeType;
-          if (guessedMimeType) {
-            finalMimeType = guessedMimeType;
-            if (finalMimeType !== browserMimeType) {
-              console.log(`ファイル "${fileName}": 拡張子(.${fileExtension})からMIMEタイプを "${finalMimeType}" に設定 (ブラウザ提供: ${browserMimeType || "空"})`);
-            }
-          } else if (browserMimeType) {
-            finalMimeType = browserMimeType;
-            console.log(`ファイル "${fileName}": ブラウザ提供のMIMEタイプ "${finalMimeType}" を使用します。(拡張子からの推測なし)`);
-          } else {
-            finalMimeType = "application/octet-stream";
-            console.warn(`ファイル "${fileName}": MIMEタイプ不明。拡張子(.${fileExtension})にもマッピングなし。'application/octet-stream' を使用します。`);
-          }
-          const ANTHROPIC_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-          if (state.settings.apiProvider === "anthropic" && finalMimeType.startsWith("image/") && !ANTHROPIC_IMAGE_TYPES.includes(finalMimeType)) {
-            encodingError = true;
-            await uiUtils.showCustomAlert(`"${fileName}": ${finalMimeType} 形式の画像はAnthropicAPIに対応していません。
-JPEG・PNG・GIF・WebP形式に変換してから添付してください。
-※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、変換アプリをご利用ください。`);
-            break;
-          }
-          attachmentsToAdd.push({
-            file: rehydratedBlob,
-            name: fileName,
-            mimeType: finalMimeType,
-            base64Data
-          });
-        } catch (error) {
-          console.error(`ファイル "${item.file.name}" のBase64エンコード中にエラー:`, error);
-          encodingError = true;
-          await uiUtils.showCustomAlert(`ファイル "${item.file.name}" の処理中にエラーが発生しました。`);
-          break;
-        }
-      }
-      elements.confirmAttachBtn.disabled = false;
-      elements.confirmAttachBtn.textContent = "添付して閉じる";
-      if (!encodingError) {
-        state.pendingAttachments = attachmentsToAdd;
-        console.log(`${state.pendingAttachments.length}件のファイルを添付準備完了:`, state.pendingAttachments.map((a) => `${a.name} (${a.mimeType})`));
-        elements.fileUploadDialog.close("ok");
-        uiUtils.adjustTextareaHeight();
-        uiUtils.updateAttachmentBadgeVisibility();
-      }
-    },
-    cancelAttachment() {
-      state.selectedFilesForUpload = [];
-      console.log("ファイル添付をキャンセルしました。");
-      elements.fileUploadDialog.close("cancel");
-      uiUtils.updateAttachmentBadgeVisibility();
-    },
     async callApiWithRetry(apiParams) {
       const { messagesForApi, generationConfig, systemInstruction, tools, isFirstCall } = apiParams;
       let lastError = null;
@@ -10038,51 +10205,353 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       }
       console.error("最大リトライ回数に達しました。最終的なエラーをスローします。");
       throw lastError;
+    }
+  };
+
+  // src/mime-types.js
+  var extensionToMimeTypeMap = {
+    // Text Data
+    pdf: "application/pdf",
+    js: "text/javascript",
+    py: "text/x-python",
+    txt: "text/plain",
+    html: "text/html",
+    htm: "text/html",
+    json: "application/json",
+    css: "text/css",
+    md: "text/markdown",
+    csv: "text/csv",
+    xml: "application/xml",
+    rtf: "application/rtf",
+    java: "text/x-java-source",
+    c: "text/x-c",
+    cpp: "text/x-c++src",
+    hpp: "text/x-c++hdr",
+    h: "text/x-chdr",
+    cs: "text/plain",
+    php: "application/x-httpd-php",
+    rb: "text/x-ruby",
+    go: "text/x-go",
+    swift: "text/x-swift",
+    kt: "text/x-kotlin",
+    kts: "text/x-kotlin",
+    rs: "text/rust",
+    ts: "text/typescript",
+    tsx: "text/typescript",
+    sql: "application/sql",
+    sh: "application/x-sh",
+    yml: "text/yaml",
+    yaml: "text/yaml",
+    // Image Data
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    heic: "image/heic",
+    heif: "image/heif",
+    // Video Data
+    mp4: "video/mp4",
+    mpeg: "video/mpeg",
+    mov: "video/mov",
+    avi: "video/avi",
+    flv: "video/x-flv",
+    mpg: "video/mpg",
+    webm: "video/webm",
+    wmv: "video/wmv",
+    "3gp": "video/3gpp",
+    "3gpp": "video/3gpp",
+    // Audio Data
+    wav: "audio/wav",
+    mp3: "audio/mp3",
+    aiff: "audio/aiff",
+    aac: "audio/aac",
+    ogg: "audio/ogg",
+    flac: "audio/flac"
+  };
+
+  // src/app-logic/attachment.js
+  var attachmentMethods = {
+    fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64String = reader.result.split(",")[1];
+          resolve(base64String);
+        };
+        reader.onerror = (error) => reject(error);
+        reader.readAsDataURL(file);
+      });
     },
-    createRipple(event, button) {
-      const existingRipple = button.querySelector(".ripple");
-      if (existingRipple) {
-        existingRipple.remove();
-      }
-      const circle = document.createElement("span");
-      const diameter = Math.max(button.clientWidth, button.clientHeight);
-      const radius = diameter / 2;
-      circle.style.width = circle.style.height = `${diameter}px`;
-      const rect = button.getBoundingClientRect();
-      circle.style.left = `${event.clientX - rect.left - radius}px`;
-      circle.style.top = `${event.clientY - rect.top - radius}px`;
-      circle.classList.add("ripple");
-      button.appendChild(circle);
-      setTimeout(() => {
-        if (circle.parentElement) {
-          circle.remove();
-        }
-      }, 600);
+    base64ToBlob(base64, mimeType) {
+      return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
     },
-    // --- Function Calling用ヘルパー ---
-    async updateOpacitySettings(opacitySettings) {
-      let settingsChanged = false;
-      const changedItems = [];
-      if (typeof opacitySettings.overlay === "number" && opacitySettings.overlay >= 0 && opacitySettings.overlay <= 1) {
-        state.settings.overlayOpacity = opacitySettings.overlay;
-        await dbUtils.saveSetting("overlayOpacity", state.settings.overlayOpacity);
-        document.documentElement.style.setProperty("--overlay-opacity-value", state.settings.overlayOpacity);
-        changedItems.push(`オーバーレイの濃さを${Math.round(opacitySettings.overlay * 100)}%に`);
-        settingsChanged = true;
-      }
-      if (typeof opacitySettings.message_bubble === "number" && opacitySettings.message_bubble >= 0.1 && opacitySettings.message_bubble <= 1) {
-        state.settings.messageOpacity = opacitySettings.message_bubble;
-        await dbUtils.saveSetting("messageOpacity", state.settings.messageOpacity);
-        changedItems.push(`メッセージバブルの濃さを${Math.round(opacitySettings.message_bubble * 100)}%に`);
-        settingsChanged = true;
-      }
-      if (settingsChanged) {
-        uiUtils.applySettingsToUI();
-        const message = `${changedItems.join("、")}変更しました。`;
-        return { success: true, message };
+    _prepareApiHistory(baseMessages) {
+      console.log("[API Prep] 履歴をAPIフォーマットに変換します。");
+      const messagesForApi = JSON.parse(JSON.stringify(baseMessages));
+      let historyToProcess;
+      if (state.currentSummarizedContext && state.currentSummarizedContext.summaryText) {
+        console.log("[API Prep] 要約コンテキストを検出。API履歴を圧縮します。");
+        const { summaryText } = state.currentSummarizedContext;
+        const headCount = 5;
+        const tailCount = 15;
+        const headMessages = messagesForApi.slice(0, headCount);
+        const tailMessages = messagesForApi.slice(Math.max(headCount, messagesForApi.length - tailCount));
+        const summaryMessage = {
+          role: "user",
+          content: `【これまでの会話の要約】
+${summaryText}`,
+          timestamp: Date.now(),
+          isHidden: true,
+          // UIには表示されない内部的なメッセージ
+          attachments: []
+        };
+        historyToProcess = [...headMessages, summaryMessage, ...tailMessages];
+        console.log(`[API Prep] 履歴を圧縮しました: Head(${headMessages.length}) + Summary(1) + Tail(${tailMessages.length}) = ${historyToProcess.length}件`);
       } else {
-        return { success: false, message: "有効な値が指定されなかったため、UIは変更されませんでした。" };
+        historyToProcess = messagesForApi;
       }
+      if (state.settings.dummyEnabled) {
+        if (state.settings.reverseDummyOrder) {
+          if (state.settings.dummyModel) {
+            historyToProcess.push({ role: "model", content: state.settings.dummyModel, attachments: [] });
+          }
+          if (state.settings.dummyUser) {
+            historyToProcess.push({ role: "user", content: state.settings.dummyUser, attachments: [] });
+          }
+        } else {
+          if (state.settings.dummyUser) {
+            historyToProcess.push({ role: "user", content: state.settings.dummyUser, attachments: [] });
+          }
+          if (state.settings.dummyModel) {
+            historyToProcess.push({ role: "model", content: state.settings.dummyModel, attachments: [] });
+          }
+        }
+      }
+      return historyToProcess.map((msg) => {
+        const parts = [];
+        let contentText = msg.content || "";
+        if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
+          const fileNames = msg.attachments.map((att) => att.name).join(", ");
+          const attachmentText = `
+
+[添付ファイル: ${fileNames}]`;
+          contentText = (contentText.trim() ? contentText : "") + attachmentText;
+        }
+        if (contentText.trim() !== "" || msg.isHidden) {
+          parts.push({ text: contentText });
+        }
+        if (msg.role === "user" && msg.attachments && msg.attachments.length > 0) {
+          msg.attachments.forEach((att) => parts.push({ inlineData: { mimeType: att.mimeType, data: att.base64Data } }));
+        }
+        if (msg.generated_images && msg.generated_images.length > 0) {
+          msg.generated_images.forEach((img) => {
+            parts.push({ inlineData: { mimeType: img.mimeType, data: img.data } });
+          });
+        }
+        if (msg.role === "model" && msg.tool_calls) {
+          msg.tool_calls.forEach((toolCall) => parts.push({ functionCall: toolCall.functionCall }));
+        }
+        if (msg.role === "tool") {
+          if (msg.name && msg.response) {
+            parts.push({
+              functionResponse: {
+                name: msg.name,
+                response: msg.response,
+                _toolCallId: msg._toolCallId || msg.tool_call_id
+                // 元のtoolCallIdを保存
+              }
+            });
+          }
+        }
+        return { role: msg.role === "tool" ? "tool" : msg.role === "model" ? "model" : "user", parts };
+      }).filter((c) => c.parts.length > 0);
+    },
+    // -------------------------------
+    // --- 背景画像ハンドラ ---
+    async handleBackgroundImageUpload(file) {
+      const maxSize = 5 * 1024 * 1024;
+      if (file.size > maxSize) {
+        await uiUtils.showCustomAlert(`画像サイズが大きすぎます (${(maxSize / 1024 / 1024).toFixed(1)}MB以下にしてください)`);
+        return;
+      }
+      if (!file.type.startsWith("image/")) {
+        await uiUtils.showCustomAlert("画像ファイルを選択してください (JPEG, PNG, GIF, WebPなど)");
+        return;
+      }
+      try {
+        const blob = file;
+        state.settings.backgroundImageBlob = blob;
+        await dbUtils.saveSetting("backgroundImageBlob", blob);
+        uiUtils.applyBackgroundImage();
+      } catch (error) {
+        console.error("背景画像の保存・適用エラー:", error);
+        state.settings.backgroundImageBlob = null;
+        await dbUtils.saveSetting("backgroundImageBlob", null);
+        uiUtils.applyBackgroundImage();
+      }
+    },
+    // 背景画像削除の確認
+    async confirmDeleteBackgroundImage() {
+      const confirmed = await uiUtils.showCustomConfirm("背景画像を削除しますか？");
+      if (confirmed) {
+        await this.handleBackgroundImageDelete();
+      }
+    },
+    // 背景画像削除処理
+    async handleBackgroundImageDelete() {
+      try {
+        uiUtils.revokeExistingObjectUrl();
+        await dbUtils.saveSetting("backgroundImageBlob", null);
+        state.settings.backgroundImageBlob = null;
+        state.isTemporaryBackgroundActive = false;
+        elements.chatScreen.classList.remove("background-visible");
+        document.documentElement.style.removeProperty("--chat-background-image");
+        uiUtils.updateBackgroundSettingsUI();
+      } catch (error) {
+        console.error("背景画像削除エラー:", error);
+        await uiUtils.showCustomAlert(`背景画像の削除中にエラーが発生しました: ${error}`);
+      }
+    },
+    // --- ファイルアップロード関連ロジック ---
+    async handleFileSelection(fileList) {
+      if (!fileList || fileList.length === 0) return;
+      const newFiles = Array.from(fileList);
+      let addedCount = 0;
+      const skippedFiles = {
+        duplicate: [],
+        size: [],
+        totalSize: []
+      };
+      let currentTotalSize = state.selectedFilesForUpload.reduce((sum, item) => sum + item.file.size, 0);
+      elements.selectFilesBtn.disabled = true;
+      elements.selectFilesBtn.textContent = "処理中...";
+      for (const file of newFiles) {
+        if (file.size > MAX_FILE_SIZE) {
+          skippedFiles.size.push(file.name);
+          continue;
+        }
+        if (currentTotalSize + file.size > MAX_TOTAL_ATTACHMENT_SIZE) {
+          skippedFiles.totalSize.push(file.name);
+          continue;
+        }
+        const isDuplicate = state.selectedFilesForUpload.some(
+          (existingItem) => existingItem.file.name === file.name && existingItem.file.size === file.size
+        );
+        if (isDuplicate) {
+          skippedFiles.duplicate.push(file.name);
+          continue;
+        }
+        state.selectedFilesForUpload.push({ file });
+        currentTotalSize += file.size;
+        addedCount++;
+      }
+      elements.selectFilesBtn.disabled = false;
+      elements.selectFilesBtn.textContent = "ファイルを選択";
+      let alertMessage = "";
+      if (skippedFiles.duplicate.length > 0) {
+        alertMessage += `以下のファイルは既に追加されているためスキップしました:
+- ${skippedFiles.duplicate.join("\n- ")}
+
+`;
+      }
+      if (skippedFiles.size.length > 0) {
+        alertMessage += `以下のファイルはサイズが大きすぎるため(${formatFileSize(MAX_FILE_SIZE)}以下)スキップしました:
+- ${skippedFiles.size.join("\n- ")}
+
+`;
+      }
+      if (skippedFiles.totalSize.length > 0) {
+        alertMessage += `合計サイズ上限(${formatFileSize(MAX_TOTAL_ATTACHMENT_SIZE)})を超えるため、以下のファイルはスキップしました:
+- ${skippedFiles.totalSize.join("\n- ")}
+
+`;
+      }
+      if (alertMessage) {
+        await uiUtils.showCustomAlert(alertMessage.trim());
+      }
+      uiUtils.updateSelectedFilesUI();
+      console.log(`${addedCount}個のファイルが選択リストに新しく追加されました。`);
+    },
+    removeSelectedFile(indexToRemove) {
+      if (indexToRemove >= 0 && indexToRemove < state.selectedFilesForUpload.length) {
+        const removedFile = state.selectedFilesForUpload.splice(indexToRemove, 1)[0];
+        console.log(`ファイル "${removedFile.file.name}" をリストから削除しました。`);
+        uiUtils.updateSelectedFilesUI();
+      }
+    },
+    async confirmAttachment() {
+      if (state.selectedFilesForUpload.length === 0) {
+        state.pendingAttachments = [];
+        console.log("添付ファイルリストが空の状態で確定されました。送信待ちリストをクリアします。");
+        elements.fileUploadDialog.close("ok");
+        uiUtils.adjustTextareaHeight();
+        uiUtils.updateAttachmentBadgeVisibility();
+        return;
+      }
+      elements.confirmAttachBtn.disabled = true;
+      elements.confirmAttachBtn.textContent = "処理中...";
+      const attachmentsToAdd = [];
+      let encodingError = false;
+      for (const item of state.selectedFilesForUpload) {
+        try {
+          const base64Data = await this.fileToBase64(item.file);
+          const rehydratedBlob = await this.base64ToBlob(base64Data, item.file.type);
+          let browserMimeType = item.file.type || "";
+          const fileName = item.file.name;
+          const fileExtension = fileName.slice((fileName.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
+          let guessedMimeType = null;
+          if (fileExtension && extensionToMimeTypeMap[fileExtension]) {
+            guessedMimeType = extensionToMimeTypeMap[fileExtension];
+          }
+          let finalMimeType;
+          if (guessedMimeType) {
+            finalMimeType = guessedMimeType;
+            if (finalMimeType !== browserMimeType) {
+              console.log(`ファイル "${fileName}": 拡張子(.${fileExtension})からMIMEタイプを "${finalMimeType}" に設定 (ブラウザ提供: ${browserMimeType || "空"})`);
+            }
+          } else if (browserMimeType) {
+            finalMimeType = browserMimeType;
+            console.log(`ファイル "${fileName}": ブラウザ提供のMIMEタイプ "${finalMimeType}" を使用します。(拡張子からの推測なし)`);
+          } else {
+            finalMimeType = "application/octet-stream";
+            console.warn(`ファイル "${fileName}": MIMEタイプ不明。拡張子(.${fileExtension})にもマッピングなし。'application/octet-stream' を使用します。`);
+          }
+          const ANTHROPIC_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+          if (state.settings.apiProvider === "anthropic" && finalMimeType.startsWith("image/") && !ANTHROPIC_IMAGE_TYPES.includes(finalMimeType)) {
+            encodingError = true;
+            await uiUtils.showCustomAlert(`"${fileName}": ${finalMimeType} 形式の画像はAnthropicAPIに対応していません。
+JPEG・PNG・GIF・WebP形式に変換してから添付してください。
+※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、変換アプリをご利用ください。`);
+            break;
+          }
+          attachmentsToAdd.push({
+            file: rehydratedBlob,
+            name: fileName,
+            mimeType: finalMimeType,
+            base64Data
+          });
+        } catch (error) {
+          console.error(`ファイル "${item.file.name}" のBase64エンコード中にエラー:`, error);
+          encodingError = true;
+          await uiUtils.showCustomAlert(`ファイル "${item.file.name}" の処理中にエラーが発生しました。`);
+          break;
+        }
+      }
+      elements.confirmAttachBtn.disabled = false;
+      elements.confirmAttachBtn.textContent = "添付して閉じる";
+      if (!encodingError) {
+        state.pendingAttachments = attachmentsToAdd;
+        console.log(`${state.pendingAttachments.length}件のファイルを添付準備完了:`, state.pendingAttachments.map((a) => `${a.name} (${a.mimeType})`));
+        elements.fileUploadDialog.close("ok");
+        uiUtils.adjustTextareaHeight();
+        uiUtils.updateAttachmentBadgeVisibility();
+      }
+    },
+    cancelAttachment() {
+      state.selectedFilesForUpload = [];
+      console.log("ファイル添付をキャンセルしました。");
+      elements.fileUploadDialog.close("cancel");
+      uiUtils.updateAttachmentBadgeVisibility();
     },
     /**
      * Function Callingから受け取ったURLを一時的な背景画像として適用する
@@ -10146,6 +10615,127 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
         return { error: `画像の取得中にエラーが発生しました: ${error.message}` };
       } finally {
         elements.loadingIndicator.classList.add("hidden");
+      }
+    }
+  };
+
+  // src/app-logic/media.js
+  var mediaMethods = {
+    /**
+     * 画像Blobを受け取り、WebPに変換してimage_storeに保存し、新しいIDを返す
+     * @param {Blob} blob - 保存対象の画像Blob
+     * @returns {Promise<string>} 保存された画像のユニークID
+     */
+    async saveImageBlob(blob) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = async () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(async (webpBlob) => {
+              if (!webpBlob) {
+                console.warn("WebPへの変換に失敗しました。元の形式で保存します。");
+                webpBlob = blob;
+              }
+              const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+              const imageData = {
+                id: imageId,
+                blob: webpBlob,
+                width: img.naturalWidth,
+                // 幅を追加
+                height: img.naturalHeight,
+                // 高さを追加
+                createdAt: /* @__PURE__ */ new Date()
+              };
+              try {
+                await dbUtils.openDB();
+                const store = dbUtils._getStore(IMAGE_STORE, "readwrite");
+                const request = store.put(imageData);
+                request.onsuccess = () => resolve(imageId);
+                request.onerror = (event) => reject(event.target.error);
+              } catch (dbError) {
+                reject(dbError);
+              }
+            }, "image/webp", 0.9);
+          };
+          img.onerror = () => reject(new Error("画像データの読み込みに失敗しました。"));
+          img.src = e.target.result;
+        };
+        reader.onerror = () => reject(new Error("FileReaderでBlobの読み込みに失敗しました。"));
+        reader.readAsDataURL(blob);
+      });
+    },
+    imageObserver: null,
+    /**
+     * IDを指定してimage_storeから画像Blobを取得する
+     * @param {string} id - 取得する画像のID
+     * @returns {Promise<Blob|null>} 画像のBlobオブジェクト、またはnull
+     */
+    async getImageBlobById(id) {
+      try {
+        await dbUtils.openDB();
+        const store = dbUtils._getStore(IMAGE_STORE, "readonly");
+        return new Promise((resolve, reject) => {
+          const request = store.get(id);
+          request.onsuccess = (event) => {
+            resolve(event.target.result || null);
+          };
+          request.onerror = (event) => reject(event.target.error);
+        });
+      } catch (error) {
+        console.error(`ID(${id})の画像Blob取得エラー:`, error);
+        return null;
+      }
+    },
+    /**
+     * 古い形式の画像データ（チャット履歴埋め込み）を新しいimage_storeに移行する
+     * @param {IDBTransaction} transaction - onupgradeneededから渡されるトランザクション
+     */
+    async migrateImageData() {
+      console.log("[DB Migration] v11データ移行処理のチェックを開始します...");
+      try {
+        const migrationFlag = await dbUtils.getSetting("v11_migration_complete");
+        if (migrationFlag && migrationFlag.value) {
+          console.log("[DB Migration] v11データ移行は既に完了しています。");
+          return;
+        }
+        console.log("[DB Migration] v11データ移行を開始します...");
+        const allChats = await dbUtils.getAllChats();
+        let migratedImageCount = 0;
+        for (const chat of allChats) {
+          let chatModified = false;
+          if (!chat.messages) continue;
+          for (const message of chat.messages) {
+            if (message.generated_images && message.generated_images.length > 0) {
+              message.imageIds = message.imageIds || [];
+              for (const imgData of message.generated_images) {
+                try {
+                  const imageBlob = await this.base64ToBlob(imgData.data, imgData.mimeType);
+                  const newImageId = await this.saveImageBlob(imageBlob);
+                  message.imageIds.push(newImageId);
+                  migratedImageCount++;
+                } catch (error) {
+                  console.error(`[DB Migration] チャット(id:${chat.id})の画像移行中にエラー:`, error);
+                }
+              }
+              delete message.generated_images;
+              chatModified = true;
+            }
+          }
+          if (chatModified) {
+            console.log(`[DB Migration] チャット(id:${chat.id})を更新します。`);
+            await dbUtils.saveChat(chat.title, chat);
+          }
+        }
+        console.log(`[DB Migration] v11データ移行が完了しました。合計 ${migratedImageCount} 枚の画像を移行しました。`);
+        await dbUtils.saveSetting("v11_migration_complete", true);
+      } catch (error) {
+        console.error("[DB Migration] v11データ移行処理中に致命的なエラーが発生しました:", error);
       }
     },
     updateAssetCount: /* @__PURE__ */ __name(async function() {
@@ -10685,6 +11275,381 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
         dialog.showModal();
       });
     }, "showAssetConflictDialog"),
+    // --- Stable Diffusion連携機能の本体ロジック ---
+    handleStableDiffusionGeneration: /* @__PURE__ */ __name(async function(args, responseText = "") {
+      if (!state.settings.sdApiUrl) {
+        return { error: "Stable Diffusion WebUIのURLが設定されていません。" };
+      }
+      let currentPrompt = args.prompt;
+      let generatedImageBlob = null;
+      let qualityCheckResult = null;
+      const isQcEnabled = state.settings.sdEnableQualityChecker;
+      const maxRetries = isQcEnabled ? state.settings.sdQcRetries || 0 : 0;
+      try {
+        for (let i = 0; i <= maxRetries; i++) {
+          if (i > 0) {
+            uiUtils.setLoadingIndicatorText(`プロンプト改善中... (${i}/${maxRetries})`);
+            currentPrompt = await this._improveSdPrompt(args.prompt, currentPrompt, qualityCheckResult.reason);
+          }
+          uiUtils.setLoadingIndicatorText("SDで画像生成中...");
+          const payload = { ...args, prompt: currentPrompt };
+          generatedImageBlob = await this.callStableDiffusionApi(payload);
+          if (!isQcEnabled) {
+            break;
+          }
+          uiUtils.setLoadingIndicatorText("品質チェック中...");
+          qualityCheckResult = await this.runQualityChecker(generatedImageBlob, currentPrompt, responseText);
+          console.log(`[Quality Check Cycle ${i + 1}/${maxRetries + 1}] 判定: ${qualityCheckResult.result}。理由: ${qualityCheckResult.reason || "N/A"}`);
+          if (qualityCheckResult.result === "OK") {
+            break;
+          } else {
+            if (i >= maxRetries) {
+              throw new Error(`品質チェックが上限回数(${maxRetries}回)に達しました。最後のNG理由: ${qualityCheckResult.reason}`);
+            }
+          }
+        }
+        const imageId = await this.saveImageBlob(generatedImageBlob);
+        return {
+          success: true,
+          message: "Stable Diffusionによる画像の生成と保存に成功しました。",
+          _internal_ui_action: {
+            type: "display_generated_images",
+            imageIds: [imageId]
+          },
+          meta: { ...args, finalPrompt: currentPrompt, qualityCheckResult }
+        };
+      } catch (error) {
+        console.error("[Stable Diffusion] 画像生成プロセスでエラー:", error);
+        return { success: false, error: { message: `画像生成エラー: ${error.message}` } };
+      }
+    }, "handleStableDiffusionGeneration"),
+    async _improveSdPrompt(originalPrompt, failedPrompt, ngReason) {
+      const model = state.settings.sdPromptImproveModel;
+      const systemPrompt = state.settings.sdPromptImproveSystemPrompt;
+      const userPrompt = `元のプロンプト: ${originalPrompt}
+失敗したプロンプト: ${failedPrompt}
+失敗理由: ${ngReason}`;
+      const requestBody = {
+        contents: [{ parts: [{ text: userPrompt }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { temperature: 0.5 }
+      };
+      const endpoint = `${GEMINI_API_BASE_URL}${model}:generateContent`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) throw new Error(`プロンプト改善APIエラー (${response.status})`);
+      const data = await response.json();
+      const improvedPrompt = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!improvedPrompt) throw new Error("プロンプト改善APIから有効な応答が得られませんでした。");
+      console.log("[SD Prompt Improver] 改善されたプロンプト:", improvedPrompt);
+      return improvedPrompt;
+    },
+    runQualityChecker: /* @__PURE__ */ __name(async function(imageBlob, prompt, responseText = "") {
+      const qcModel = state.settings.sdQcModel;
+      const qcSystemPrompt = state.settings.sdQcPrompt.replace("{prompt}", prompt || "(プロンプトなし)").replace("{response_text}", responseText || "(応答文なし)");
+      const imageBase64 = await this.fileToBase64(imageBlob);
+      const requestBody = {
+        contents: [{
+          parts: [
+            { text: qcSystemPrompt },
+            { inlineData: { mimeType: "image/png", data: imageBase64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1 }
+      };
+      const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`品質チェックAPIエラー (${response.status})`);
+      }
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (text.includes("Result: OK")) {
+        const result = { result: "OK", reason: "" };
+        console.log("[Quality Checker] 判定: OK");
+        return result;
+      } else {
+        const reasonMatch = text.match(/Reason:\s*(.*)/);
+        const reason = reasonMatch ? reasonMatch[1].trim() : "理由不明";
+        const result = { result: "NG", reason };
+        console.log(`[Quality Checker] 判定: NG。理由: ${reason}`);
+        return result;
+      }
+    }, "runQualityChecker"),
+    callStableDiffusionApi: /* @__PURE__ */ __name(async function(args) {
+      const apiUrl = state.settings.sdApiUrl.trim().replace(/\/$/, "");
+      const endpoint = `${apiUrl}/sdapi/v1/txt2img`;
+      const { advanced_params, ...mainArgs } = args;
+      const payload = {
+        negative_prompt: "",
+        seed: -1,
+        steps: 25,
+        cfg_scale: 7,
+        width: 1024,
+        height: 1024,
+        ...mainArgs,
+        ...advanced_params
+      };
+      if (!payload.prompt) {
+        throw new Error("必須パラメータ 'prompt' が指定されていません。");
+      }
+      if (payload.enable_hr === true && payload.denoising_strength === void 0) {
+        payload.denoising_strength = 0.7;
+        console.log("[Stable Diffusion] Hires. fixが有効ですがdenoising_strengthが未指定のため、デフォルト値の0.7を設定しました。");
+      }
+      if (payload.sd_model_checkpoint) {
+        if (!payload.override_settings) {
+          payload.override_settings = {};
+        }
+        if (!payload.override_settings.sd_model_checkpoint) {
+          payload.override_settings.sd_model_checkpoint = payload.sd_model_checkpoint;
+        }
+        delete payload.sd_model_checkpoint;
+      }
+      const headers = { "Content-Type": "application/json" };
+      if (state.settings.sdApiUser && state.settings.sdApiPassword) {
+        headers["Authorization"] = "Basic " + btoa(`${state.settings.sdApiUser}:${state.settings.sdApiPassword}`);
+      }
+      console.log("[Stable Diffusion] APIリクエスト送信:", endpoint, payload);
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        let errorMsg = `APIエラー (${response.status})`;
+        try {
+          const errorJson = await response.json();
+          errorMsg += `: ${errorJson.detail || JSON.stringify(errorJson)}`;
+        } catch (e) {
+        }
+        throw new Error(errorMsg);
+      }
+      const result = await response.json();
+      if (!result.images || result.images.length === 0) {
+        throw new Error("APIからの応答に画像データが含まれていませんでした。");
+      }
+      const base64Image = result.images[0];
+      return await this.base64ToBlob(base64Image, "image/png");
+    }, "callStableDiffusionApi"),
+    handleNovelAIGeneration: /* @__PURE__ */ __name(async function(args) {
+      if (!state.settings.novelaiApiKey) {
+        return { error: "NovelAI APIトークンが設定されていません。設定画面で追加してください。" };
+      }
+      try {
+        uiUtils.setLoadingIndicatorText("NovelAIで画像生成中...");
+        const imageBlob = await this.callNovelAIApi(args);
+        const imageId = await this.saveImageBlob(imageBlob);
+        return {
+          success: true,
+          message: "NovelAIによる画像の生成と保存に成功しました。",
+          _internal_ui_action: { type: "display_generated_images", imageIds: [imageId] }
+        };
+      } catch (error) {
+        console.error("[NovelAI] 画像生成エラー:", error);
+        const msg = error.message || String(error);
+        await uiUtils.showCustomAlert(`NovelAI画像生成エラー:
+${msg}`);
+        return { success: false, error: { message: `NovelAI画像生成エラー: ${msg}` } };
+      }
+    }, "handleNovelAIGeneration"),
+    callNovelAIApi: /* @__PURE__ */ __name(async function(args) {
+      const endpoint = "https://image.novelai.net/ai/generate-image";
+      const model = state.settings.novelaiModel || "nai-diffusion-4-5-curated";
+      const isV4 = model.includes("4");
+      const qualityPrefix = "{{masterpiece}}, {{best quality}}, {{highres}}, extremely detailed, anime style 2026, vibrant colors, sharp lines, highly detailed, 8k, ultra-detailed, intricate details, professional, detailed skin texture, individual hair strands, realistic cloth folds, glistening sweat droplets, volumetric lighting, cinematic lighting, rim light, dramatic shadows, atmospheric, beautiful face, detailed eyes with glossy highlights";
+      const finalPrompt = args.prompt ? `${qualityPrefix}, ${args.prompt}` : qualityPrefix;
+      const negPrompt = args.negative_prompt || "worst quality, lowres, blurry, deformed, ugly, mutated hands, extra limbs, poorly drawn face, bad anatomy, watermark, text, signature";
+      const payload = {
+        input: finalPrompt,
+        model,
+        action: "generate",
+        parameters: {
+          params_version: isV4 ? 3 : 1,
+          width: args.width || 832,
+          height: args.height || 1216,
+          scale: 5,
+          sampler: "k_euler_ancestral",
+          steps: 28,
+          n_samples: 1,
+          ucPreset: 0,
+          qualityToggle: isV4 ? true : false,
+          sm: false,
+          sm_dyn: false,
+          dynamic_thresholding: false,
+          cfg_rescale: 0,
+          noise_schedule: isV4 ? "karras" : "native",
+          legacy: false,
+          legacy_v3_extend: false,
+          negative_prompt: negPrompt,
+          seed: Math.floor(Math.random() * 4294967295),
+          reference_image_multiple: [],
+          reference_strength_multiple: [],
+          ...isV4 ? {
+            v4_prompt: {
+              caption: { base_caption: finalPrompt, char_captions: [] },
+              use_coords: false,
+              use_order: true
+            },
+            v4_negative_prompt: {
+              caption: { base_caption: negPrompt, char_captions: [] },
+              use_coords: false,
+              use_order: true
+            },
+            characterPrompts: [],
+            prefer_brownian: true,
+            deliberate_euler_ancestral_bug: false,
+            add_original_image: true,
+            reference_information_extracted_multiple: []
+          } : {}
+        }
+      };
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${state.settings.novelaiApiKey}`
+        },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        let errorMsg = `NovelAI APIエラー (${response.status})`;
+        try {
+          const j = await response.json();
+          errorMsg += `: ${j.message || JSON.stringify(j)}`;
+        } catch {
+        }
+        throw new Error(errorMsg);
+      }
+      const zipBlob = await response.blob();
+      if (!window.JSZip) {
+        await new Promise((resolve, reject) => {
+          const s = document.createElement("script");
+          s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
+          s.onload = resolve;
+          s.onerror = reject;
+          document.head.appendChild(s);
+        });
+      }
+      const zip = await window.JSZip.loadAsync(zipBlob);
+      const files = Object.values(zip.files).filter((f) => !f.dir);
+      if (files.length === 0) throw new Error("ZIPファイルに画像が見つかりませんでした。");
+      return await files[0].async("blob");
+    }, "callNovelAIApi"),
+    runQualityChecker: /* @__PURE__ */ __name(async function(imageBlob, prompt, responseText = "") {
+      const qcModel = state.settings.sdQcModel;
+      const qcSystemPrompt = state.settings.sdQcPrompt.replace("{prompt}", prompt || "(プロンプトなし)").replace("{response_text}", responseText || "(応答文なし)");
+      const imageBase64 = await this.fileToBase64(imageBlob);
+      const requestBody = {
+        contents: [{
+          parts: [
+            { text: qcSystemPrompt },
+            { inlineData: { mimeType: "image/png", data: imageBase64 } }
+          ]
+        }],
+        generationConfig: { temperature: 0.1 }
+      };
+      const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        throw new Error(`品質チェックAPIエラー (${response.status})`);
+      }
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      if (text.includes("Result: OK")) {
+        return { result: "OK", reason: "" };
+      } else {
+        const reasonMatch = text.match(/Reason:\s*(.*)/);
+        return { result: "NG", reason: reasonMatch ? reasonMatch[1] : "理由不明" };
+      }
+    }, "runQualityChecker")
+  };
+
+  // src/app-logic/memory.js
+  var memoryMethods = {
+    /**
+     * @private 現在の永続メモリから状況サマリーを生成するヘルパー関数
+     * @returns {string} AI向けのマークダウン形式のサマリー文字列
+     */
+    _buildSummaryForPrompt() {
+      const memory = state.currentPersistentMemory || {};
+      if (Object.keys(memory).length === 0) {
+        return "";
+      }
+      let summary = "【現在の状況サマリー】\n";
+      const sections = [];
+      const characterMemoryEntries = Object.entries(memory).filter(([key]) => key.startsWith("character_memory_"));
+      if (characterMemoryEntries.length > 0) {
+        let content = characterMemoryEntries.map(([key, value]) => {
+          const charName = key.replace("character_memory_", "");
+          return `■ ${charName}
+` + JSON.stringify(value, null, 2);
+        }).join("\n");
+        sections.push(`## キャラクター記憶 (manage_character_memory)
+${content}`);
+      }
+      if (memory.scene_stack && memory.scene_stack.length > 0) {
+        const currentScene = memory.scene_stack[memory.scene_stack.length - 1];
+        let content = Object.entries(currentScene).map(([key, value]) => `- ${key}: ${value}`).join("\n");
+        sections.push(`## シーン (manage_scene)
+${content}`);
+      }
+      if (typeof memory.game_day === "number") {
+        sections.push(`## 日付 (manage_game_date)
+- 現在: ${memory.game_day}日目`);
+      }
+      const statusEntries = Object.entries(memory).filter(([key]) => key.startsWith("character_") && !key.startsWith("character_memory_"));
+      if (statusEntries.length > 0) {
+        let content = statusEntries.map(([key, value]) => {
+          const charName = key.replace("character_", "");
+          const statuses = Object.entries(value).map(([sKey, sValue]) => `${sKey}: ${sValue}`).join(", ");
+          return `- ${charName}: ${statuses}`;
+        }).join("\n");
+        sections.push(`## 主要ステータス (manage_character_status)
+${content}`);
+      }
+      if (memory.inventories && Object.keys(memory.inventories).length > 0) {
+        let content = Object.entries(memory.inventories).map(([charName, items]) => {
+          const itemList = Object.entries(items).map(([itemName, qty]) => `${itemName}(${qty})`).join(", ");
+          return `- ${charName}: ${itemList}`;
+        }).join("\n");
+        sections.push(`## 所持品 (manage_inventory)
+${content}`);
+      }
+      if (memory.style_profiles && Object.keys(memory.style_profiles).length > 0) {
+        let content = Object.entries(memory.style_profiles).map(([charName, profile]) => {
+          const profileDetails = Object.entries(profile).map(([key, value]) => `${key}: ${value}`).join(", ");
+          return `- ${charName}: ${profileDetails}`;
+        }).join("\n");
+        sections.push(`## 口調設定 (manage_style_profile)
+${content}`);
+      }
+      const knownKeys = /* @__PURE__ */ new Set(["scene_stack", "game_day", "inventories", "style_profiles"]);
+      const flagAndMemoryKeys = Object.keys(memory).filter(
+        (key) => !key.startsWith("character_") && !knownKeys.has(key)
+      );
+      if (flagAndMemoryKeys.length > 0) {
+        let flagContent = flagAndMemoryKeys.map((key) => `- ${key}: ${JSON.stringify(memory[key])}`).join("\n");
+        sections.push(`## フラグ・重要設定 (manage_flags, manage_persistent_memory)
+${flagContent}`);
+      }
+      if (sections.length > 0) {
+        summary += sections.join("\n\n");
+        return summary;
+      }
+      return "";
+    },
     // --- Memory Feature ---
     toggleMemoryOptions(isEnabled) {
       elements.memoryOptionsContainer.classList.toggle("hidden", !isEnabled);
@@ -10818,117 +11783,6 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
         }
       }
     },
-    async autoGenerateTitle() {
-      const userMsgs = state.currentMessages.filter((m) => m.role === "user" && !m.isHidden);
-      const modelMsgs = state.currentMessages.filter((m) => (m.role === "model" || m.role === "assistant") && !m.error && !m.isHidden);
-      console.log(`[AutoTitle] 起動: userMsgs=${userMsgs.length}, modelMsgs=${modelMsgs.length}, chatId=${state.currentChatId}, provider=${state.settings.apiProvider}`);
-      if (userMsgs.length !== 1 || modelMsgs.length < 1) {
-        console.log("[AutoTitle] 条件不一致でスキップ");
-        return;
-      }
-      if (!state.currentChatId) {
-        console.log("[AutoTitle] currentChatId なしでスキップ");
-        return;
-      }
-      const provider = state.settings.apiProvider || "gemini";
-      const firstUserContent = (typeof userMsgs[0].content === "string" ? userMsgs[0].content : JSON.stringify(userMsgs[0].content)).substring(0, 300);
-      const firstModelContent = (typeof modelMsgs[0].content === "string" ? modelMsgs[0].content : "").substring(0, 300);
-      const titlePrompt = `以下の会話の内容を端的に表すタイトルを20文字以内で作成してください。タイトルのみを出力してください（説明・引用符不要）。
-
-ユーザー: ${firstUserContent}
-AI: ${firstModelContent}`;
-      try {
-        let title = null;
-        if (provider === "gemini") {
-          const apiKey = state.settings.apiKey;
-          if (!apiKey) return;
-          const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
-          const resp = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: titlePrompt }] }],
-              generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
-              safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-              ]
-            })
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            title = data.candidates?.[0]?.content?.parts?.find((p) => p.text && p.thought !== true)?.text?.trim();
-          }
-        } else if (provider === "anthropic") {
-          const apiKey = state.settings.anthropicApiKey;
-          if (!apiKey) return;
-          const resp = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": apiKey,
-              "anthropic-version": "2023-06-01",
-              "anthropic-dangerous-direct-browser-access": "true"
-            },
-            body: JSON.stringify({
-              model: "claude-haiku-4-5-20251001",
-              max_tokens: 30,
-              messages: [{ role: "user", content: titlePrompt }]
-            })
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            title = data.content?.find((c) => c.type === "text")?.text?.trim();
-          }
-        } else {
-          const apiKeyMap = {
-            openai: state.settings.openaiApiKey,
-            groq: state.settings.groqApiKey,
-            deepseek: state.settings.deepseekApiKey,
-            xai: state.settings.xaiApiKey,
-            mistral: state.settings.mistralApiKey,
-            openrouter: state.settings.openrouterApiKey,
-            zai: state.settings.zaiApiKey || state.settings.apiKey
-          };
-          const baseUrlMap = {
-            openai: "https://api.openai.com/v1/chat/completions",
-            groq: GROQ_API_BASE_URL,
-            deepseek: DEEPSEEK_API_BASE_URL,
-            xai: XAI_API_BASE_URL,
-            mistral: MISTRAL_API_BASE_URL,
-            openrouter: OPENROUTER_API_BASE_URL,
-            zai: ZAI_API_BASE_URL
-          };
-          const apiKey = apiKeyMap[provider];
-          const baseUrl = baseUrlMap[provider];
-          if (!apiKey || !baseUrl) return;
-          const resp = await fetch(baseUrl, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-            body: JSON.stringify({
-              model: state.settings.modelName,
-              max_tokens: 30,
-              messages: [{ role: "user", content: titlePrompt }]
-            })
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            title = data.choices?.[0]?.message?.content?.trim();
-          }
-        }
-        if (!title) return;
-        title = title.replace(/^["「『\s]+|["」』\s]+$/g, "").substring(0, 25);
-        if (!title) return;
-        await dbUtils.updateChatTitleDb(state.currentChatId, title);
-        uiUtils.updateChatTitle(title);
-        uiUtils.renderHistoryList();
-        console.log(`[AutoTitle] タイトル生成: "${title}"`);
-      } catch (e) {
-        console.warn("[AutoTitle] タイトル自動生成失敗:", e.message || e);
-      }
-    },
     async triggerAutoMemorySave() {
       if (!state.activeProfileId || !state.settings.apiKey) {
         console.error("[Memory] APIキーが未設定のため、自動学習をスキップしました。");
@@ -11039,18 +11893,6 @@ AI: ${firstModelContent}`;
     updateSummarizeButtonState() {
       const messageCount = state.currentMessages.length;
       elements.summarizeHistoryBtn.disabled = messageCount < 5;
-    },
-    applyFloatingPanelBehavior() {
-      const behavior = state.settings.floatingPanelBehavior;
-      const panel = elements.floatingActionPanel;
-      clearTimeout(state.panelFadeOutTimer);
-      if (behavior === "always") {
-        panel.classList.add("visible");
-      } else if (behavior === "hidden") {
-        panel.classList.remove("visible");
-      } else {
-        panel.classList.remove("visible");
-      }
     },
     showChatStats() {
       const ANTHROPIC_PRICING = {
@@ -11305,823 +12147,21 @@ ${summaryText}` : summaryText;
     },
     toggleSummaryButtonVisibility() {
       elements.summarizeHistoryBtn.classList.toggle("hidden", !state.settings.enableSummaryButton);
-    },
-    showActionPanel() {
-      const behavior = state.settings.floatingPanelBehavior;
-      const panel = elements.floatingActionPanel;
-      if (behavior === "always" || behavior === "hidden") {
-        return;
-      }
-      clearTimeout(state.panelFadeOutTimer);
-      panel.classList.add("visible");
-      state.panelFadeOutTimer = setTimeout(() => {
-        panel.classList.remove("visible");
-      }, 5e3);
-    },
-    updateScrollButtonsState() {
-      const mainContent = elements.chatScreen.querySelector(".main-content");
-      if (!mainContent) return;
-      const isAtTop = mainContent.scrollTop < 50;
-      const isAtBottom = mainContent.scrollHeight - mainContent.scrollTop - mainContent.clientHeight < 50;
-      elements.scrollToTopBtn.disabled = isAtTop;
-      elements.scrollToBottomBtn.disabled = isAtBottom;
-      if (elements.scrollBottomFab) {
-        elements.scrollBottomFab.classList.toggle("hidden", isAtBottom);
-      }
-    },
-    scrollToTop() {
-      const mainContent = elements.chatScreen.querySelector(".main-content");
-      if (!mainContent) return;
-      const startY = mainContent.scrollTop;
-      const endY = 0;
-      const distance = endY - startY;
-      const duration = 300;
-      let startTime = null;
-      if (distance === 0) return;
-      const step = /* @__PURE__ */ __name((currentTime) => {
-        if (startTime === null) startTime = currentTime;
-        const elapsed = currentTime - startTime;
-        const t = Math.min(elapsed / duration, 1);
-        const easedT = 1 - Math.pow(1 - t, 3);
-        mainContent.scrollTop = startY + distance * easedT;
-        if (elapsed < duration) {
-          requestAnimationFrame(step);
-        } else {
-          mainContent.scrollTop = endY;
-        }
-      }, "step");
-      requestAnimationFrame(step);
-    },
-    scrollToBottom(force = false) {
-      const mainContent = elements.chatScreen.querySelector(".main-content");
-      if (!mainContent) return;
-      if (!state.settings.autoScroll && !force) {
-        return;
-      }
-      const startY = mainContent.scrollTop;
-      const duration = 300;
-      let startTime = null;
-      const step = /* @__PURE__ */ __name((currentTime) => {
-        if (startTime === null) startTime = currentTime;
-        const elapsed = currentTime - startTime;
-        const endY = mainContent.scrollHeight - mainContent.clientHeight;
-        const distance = endY - startY;
-        const t = Math.min(elapsed / duration, 1);
-        const easedT = 1 - Math.pow(1 - t, 3);
-        mainContent.scrollTop = startY + distance * easedT;
-        if (elapsed < duration) {
-          requestAnimationFrame(step);
-        } else {
-          mainContent.scrollTop = mainContent.scrollHeight;
-        }
-      }, "step");
-      requestAnimationFrame(step);
-    },
-    /**
-     * [V2] 同期用にメタデータとアセットリストを分離して準備する
-     * @param {boolean} isManual - 手動実行かどうか
-     * @returns {Promise<{metadataJson: string, localAssets: Map<string, {blob: Blob, hash: string}>}>}
-     */
-    async _prepareExportData() {
-      try {
-        const [profiles, chats, memories, projects, allSettings] = await Promise.all([
-          dbUtils.getAllProfiles().then((data) => JSON.parse(JSON.stringify(data))),
-          (window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils))().then((data) => JSON.parse(JSON.stringify(data))),
-          dbUtils.getAllMemories().then((data) => JSON.parse(JSON.stringify(data))),
-          window.dbUtils.getAllProjects().then((data) => JSON.parse(JSON.stringify(data))),
-          new Promise((res, rej) => {
-            const store = dbUtils._getStore(SETTINGS_STORE);
-            const request = store.getAll();
-            request.onsuccess = () => res(JSON.parse(JSON.stringify(request.result)));
-            request.onerror = (e) => rej(e.target.error);
-          })
-        ]);
-        const imageAssets = await dbUtils.getAllAssets();
-        const chatImages = await new Promise((res, rej) => {
-          const store = dbUtils._getStore("image_store");
-          const request = store.getAll();
-          request.onsuccess = () => res(request.result);
-          request.onerror = (e) => rej(e.target.error);
-        });
-        const settingsForExport = allSettings.filter(
-          (setting) => !["dropboxTokens", "syncIsDirty", "syncLastError", "lastSyncId"].includes(setting.key)
-        );
-        const localAssets = /* @__PURE__ */ new Map();
-        const addAsset = /* @__PURE__ */ __name((assetId, blob) => {
-          if (!assetId || !blob) return;
-          localAssets.set(assetId, { blob, hash: null });
-        }, "addAsset");
-        for (const profile of profiles) {
-          const originalProfile = await dbUtils.getProfile(profile.id);
-          if (originalProfile && originalProfile.icon instanceof Blob) {
-            const assetId = `profile_${profile.id}_icon.webp`;
-            addAsset(assetId, originalProfile.icon);
-            profile.iconAssetId = assetId;
-          }
-          delete profile.icon;
-        }
-        for (const asset of imageAssets) {
-          if (asset.blob) {
-            if (!asset.assetId) {
-              const safeName = asset.name.replace(/[^a-zA-Z0-9]/g, "_");
-              asset.assetId = `asset_${safeName}_${new Date(asset.createdAt).getTime()}.webp`;
-              asset._needsUpdate = true;
-            }
-            addAsset(asset.assetId, asset.blob);
-          }
-        }
-        for (const image of chatImages) {
-          if (image.id && image.blob) {
-            addAsset(image.id, image.blob);
-          }
-        }
-        console.log("[Data Export V2] チャット履歴内の添付ファイルのアセット化とデータクレンジングを開始します...");
-        const blobsToSaveToImageStore = [];
-        const allDbChats = await dbUtils.getAllChats();
-        for (const chat of allDbChats) {
-          if (chat.messages) {
-            for (const message of chat.messages) {
-              if (message.imageIds && Array.isArray(message.imageIds)) {
-                message.imageIds = message.imageIds.filter((id) => id && typeof id === "string" && id.trim() !== "");
-              }
-              if (message.attachments && message.attachments.length > 0) {
-                const newImageIdsForMessage = [];
-                for (const attachment of message.attachments) {
-                  if (!attachment.assetId && attachment.base64Data) {
-                    attachment.assetId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-                    if (!chat._needsUpdate) chat._needsUpdate = true;
-                    try {
-                      const blob = await this.base64ToBlob(attachment.base64Data, attachment.mimeType);
-                      addAsset(attachment.assetId, blob);
-                      newImageIdsForMessage.push(attachment.assetId);
-                      blobsToSaveToImageStore.push({ id: attachment.assetId, blob });
-                    } catch (e) {
-                      console.error(`[Data Export V2] 新規添付ファイルのアセット化に失敗:`, e);
-                    }
-                  } else if (attachment.assetId) {
-                    const imgData = chatImages.find((img) => img.id === attachment.assetId);
-                    if (imgData && imgData.blob) {
-                      addAsset(attachment.assetId, imgData.blob);
-                    } else {
-                      console.warn(`[Data Export V2] 既存アセット(ID: ${attachment.assetId})のBlobがimage_storeに見つかりません。`);
-                    }
-                  }
-                }
-                if (newImageIdsForMessage.length > 0) {
-                  if (!message.imageIds) message.imageIds = [];
-                  message.imageIds.push(...newImageIdsForMessage);
-                }
-              }
-            }
-          }
-        }
-        console.log("[Data Export V2] アセット化とクレンジングが完了しました。");
-        if (blobsToSaveToImageStore.length > 0) {
-          console.log(`[Data Export V2] ${blobsToSaveToImageStore.length}件の新規アセットBlobをimage_storeに永続化します。`);
-          const tx = state.db.transaction("image_store", "readwrite");
-          const store = tx.objectStore("image_store");
-          for (const item of blobsToSaveToImageStore) {
-            store.put(item);
-          }
-        }
-        const assetsToUpdate = imageAssets.filter((a) => a._needsUpdate);
-        if (assetsToUpdate.length > 0) {
-          console.log(`[Data Export V2] ${assetsToUpdate.length}件のimage_assetsにassetIdを永続化します。`);
-          const tx = state.db.transaction("image_assets", "readwrite");
-          const store = tx.objectStore("image_assets");
-          for (const asset of assetsToUpdate) {
-            delete asset._needsUpdate;
-            store.put(asset);
-          }
-        }
-        const chatsToUpdate = allDbChats.filter((c) => c._needsUpdate);
-        if (chatsToUpdate.length > 0) {
-          console.log(`[Data Export V2] ${chatsToUpdate.length}件のチャットにattachmentのassetIdを永続化します。`);
-          const tx = state.db.transaction(CHATS_STORE, "readwrite");
-          const store = tx.objectStore(CHATS_STORE);
-          for (const chat of chatsToUpdate) {
-            const chatForDb = JSON.parse(JSON.stringify(chat));
-            chatForDb.messages.forEach((msg) => {
-              if (msg.attachments) {
-                msg.attachments.forEach((att) => delete att.base64Data);
-              }
-            });
-            delete chatForDb._needsUpdate;
-            store.put(chatForDb);
-            if (chat.id === state.currentChatId) {
-              state.currentMessages = chat.messages;
-            }
-          }
-        }
-        for (const chat of chats) {
-          if (chat.messages) {
-            for (const message of chat.messages) {
-              if (message.attachments && message.attachments.length > 0) {
-                for (const attachment of message.attachments) {
-                  if (!attachment.base64Data && attachment.assetId) {
-                    const assetBlobData = localAssets.get(attachment.assetId);
-                    if (assetBlobData && assetBlobData.blob) {
-                      try {
-                        attachment.base64Data = await this.fileToBase64(assetBlobData.blob);
-                      } catch (e) {
-                        console.error(`[Data Export V2] エクスポート中に assetId: ${attachment.assetId} から base64Data の復元に失敗しました。`, e);
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        const syncId = "sync_" + Date.now() + "_" + Math.random().toString(36).substring(2, 9);
-        const metadata = {
-          version: "2.0",
-          exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          syncId,
-          data: {
-            profiles,
-            chats,
-            memories,
-            projects,
-            assets: imageAssets.map((a) => ({ name: a.name, assetId: a.assetId, createdAt: a.createdAt })),
-            settings: settingsForExport
-          }
-        };
-        console.log(`[Data Export V2] データ準備完了。syncId: ${syncId}, アセット数: ${localAssets.size}`);
-        return {
-          metadataJson: JSON.stringify(metadata),
-          localAssets
-        };
-      } catch (error) {
-        console.error("[Data Export V2] エクスポート準備中にエラー:", error);
-        throw new Error("データのエクスポート準備に失敗しました。");
-      }
-    },
-    async importDataFromString(jsonString) {
-      console.log("[Data Import V2] 文字列からのデータインポートを開始します。");
-      uiUtils.showProgressDialog("インポートデータを準備中...");
-      try {
-        const parsedData = JSON.parse(jsonString);
-        if (parsedData.version !== "2.0" || !parsedData.data) {
-          throw new Error("インポートデータの形式が無効か、バージョンが古いです。");
-        }
-        const cloudData = parsedData.data;
-        const localAssetsBeforeClear = /* @__PURE__ */ new Map();
-        const localImageAssets = await dbUtils.getAllAssets();
-        localImageAssets.forEach((asset) => {
-          if (asset.assetId && asset.blob) localAssetsBeforeClear.set(asset.assetId, asset.blob);
-        });
-        const localChatImages = await new Promise((res, rej) => {
-          const store = dbUtils._getStore("image_store");
-          const request = store.getAll();
-          request.onsuccess = () => res(request.result);
-          request.onerror = (e) => rej(e.target.error);
-        });
-        localChatImages.forEach((image) => {
-          if (image.id && image.blob) localAssetsBeforeClear.set(image.id, image.blob);
-        });
-        console.log(`[Sync Pull] ローカルに存在するアセットBlob: ${localAssetsBeforeClear.size}件をメモリに保持しました。`);
-        const requiredAssetIds = /* @__PURE__ */ new Set();
-        (cloudData.profiles || []).forEach((p) => {
-          if (p.iconAssetId) requiredAssetIds.add(p.iconAssetId);
-        });
-        (cloudData.assets || []).forEach((a) => {
-          if (a.assetId) requiredAssetIds.add(a.assetId);
-        });
-        (cloudData.chats || []).forEach((c) => {
-          (c.messages || []).forEach((m) => {
-            if (m.imageIds) m.imageIds.forEach((id) => {
-              if (id) requiredAssetIds.add(id);
-            });
-          });
-        });
-        console.log(`[Sync Pull] クラウドが必要とするアセットID: ${requiredAssetIds.size}件`);
-        const assetsToDownloadIds = [...requiredAssetIds].filter((id) => !localAssetsBeforeClear.has(id));
-        console.log(`[Sync Pull] ダウンロードが必要なアセットID: ${assetsToDownloadIds.length}件`);
-        const downloadedAssets = /* @__PURE__ */ new Map();
-        if (assetsToDownloadIds.length > 0) {
-          for (let i = 0; i < assetsToDownloadIds.length; i++) {
-            const assetId = assetsToDownloadIds[i];
-            uiUtils.updateProgressMessage(`アセットをダウンロード中 (${i + 1}/${assetsToDownloadIds.length})`);
-            try {
-              const blob = await window.dropboxApi.downloadAsset(assetId);
-              if (blob) {
-                downloadedAssets.set(assetId, blob);
-              } else {
-                console.warn(`[Sync Pull] アセット(ID: ${assetId})のダウンロードに失敗、またはクラウドに存在しませんでした。`);
-              }
-            } catch (downloadError) {
-              console.error(`[Sync Pull] アセット(ID: ${assetId})のダウンロード中にエラーが発生しました:`, downloadError);
-            }
-          }
-        }
-        const { removedAssetInfo } = await dbUtils.clearAndImportData(cloudData, localAssetsBeforeClear, downloadedAssets, requiredAssetIds);
-        console.log("[Data Import V2] データのインポートに成功しました。");
-        return {
-          ...parsedData,
-          // syncId, exportedAtなどを含む
-          removedAssetInfo
-          // クレンジング情報を追加
-        };
-      } catch (error) {
-        console.error("[Data Import V2] インポート処理中にエラーが発生しました:", error);
-        uiUtils.hideProgressDialog();
-        if (error && error.missingAssetInfo) {
-          const detailLines = Object.entries(error.missingAssetInfo).map(([chatTitle, ids]) => `・${chatTitle}: ${ids.length}件の画像が不足`).join("\n");
-          const message = [
-            "必要な画像アセットが不足しているため同期を中止しました。",
-            "ネットワーク状況またはDropbox上のアセット状態を確認し、再度同期をお試しください。",
-            "不足している画像一覧:",
-            detailLines
-          ].join("\n");
-          const wrappedError = new Error(message);
-          wrappedError.missingAssetInfo = error.missingAssetInfo;
-          wrappedError.code = error.code || "MISSING_ASSETS";
-          throw wrappedError;
-        }
-        throw new Error(`データのインポートに失敗しました: ${error.message}`);
-      }
-    },
-    /**
-     * [PKCE] code_verifierを生成する
-     * @returns {string} ランダムな文字列
-     */
-    _generateCodeVerifier() {
-      const randomBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(randomBytes);
-      return btoa(String.fromCharCode.apply(null, randomBytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-    },
-    /**
-     * [PKCE] code_verifierからcode_challengeを生成する
-     * @param {string} verifier - code_verifier
-     * @returns {Promise<string>} SHA-256でハッシュ化されたチャレンジ文字列
-     */
-    async _generateCodeChallenge(verifier) {
-      const encoder = new TextEncoder();
-      const data = encoder.encode(verifier);
-      const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
-      return btoa(String.fromCharCode.apply(null, new Uint8Array(hashBuffer))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-    },
-    async updateDropboxUIState() {
-      const tokenData = await dbUtils.getSetting("dropboxTokens");
-      const isAuthenticated = tokenData && tokenData.value && tokenData.value.access_token;
-      elements.syncStatusHeaderIcon.style.display = isAuthenticated ? "block" : "none";
-      if (isAuthenticated) {
-        document.body.classList.add("dropbox-connected");
-        elements.dropboxAuthState.classList.add("hidden");
-        elements.dropboxConnectedState.classList.remove("hidden");
-        const lastSyncSetting = await dbUtils.getSetting("lastSyncTimestamp");
-        if (lastSyncSetting && lastSyncSetting.value) {
-          const date = new Date(lastSyncSetting.value);
-          elements.lastSyncTimeDisplay.textContent = `最終同期: ${date.toLocaleString("ja-JP")}`;
-        } else {
-          elements.lastSyncTimeDisplay.textContent = `最終同期: なし`;
-        }
-        try {
-          const accountInfo = await window.dropboxApi.testConnection();
-          elements.dropboxUserName.textContent = accountInfo.name.display_name;
-          this.updateSyncStatusUI(state.sync.isDirty ? "dirty" : "idle");
-        } catch (error) {
-          console.error("Dropboxユーザー情報の取得に失敗:", error);
-          elements.dropboxUserName.textContent = "不明なユーザー";
-          this.updateSyncStatusUI("error", "アカウント情報取得失敗");
-        }
-      } else {
-        document.body.classList.remove("dropbox-connected");
-        elements.dropboxAuthState.classList.remove("hidden");
-        elements.dropboxConnectedState.classList.add("hidden");
-        elements.lastSyncTimeDisplay.textContent = "";
-        this.updateSyncStatusUI("not-connected");
-      }
-    },
-    /**
-     * 同期ステータスUIを更新する
-     * @param {string} status - 'idle', 'dirty', 'pushing', 'pulling', 'error'
-     * @param {string} [message] - 表示するカスタムメッセージ
-     */
-    updateSyncStatusUI(status, message) {
-      console.log(`[Sync UI] updateSyncStatusUI called with status: "${status}", message: "${message || ""}"`);
-      if (status === "error" && message) {
-        state.sync.lastError = {
-          message,
-          timestamp: (/* @__PURE__ */ new Date()).toISOString()
-        };
-      }
-      const errorDisplay = document.getElementById("sync-error-display");
-      const errorMessageEl = document.getElementById("sync-error-message");
-      const errorTimestampEl = document.getElementById("sync-error-timestamp");
-      if (state.sync.lastError) {
-        errorMessageEl.textContent = state.sync.lastError.message;
-        errorTimestampEl.textContent = `発生日時: ${new Date(state.sync.lastError.timestamp).toLocaleString("ja-JP")}`;
-        errorDisplay.classList.remove("hidden");
-      } else {
-        errorDisplay.classList.add("hidden");
-      }
-      const indicators = [
-        elements.syncStatusHeaderIcon,
-        elements.syncStatusSettingsIcon,
-        // 設定画面のアイコンを追加
-        elements.syncProgressText
-      ].filter(Boolean);
-      const statusMap = {
-        "not-connected": { text: "未連携", icon: "cloud_off" },
-        "idle": { text: "同期済み", icon: "cloud_done" },
-        "dirty": { text: "要同期", icon: "cloud_upload" },
-        "syncing": { text: "同期中...", icon: "cloud_sync" },
-        "error": { text: "同期エラー", icon: "cloud_alert" }
-      };
-      const newStatus = statusMap[status] ? status : "error";
-      const statusInfo = statusMap[newStatus];
-      indicators.forEach((element) => {
-        element.dataset.status = newStatus;
-        if (element.classList.contains("sync-status-header-icon")) {
-          element.textContent = statusInfo.icon;
-          element.title = message || statusInfo.text;
-        } else if (element.id === "sync-progress-text") {
-          if (newStatus === "syncing") {
-            element.textContent = `(${message || statusInfo.text})`;
-          } else {
-            element.textContent = "";
-          }
-        }
-      });
-    },
-    // --- Stable Diffusion連携機能の本体ロジック ---
-    handleStableDiffusionGeneration: /* @__PURE__ */ __name(async function(args, responseText = "") {
-      if (!state.settings.sdApiUrl) {
-        return { error: "Stable Diffusion WebUIのURLが設定されていません。" };
-      }
-      let currentPrompt = args.prompt;
-      let generatedImageBlob = null;
-      let qualityCheckResult = null;
-      const isQcEnabled = state.settings.sdEnableQualityChecker;
-      const maxRetries = isQcEnabled ? state.settings.sdQcRetries || 0 : 0;
-      try {
-        for (let i = 0; i <= maxRetries; i++) {
-          if (i > 0) {
-            uiUtils.setLoadingIndicatorText(`プロンプト改善中... (${i}/${maxRetries})`);
-            currentPrompt = await this._improveSdPrompt(args.prompt, currentPrompt, qualityCheckResult.reason);
-          }
-          uiUtils.setLoadingIndicatorText("SDで画像生成中...");
-          const payload = { ...args, prompt: currentPrompt };
-          generatedImageBlob = await this.callStableDiffusionApi(payload);
-          if (!isQcEnabled) {
-            break;
-          }
-          uiUtils.setLoadingIndicatorText("品質チェック中...");
-          qualityCheckResult = await this.runQualityChecker(generatedImageBlob, currentPrompt, responseText);
-          console.log(`[Quality Check Cycle ${i + 1}/${maxRetries + 1}] 判定: ${qualityCheckResult.result}。理由: ${qualityCheckResult.reason || "N/A"}`);
-          if (qualityCheckResult.result === "OK") {
-            break;
-          } else {
-            if (i >= maxRetries) {
-              throw new Error(`品質チェックが上限回数(${maxRetries}回)に達しました。最後のNG理由: ${qualityCheckResult.reason}`);
-            }
-          }
-        }
-        const imageId = await this.saveImageBlob(generatedImageBlob);
-        return {
-          success: true,
-          message: "Stable Diffusionによる画像の生成と保存に成功しました。",
-          _internal_ui_action: {
-            type: "display_generated_images",
-            imageIds: [imageId]
-          },
-          meta: { ...args, finalPrompt: currentPrompt, qualityCheckResult }
-        };
-      } catch (error) {
-        console.error("[Stable Diffusion] 画像生成プロセスでエラー:", error);
-        return { success: false, error: { message: `画像生成エラー: ${error.message}` } };
-      }
-    }, "handleStableDiffusionGeneration"),
-    // --- デバッグログUI関連 ---
-    toggleDebugLogButtonVisibility(isEnabled) {
-      elements.debugLogBtn.classList.toggle("hidden", !isEnabled);
-    },
-    openLogDialog() {
-      this.renderLogDialogContent();
-      elements.debugLogDialog.showModal();
-    },
-    renderLogDialogContent() {
-      const logs = DebugLogger.getLogs();
-      const container = elements.logContainer;
-      const fragment = document.createDocumentFragment();
-      const LOG_TRUNCATE_THRESHOLD = 200;
-      if (logs.length === 0) {
-        container.innerHTML = '<div class="log-entry">ログはありません。</div>';
-        return;
-      }
-      logs.forEach((log) => {
-        const entryDiv = document.createElement("div");
-        entryDiv.classList.add("log-entry", `log-type-${log.type}`);
-        const timestampSpan = document.createElement("span");
-        timestampSpan.className = "log-timestamp";
-        timestampSpan.textContent = log.timestamp.toLocaleTimeString("ja-JP", { hour12: false });
-        const typeSpan = document.createElement("span");
-        typeSpan.className = "log-type";
-        typeSpan.textContent = `[${log.type}]`;
-        entryDiv.appendChild(timestampSpan);
-        entryDiv.appendChild(typeSpan);
-        const messageText = log.args.join(" ");
-        if (messageText.length > LOG_TRUNCATE_THRESHOLD) {
-          entryDiv.classList.add("collapsible");
-          const summarySpan = document.createElement("span");
-          summarySpan.className = "log-summary";
-          summarySpan.textContent = messageText.substring(0, LOG_TRUNCATE_THRESHOLD) + "... (クリックして展開)";
-          const fullSpan = document.createElement("span");
-          fullSpan.className = "log-full hidden";
-          fullSpan.textContent = messageText;
-          entryDiv.appendChild(summarySpan);
-          entryDiv.appendChild(fullSpan);
-          entryDiv.addEventListener("click", () => {
-            summarySpan.classList.toggle("hidden");
-            fullSpan.classList.toggle("hidden");
-          });
-        } else {
-          const messageNode = document.createTextNode(messageText);
-          entryDiv.appendChild(messageNode);
-        }
-        fragment.appendChild(entryDiv);
-      });
-      container.innerHTML = "";
-      container.appendChild(fragment);
-      container.scrollTop = container.scrollHeight;
-    },
-    clearLogs() {
-      DebugLogger.clearLogs();
-      this.renderLogDialogContent();
-    },
-    async copyLogsToClipboard() {
-      const logs = DebugLogger.getLogs();
-      if (logs.length === 0) {
-        await uiUtils.showCustomAlert("コピーするログがありません。");
-        return;
-      }
-      const textToCopy = logs.map((log) => {
-        const time = log.timestamp.toISOString();
-        const message = log.args.join(" ");
-        return `${time} [${log.type}] ${message}`;
-      }).join("\n");
-      try {
-        await navigator.clipboard.writeText(textToCopy);
-        await uiUtils.showCustomAlert("ログをクリップボードにコピーしました。");
-      } catch (err) {
-        console.error("クリップボードへのコピーに失敗:", err);
-        await uiUtils.showCustomAlert("クリップボードへのコピーに失敗しました。");
-      }
-    },
-    async _improveSdPrompt(originalPrompt, failedPrompt, ngReason) {
-      const model = state.settings.sdPromptImproveModel;
-      const systemPrompt = state.settings.sdPromptImproveSystemPrompt;
-      const userPrompt = `元のプロンプト: ${originalPrompt}
-失敗したプロンプト: ${failedPrompt}
-失敗理由: ${ngReason}`;
-      const requestBody = {
-        contents: [{ parts: [{ text: userPrompt }] }],
-        systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { temperature: 0.5 }
-      };
-      const endpoint = `${GEMINI_API_BASE_URL}${model}:generateContent`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) throw new Error(`プロンプト改善APIエラー (${response.status})`);
-      const data = await response.json();
-      const improvedPrompt = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!improvedPrompt) throw new Error("プロンプト改善APIから有効な応答が得られませんでした。");
-      console.log("[SD Prompt Improver] 改善されたプロンプト:", improvedPrompt);
-      return improvedPrompt;
-    },
-    runQualityChecker: /* @__PURE__ */ __name(async function(imageBlob, prompt, responseText = "") {
-      const qcModel = state.settings.sdQcModel;
-      const qcSystemPrompt = state.settings.sdQcPrompt.replace("{prompt}", prompt || "(プロンプトなし)").replace("{response_text}", responseText || "(応答文なし)");
-      const imageBase64 = await this.fileToBase64(imageBlob);
-      const requestBody = {
-        contents: [{
-          parts: [
-            { text: qcSystemPrompt },
-            { inlineData: { mimeType: "image/png", data: imageBase64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1 }
-      };
-      const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`品質チェックAPIエラー (${response.status})`);
-      }
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      if (text.includes("Result: OK")) {
-        const result = { result: "OK", reason: "" };
-        console.log("[Quality Checker] 判定: OK");
-        return result;
-      } else {
-        const reasonMatch = text.match(/Reason:\s*(.*)/);
-        const reason = reasonMatch ? reasonMatch[1].trim() : "理由不明";
-        const result = { result: "NG", reason };
-        console.log(`[Quality Checker] 判定: NG。理由: ${reason}`);
-        return result;
-      }
-    }, "runQualityChecker"),
-    callStableDiffusionApi: /* @__PURE__ */ __name(async function(args) {
-      const apiUrl = state.settings.sdApiUrl.trim().replace(/\/$/, "");
-      const endpoint = `${apiUrl}/sdapi/v1/txt2img`;
-      const { advanced_params, ...mainArgs } = args;
-      const payload = {
-        negative_prompt: "",
-        seed: -1,
-        steps: 25,
-        cfg_scale: 7,
-        width: 1024,
-        height: 1024,
-        ...mainArgs,
-        ...advanced_params
-      };
-      if (!payload.prompt) {
-        throw new Error("必須パラメータ 'prompt' が指定されていません。");
-      }
-      if (payload.enable_hr === true && payload.denoising_strength === void 0) {
-        payload.denoising_strength = 0.7;
-        console.log("[Stable Diffusion] Hires. fixが有効ですがdenoising_strengthが未指定のため、デフォルト値の0.7を設定しました。");
-      }
-      if (payload.sd_model_checkpoint) {
-        if (!payload.override_settings) {
-          payload.override_settings = {};
-        }
-        if (!payload.override_settings.sd_model_checkpoint) {
-          payload.override_settings.sd_model_checkpoint = payload.sd_model_checkpoint;
-        }
-        delete payload.sd_model_checkpoint;
-      }
-      const headers = { "Content-Type": "application/json" };
-      if (state.settings.sdApiUser && state.settings.sdApiPassword) {
-        headers["Authorization"] = "Basic " + btoa(`${state.settings.sdApiUser}:${state.settings.sdApiPassword}`);
-      }
-      console.log("[Stable Diffusion] APIリクエスト送信:", endpoint, payload);
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) {
-        let errorMsg = `APIエラー (${response.status})`;
-        try {
-          const errorJson = await response.json();
-          errorMsg += `: ${errorJson.detail || JSON.stringify(errorJson)}`;
-        } catch (e) {
-        }
-        throw new Error(errorMsg);
-      }
-      const result = await response.json();
-      if (!result.images || result.images.length === 0) {
-        throw new Error("APIからの応答に画像データが含まれていませんでした。");
-      }
-      const base64Image = result.images[0];
-      return await this.base64ToBlob(base64Image, "image/png");
-    }, "callStableDiffusionApi"),
-    handleNovelAIGeneration: /* @__PURE__ */ __name(async function(args) {
-      if (!state.settings.novelaiApiKey) {
-        return { error: "NovelAI APIトークンが設定されていません。設定画面で追加してください。" };
-      }
-      try {
-        uiUtils.setLoadingIndicatorText("NovelAIで画像生成中...");
-        const imageBlob = await this.callNovelAIApi(args);
-        const imageId = await this.saveImageBlob(imageBlob);
-        return {
-          success: true,
-          message: "NovelAIによる画像の生成と保存に成功しました。",
-          _internal_ui_action: { type: "display_generated_images", imageIds: [imageId] }
-        };
-      } catch (error) {
-        console.error("[NovelAI] 画像生成エラー:", error);
-        const msg = error.message || String(error);
-        await uiUtils.showCustomAlert(`NovelAI画像生成エラー:
-${msg}`);
-        return { success: false, error: { message: `NovelAI画像生成エラー: ${msg}` } };
-      }
-    }, "handleNovelAIGeneration"),
-    callNovelAIApi: /* @__PURE__ */ __name(async function(args) {
-      const endpoint = "https://image.novelai.net/ai/generate-image";
-      const model = state.settings.novelaiModel || "nai-diffusion-4-5-curated";
-      const isV4 = model.includes("4");
-      const qualityPrefix = "{{masterpiece}}, {{best quality}}, {{highres}}, extremely detailed, anime style 2026, vibrant colors, sharp lines, highly detailed, 8k, ultra-detailed, intricate details, professional, detailed skin texture, individual hair strands, realistic cloth folds, glistening sweat droplets, volumetric lighting, cinematic lighting, rim light, dramatic shadows, atmospheric, beautiful face, detailed eyes with glossy highlights";
-      const finalPrompt = args.prompt ? `${qualityPrefix}, ${args.prompt}` : qualityPrefix;
-      const negPrompt = args.negative_prompt || "worst quality, lowres, blurry, deformed, ugly, mutated hands, extra limbs, poorly drawn face, bad anatomy, watermark, text, signature";
-      const payload = {
-        input: finalPrompt,
-        model,
-        action: "generate",
-        parameters: {
-          params_version: isV4 ? 3 : 1,
-          width: args.width || 832,
-          height: args.height || 1216,
-          scale: 5,
-          sampler: "k_euler_ancestral",
-          steps: 28,
-          n_samples: 1,
-          ucPreset: 0,
-          qualityToggle: isV4 ? true : false,
-          sm: false,
-          sm_dyn: false,
-          dynamic_thresholding: false,
-          cfg_rescale: 0,
-          noise_schedule: isV4 ? "karras" : "native",
-          legacy: false,
-          legacy_v3_extend: false,
-          negative_prompt: negPrompt,
-          seed: Math.floor(Math.random() * 4294967295),
-          reference_image_multiple: [],
-          reference_strength_multiple: [],
-          ...isV4 ? {
-            v4_prompt: {
-              caption: { base_caption: finalPrompt, char_captions: [] },
-              use_coords: false,
-              use_order: true
-            },
-            v4_negative_prompt: {
-              caption: { base_caption: negPrompt, char_captions: [] },
-              use_coords: false,
-              use_order: true
-            },
-            characterPrompts: [],
-            prefer_brownian: true,
-            deliberate_euler_ancestral_bug: false,
-            add_original_image: true,
-            reference_information_extracted_multiple: []
-          } : {}
-        }
-      };
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${state.settings.novelaiApiKey}`
-        },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) {
-        let errorMsg = `NovelAI APIエラー (${response.status})`;
-        try {
-          const j = await response.json();
-          errorMsg += `: ${j.message || JSON.stringify(j)}`;
-        } catch {
-        }
-        throw new Error(errorMsg);
-      }
-      const zipBlob = await response.blob();
-      if (!window.JSZip) {
-        await new Promise((resolve, reject) => {
-          const s = document.createElement("script");
-          s.src = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-          s.onload = resolve;
-          s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-      const zip = await window.JSZip.loadAsync(zipBlob);
-      const files = Object.values(zip.files).filter((f) => !f.dir);
-      if (files.length === 0) throw new Error("ZIPファイルに画像が見つかりませんでした。");
-      return await files[0].async("blob");
-    }, "callNovelAIApi"),
-    runQualityChecker: /* @__PURE__ */ __name(async function(imageBlob, prompt, responseText = "") {
-      const qcModel = state.settings.sdQcModel;
-      const qcSystemPrompt = state.settings.sdQcPrompt.replace("{prompt}", prompt || "(プロンプトなし)").replace("{response_text}", responseText || "(応答文なし)");
-      const imageBase64 = await this.fileToBase64(imageBlob);
-      const requestBody = {
-        contents: [{
-          parts: [
-            { text: qcSystemPrompt },
-            { inlineData: { mimeType: "image/png", data: imageBase64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1 }
-      };
-      const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`品質チェックAPIエラー (${response.status})`);
-      }
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      if (text.includes("Result: OK")) {
-        return { result: "OK", reason: "" };
-      } else {
-        const reasonMatch = text.match(/Reason:\s*(.*)/);
-        return { result: "NG", reason: reasonMatch ? reasonMatch[1] : "理由不明" };
-      }
-    }, "runQualityChecker")
+    }
   };
+
+  // src/app-logic.js
+  var appLogic = Object.assign(
+    {},
+    profileMethods,
+    lifecycleMethods,
+    syncMethods,
+    chatMethods,
+    messageMethods,
+    attachmentMethods,
+    mediaMethods,
+    memoryMethods
+  );
 
   // src/db.js
   var dbUtils = {
