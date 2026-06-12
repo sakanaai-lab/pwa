@@ -12,7 +12,7 @@
      */
     async _getTokens() {
         if (!window.dbUtils) return null;
-        const tokenData = await dbUtils.getSetting('dropboxTokens');
+        const tokenData = await window.dbUtils.getSetting('dropboxTokens');
         return tokenData ? tokenData.value : null;
     },
 
@@ -22,7 +22,7 @@
      */
     async _saveTokens(tokens) {
         if (!window.dbUtils) return;
-        await dbUtils.saveSetting('dropboxTokens', tokens);
+        await window.dbUtils.saveSetting('dropboxTokens', tokens);
     },
 
     /**
@@ -351,7 +351,7 @@
                 console.warn("Failed to revoke token on Dropbox side, but clearing local tokens anyway.", error);
             }
         }
-        await dbUtils.saveSetting('dropboxTokens', null);
+        await window.dbUtils.saveSetting('dropboxTokens', null);
         console.log('[Dropbox API] Disconnected and local tokens cleared.');
     },
 
