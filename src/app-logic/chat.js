@@ -1,5 +1,5 @@
 // appLogic 機能モジュール: chat（Phase 3 で app-logic.js から分割）。挙動は不変。
-import { CHATS_STORE, DEEPSEEK_API_BASE_URL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
+import { CHATS_STORE, DEEPSEEK_API_BASE_URL, DEFAULT_DEEPSEEK_MODEL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
 import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
@@ -813,12 +813,19 @@ export const chatMethods = {
                 const apiKey = apiKeyMap[provider];
                 const baseUrl = baseUrlMap[provider];
                 if (!apiKey || !baseUrl) return;
+                // タイトル生成は軽量・非リーズナーモデルを優先（gemini=flash-lite / anthropic=haiku と同方針）。
+                // 推論モデル（deepseek-reasoner / v4-pro 等）を小さい max_tokens で呼ぶと、思考で
+                // トークンを使い切り content が空になりタイトルが生成されないため。
+                const titleModelMap = {
+                    deepseek: DEFAULT_DEEPSEEK_MODEL // 'deepseek-chat'（非リーズナー）
+                };
+                const titleModel = titleModelMap[provider] || state.settings.modelName;
                 const resp = await fetch(baseUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
                     body: JSON.stringify({
-                        model: state.settings.modelName,
-                        max_tokens: 30,
+                        model: titleModel,
+                        max_tokens: 200,
                         messages: [{ role: 'user', content: titlePrompt }]
                     })
                 });
