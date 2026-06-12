@@ -13,6 +13,8 @@
         .replace(/\s+/g, ' ') // 連続する空白を半角スペース1つに統一
         .replace(/･/g, '・');
 }
+// app.js（別モジュール）からも参照されるため window に公開する
+window.normalizeCharacterName = normalizeCharacterName;
 
 
 /**
@@ -191,13 +193,13 @@ async function manage_timer({ action, timer_name, duration_minutes }) {
             if (typeof duration_minutes !== 'number' || duration_minutes <= 0) {
                 return { error: "タイマーを開始するには、0より大きい分数(duration_minutes)が必要です。" };
             }
-            return appLogic.timerManager.start(timer_name, duration_minutes);
+            return window.appLogic.timerManager.start(timer_name, duration_minutes);
 
         case "check":
-            return appLogic.timerManager.check(timer_name);
+            return window.appLogic.timerManager.check(timer_name);
 
         case "stop":
-            return appLogic.timerManager.stop(timer_name);
+            return window.appLogic.timerManager.stop(timer_name);
 
         default:
             return { error: `無効なアクションです: ${action}` };
@@ -596,8 +598,8 @@ async function generate_random_string({ length, count = 1, use_uppercase = true,
 async function search_web({ query }) {
     console.log(`[Function Calling] search_webが呼び出されました。`, { query });
   
-    const apiKey = state.settings.googleSearchApiKey;
-    const engineId = state.settings.googleSearchEngineId;
+    const apiKey = window.state.settings.googleSearchApiKey;
+    const engineId = window.state.settings.googleSearchEngineId;
   
     if (!apiKey || !engineId) {
         return { error: "Web検索機能を利用するには、設定画面でGoogle Search APIキーと検索エンジンIDの両方を設定する必要があります。" };
