@@ -14,14 +14,16 @@ export const DebugLogger = {
             this._unpatchConsole();
         }
         this.isInitialized = true;
-        console.log(`[DebugLogger] 初期化完了。デバッグモード: ${state.settings.debugMode ? 'ON' : 'OFF'}`);
+        console.log(
+            `[DebugLogger] 初期化完了。デバッグモード: ${state.settings.debugMode ? 'ON' : 'OFF'}`
+        );
     },
 
     _patchConsole() {
         if (this.originalConsole.log) return; // 既にパッチ済み
 
         const consoleMethods = ['log', 'error', 'warn', 'info', 'debug'];
-        consoleMethods.forEach(method => {
+        consoleMethods.forEach((method) => {
             this.originalConsole[method] = console[method];
             console[method] = (...args) => {
                 // ログを内部配列に保存
@@ -35,7 +37,7 @@ export const DebugLogger = {
     _unpatchConsole() {
         if (!this.originalConsole.log) return; // パッチされていない
 
-        Object.keys(this.originalConsole).forEach(method => {
+        Object.keys(this.originalConsole).forEach((method) => {
             console[method] = this.originalConsole[method];
         });
         this.originalConsole = {};
@@ -49,13 +51,17 @@ export const DebugLogger = {
                 if (obj instanceof HTMLElement) return `[HTMLElement: ${obj.tagName}]`;
                 if (obj instanceof Event) return `[Event: ${obj.type}]`;
                 // 通常のオブジェクトはJSONに変換
-                return JSON.stringify(obj, (key, value) => {
-                    if (typeof value === 'object' && value !== null) {
-                        if (value instanceof Blob) return '[Blob]';
-                        if (value instanceof File) return `[File: ${value.name}]`;
-                    }
-                    return value;
-                }, 2);
+                return JSON.stringify(
+                    obj,
+                    (key, value) => {
+                        if (typeof value === 'object' && value !== null) {
+                            if (value instanceof Blob) return '[Blob]';
+                            if (value instanceof File) return `[File: ${value.name}]`;
+                        }
+                        return value;
+                    },
+                    2
+                );
             } catch (e) {
                 return '[Unserializable Object]';
             }
@@ -64,7 +70,9 @@ export const DebugLogger = {
         this.logs.push({
             type,
             timestamp: new Date(),
-            args: args.map(arg => (typeof arg === 'object' && arg !== null) ? serialize(arg) : arg)
+            args: args.map((arg) =>
+                typeof arg === 'object' && arg !== null ? serialize(arg) : arg
+            ),
         });
 
         // ログが最大数を超えたら古いものから削除
@@ -79,6 +87,6 @@ export const DebugLogger = {
 
     clearLogs() {
         this.logs = [];
-        console.log("[DebugLogger] ログがクリアされました。");
-    }
+        console.log('[DebugLogger] ログがクリアされました。');
+    },
 };

@@ -1541,64 +1541,6 @@ ${relationship_context}`;
     }
   };
 
-  // src/utils/format.js
-  var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
-  function interruptibleSleep(ms, signal) {
-    return new Promise((resolve, reject) => {
-      if (signal.aborted) {
-        const error = new Error("Sleep aborted");
-        error.name = "AbortError";
-        return reject(error);
-      }
-      let timeoutId;
-      const onAbort = /* @__PURE__ */ __name(() => {
-        clearTimeout(timeoutId);
-        const error = new Error("Sleep aborted");
-        error.name = "AbortError";
-        reject(error);
-      }, "onAbort");
-      timeoutId = setTimeout(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, ms);
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-  }
-  __name(interruptibleSleep, "interruptibleSleep");
-  function formatFileSize(bytes) {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  }
-  __name(formatFileSize, "formatFileSize");
-  function base64ToBlob(base64, mimeType) {
-    return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
-  }
-  __name(base64ToBlob, "base64ToBlob");
-
-  // src/utils/html.js
-  var htmlUtils = {
-    // HTML要素内のテキストコンテンツ用エスケープ
-    escapeHtml(text) {
-      if (text === null || text === void 0) return "";
-      const div = document.createElement("div");
-      div.textContent = String(text);
-      return div.innerHTML;
-    },
-    // HTML属性値用エスケープ（より厳格）
-    escapeAttr(text) {
-      if (text === null || text === void 0) return "";
-      return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    },
-    // CSSセレクタ用の安全な文字列を生成
-    escapeSelector(text) {
-      if (text === null || text === void 0) return "";
-      return CSS.escape(String(text));
-    }
-  };
-
   // src/constants.js
   var DB_NAME = "GeminiPWA_DB";
   var DB_VERSION = 15;
@@ -1636,9 +1578,21 @@ ${relationship_context}`;
     { value: "gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite" },
     { value: "gemini-2.0-flash", label: "gemini-2.0-flash" },
     { value: "gemini-2.0-flash-lite", label: "gemini-2.0-flash-lite" },
-    { value: "gemini-2.5-flash-preview-09-2025", label: "gemini-2.5-flash-preview-09-2025", group: "プレビュー版" },
-    { value: "gemini-2.5-flash-lite-preview-09-2025", label: "gemini-2.5-flash-lite-preview-09-2025", group: "プレビュー版" },
-    { value: "gemini-2.5-flash-image-preview", label: "gemini-2.5-flash-image-preview (Nano Banana)", group: "プレビュー版" },
+    {
+      value: "gemini-2.5-flash-preview-09-2025",
+      label: "gemini-2.5-flash-preview-09-2025",
+      group: "プレビュー版"
+    },
+    {
+      value: "gemini-2.5-flash-lite-preview-09-2025",
+      label: "gemini-2.5-flash-lite-preview-09-2025",
+      group: "プレビュー版"
+    },
+    {
+      value: "gemini-2.5-flash-image-preview",
+      label: "gemini-2.5-flash-image-preview (Nano Banana)",
+      group: "プレビュー版"
+    },
     { value: "gemini-3-pro-preview", label: "gemini-3-pro-preview", group: "プレビュー版" },
     { value: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview", group: "プレビュー版" }
   ];
@@ -1648,8 +1602,14 @@ ${relationship_context}`;
     { value: "glm-4.5-flash", label: "GLM-4.5 Flash" }
   ];
   var BEDROCK_MODELS = [
-    { value: "jp.anthropic.claude-sonnet-4-5-20250929-v1:0", label: "Claude Sonnet 4.5 (推奨・東京リージョン用)" },
-    { value: "anthropic.claude-sonnet-4-5-20250929-v1:0", label: "Claude Sonnet 4.5 (標準リージョン用)" },
+    {
+      value: "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      label: "Claude Sonnet 4.5 (推奨・東京リージョン用)"
+    },
+    {
+      value: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+      label: "Claude Sonnet 4.5 (標準リージョン用)"
+    },
     { value: "anthropic.claude-3-5-sonnet-20241022-v2:0", label: "Claude 3.5 Sonnet v2" },
     { value: "anthropic.claude-3-5-sonnet-20240620-v1:0", label: "Claude 3.5 Sonnet v1" },
     { value: "anthropic.claude-3-opus-20240229-v1:0", label: "Claude 3 Opus" },
@@ -1708,17 +1668,17 @@ ${relationship_context}`;
   ];
   var DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
   var VERSION_HISTORY = {
-    "1.25": [
+    1.25: [
       "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
     ],
-    "1.24": [
+    1.24: [
       "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
       "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
       "コスト計算を改善：5分/1時間キャッシュ書き込みを区別して計算。料金テーブルを現行価格に更新（Opus 4.5〜4.8: $5/$25、Haiku 4.5: $1/$5 等）。",
       "モデル名が記録されていないメッセージを現在のモデル価格で計算してしまい推定コストがずれる問題を修正。",
       "長期記憶の自動学習間隔に「75」「100メッセージごと」を追加。"
     ],
-    "1.22": [
+    1.22: [
       "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
     ],
     "1.20": [
@@ -1728,30 +1688,30 @@ ${relationship_context}`;
       "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。",
       "履歴一覧のトークン表示を改善し、合計トークンに加えて入力（prompt）/出力（completion）の内訳を表示するようにしました。"
     ],
-    "1.14": [
+    1.14: [
       "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
       "Claude Opus 4.7モデルを追加。",
       "モデルの応答にターン番号とモデル名を小さく表示するようにしました（例: #1 claude-opus-4-6）。",
       "モデル側の吹き出し幅を拡大し、スマホでも読みやすくしました。",
       "Anthropicプロンプトキャッシュ設定に「なし（キャッシュ未使用）」オプションを追加。"
     ],
-    "1.13": [
+    1.13: [
       "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
       "Function Calling使用後にツールをOFFにしてチャットすると発生していた`tool_use without tool_result`エラーを修正。",
       "Claude APIのプロンプトキャッシングを大幅改善。ツール定義と会話履歴にキャッシュブレークポイントを追加し、長い会話でのAPI費用を削減。"
     ],
-    "1.12": [
+    1.12: [
       "ユーザー追加モデル対応を全面強化。思考プロセス翻訳、校正、要約、画像品質チェック、プロンプト改善の各機能で、ユーザーが追加したモデルを選択可能に。",
       "「追加モデル (カンマ区切り):」入力後、ページリロード不要で全モデル選択セレクターに即座に反映されるよう改善。",
       "`edit_image`関数にユーザー指定モデル機能を追加。`gemini-3-pro-image-preview`を含む任意のモデルで画像編集が可能に。",
       "開発者が更新を停止しても、ユーザーが新規モデルを追加すれば各種機能で使用できる拡張性の高い設計を実現。"
     ],
-    "1.11": [
+    1.11: [
       "デバッグモード有効時のみ、`OpenRouter`、`Z.ai`、`AmazonBedrock`のプロバイダーを追加。開発者向け機能のため既存機能との連携は保証されていません。",
       "設定画面に「ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える」を追加。",
       "metadata内のキャラクター名や関係性名に特殊文字が使用されているとquerySelectorが正常に動作しない問題を修正"
     ],
-    "1.1": [
+    1.1: [
       "gemini-3-pro-previewモデルを追加しました。",
       "gemini-3-pro-previewでのFunction Calling使用時に発生していた「thought_signature」エラーを修正しました。"
     ],
@@ -1769,304 +1729,7 @@ ${relationship_context}`;
   var INITIAL_RETRY_DELAY = 100;
   var MAX_PROFILES = 5;
 
-  // src/state.js
-  var state = {
-    tabId: `tab_${Date.now()}_${Math.random()}`,
-    // このタブを識別するユニークID
-    db: null,
-    currentChatId: null,
-    currentMessages: [],
-    currentSystemPrompt: "",
-    currentPersistentMemory: {},
-    // 現在のチャットの永続メモリ
-    currentSummarizedContext: null,
-    profiles: [],
-    // 全プロファイルのリスト
-    activeProfileId: null,
-    // 現在アクティブなプロファイルのID
-    activeProfile: null,
-    // 現在アクティブなプロファイルの完全なデータ
-    profileIconUrls: /* @__PURE__ */ new Map(),
-    videoUrlCache: /* @__PURE__ */ new Map(),
-    imageUrlCache: /* @__PURE__ */ new Map(),
-    settings: {
-      apiProvider: "gemini",
-      apiKey: "",
-      zaiApiKey: "",
-      openrouterApiKey: "",
-      bedrockAccessKey: "",
-      bedrockSecretKey: "",
-      bedrockRegion: DEFAULT_BEDROCK_REGION,
-      openaiApiKey: "",
-      anthropicApiKey: "",
-      anthropicCacheTTL: "5m",
-      anthropicEffort: "high",
-      novelaiApiKey: "",
-      novelaiModel: "nai-diffusion-4-5-curated",
-      groqApiKey: "",
-      deepseekApiKey: "",
-      xaiApiKey: "",
-      mistralApiKey: "",
-      modelName: DEFAULT_MODEL,
-      systemPrompt: "",
-      temperature: null,
-      maxTokens: null,
-      topK: null,
-      topP: null,
-      thinkingBudget: null,
-      includeThoughts: false,
-      enableThoughtTranslation: true,
-      // 思考プロセスの翻訳を有効にするか
-      thoughtTranslationModel: "gemini-2.5-flash-lite",
-      dummyUser: "",
-      dummyEnabled: true,
-      applyDummyToProofread: false,
-      applyDummyToTranslate: false,
-      dummyModel: "",
-      reverseDummyOrder: false,
-      concatDummyModel: false,
-      additionalModels: "",
-      enterToSend: true,
-      historySortOrder: "updatedAt",
-      darkMode: false,
-      backgroundImageBlob: null,
-      fontFamily: "",
-      hideSystemPromptInChat: false,
-      enableSwipeNavigation: false,
-      enableAutoRetry: true,
-      maxRetries: 30,
-      useFixedRetryDelay: false,
-      fixedRetryDelaySeconds: 15,
-      maxBackoffDelaySeconds: 60,
-      enableApiTimeout: false,
-      apiTimeoutSeconds: 90,
-      enableProofreading: false,
-      proofreadingModelName: "gemini-2.5-flash",
-      proofreadingSystemInstruction: "あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。",
-      geminiEnableGrounding: false,
-      geminiEnableFunctionCalling: false,
-      googleSearchApiKey: "",
-      googleSearchEngineId: "",
-      messageOpacity: 1,
-      overlayOpacity: 0.65,
-      headerColor: "",
-      allowPromptUiChanges: true,
-      forceFunctionCalling: false,
-      autoScroll: true,
-      enableWideMode: true,
-      enableMemory: false,
-      memoryAutoSaveInterval: 30,
-      headerAutoHide: false,
-      summaryModelName: "",
-      // 空の場合はmodelNameを使用
-      summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
-「承知しました」等のAIとしての応答は不要です。要約文のみ出力して下さい。
-
-【最重要ルール】
-- **プロットの維持**: 物語の重要な転換点、登場人物の重要な決断、新しい事実の判明、伏線となりうる発言は、絶対に省略しないでください。
-- **客観的な記述**: 「主人公は〜した。」「〇〇は〜と感じた。」のように、キャラクターの行動と感情を客観的に記述してください。
-- **情報の取捨選択**: 日常的な挨拶や、物語の進行に直接関係のない会話は省略してください。
-- **時系列の維持**: 出来事が起こった順番を正確に保ってください。
-
-最終的な出力は、このあらすじを初めて読む人でも、これまでの物語の流れを正確に理解できるような形式にしてください。`,
-      enableSummaryButton: true,
-      floatingPanelBehavior: "on-click",
-      dropboxSyncFrequency: "instant",
-      sdApiUrl: "",
-      sdApiUser: "",
-      sdApiPassword: "",
-      sdEnableQualityChecker: false,
-      sdQcModel: "gemini-2.5-pro",
-      sdQcPrompt: `あなたはプロンプトと画像を比較し、指示通りに生成されているか評価する専門家です。
-以下のプロンプトと画像の内容を厳密に比較してください。
-
-[プロンプト]
-{prompt}
-
-[評価ルール]
-- プロンプトの要素（人物、服装、背景、構図、雰囲気など）が画像内に明確に反映されていれば "OK" と評価してください。
-- 重要な要素が欠けていたり、指示と明らかに異なる場合は "NG" と評価し、その理由を簡潔に説明してください。
-
-[出力形式]
-評価結果を以下の形式で出力してください。他のテキストは一切含めないでください。
-Result: [OKまたはNG]
-Reason: [NGの場合の理由]`,
-      sdQcRetries: 3,
-      sdPromptImproveModel: "gemini-2.5-flash",
-      sdPromptImproveSystemPrompt: `あなたはプロのプロンプトエンジニアです。提示された「元のプロンプト」と「失敗理由」に基づき、失敗理由を解決するための改善された英語の画像生成プロンプトを生成してください。余計な解説や前置きは一切含めず、改善されたプロンプト本体のみを出力してください。`,
-      debugMode: false
-    },
-    syncMessageCounter: 0,
-    backgroundImageUrl: null,
-    isSending: false,
-    abortController: null,
-    editingMessageIndex: null,
-    isEditingSystemPrompt: false,
-    touchStartX: 0,
-    touchStartY: 0,
-    touchEndX: 0,
-    touchEndY: 0,
-    isSwiping: false,
-    isZoomed: false,
-    currentScreen: "chat",
-    panelFadeOutTimer: null,
-    selectedFilesForUpload: [],
-    pendingAttachments: [],
-    isTemporaryBackgroundActive: false,
-    currentScene: null,
-    currentStyleProfiles: {},
-    isMemoryEnabledForChat: true,
-    characterProfileVisibleCharacter: null,
-    sync: {
-      isDirty: false,
-      // ローカルに変更があったか
-      lastSyncId: null,
-      // 最後に同期したクラウドのID
-      isSyncing: false,
-      // 同期処理中か
-      pushTimeoutId: null,
-      // Push処理のデバウンス用タイマーID
-      lastError: null
-    }
-  };
-
-  // src/debug-logger.js
-  var DebugLogger = {
-    logs: [],
-    MAX_LOGS: 500,
-    originalConsole: {},
-    isInitialized: false,
-    init() {
-      if (state.settings.debugMode) {
-        this._patchConsole();
-      } else {
-        this._unpatchConsole();
-      }
-      this.isInitialized = true;
-      console.log(`[DebugLogger] 初期化完了。デバッグモード: ${state.settings.debugMode ? "ON" : "OFF"}`);
-    },
-    _patchConsole() {
-      if (this.originalConsole.log) return;
-      const consoleMethods = ["log", "error", "warn", "info", "debug"];
-      consoleMethods.forEach((method) => {
-        this.originalConsole[method] = console[method];
-        console[method] = (...args) => {
-          this.addLog(method, args);
-          this.originalConsole[method].apply(console, args);
-        };
-      });
-    },
-    _unpatchConsole() {
-      if (!this.originalConsole.log) return;
-      Object.keys(this.originalConsole).forEach((method) => {
-        console[method] = this.originalConsole[method];
-      });
-      this.originalConsole = {};
-    },
-    addLog(type, args) {
-      const serialize = /* @__PURE__ */ __name((obj) => {
-        try {
-          if (obj instanceof HTMLElement) return `[HTMLElement: ${obj.tagName}]`;
-          if (obj instanceof Event) return `[Event: ${obj.type}]`;
-          return JSON.stringify(obj, (key, value) => {
-            if (typeof value === "object" && value !== null) {
-              if (value instanceof Blob) return "[Blob]";
-              if (value instanceof File) return `[File: ${value.name}]`;
-            }
-            return value;
-          }, 2);
-        } catch (e) {
-          return "[Unserializable Object]";
-        }
-      }, "serialize");
-      this.logs.push({
-        type,
-        timestamp: /* @__PURE__ */ new Date(),
-        args: args.map((arg) => typeof arg === "object" && arg !== null ? serialize(arg) : arg)
-      });
-      if (this.logs.length > this.MAX_LOGS) {
-        this.logs.shift();
-      }
-    },
-    getLogs() {
-      return this.logs;
-    },
-    clearLogs() {
-      this.logs = [];
-      console.log("[DebugLogger] ログがクリアされました。");
-    }
-  };
-
-  // src/mime-types.js
-  var extensionToMimeTypeMap = {
-    // Text Data
-    "pdf": "application/pdf",
-    "js": "text/javascript",
-    "py": "text/x-python",
-    "txt": "text/plain",
-    "html": "text/html",
-    "htm": "text/html",
-    "json": "application/json",
-    "css": "text/css",
-    "md": "text/markdown",
-    "csv": "text/csv",
-    "xml": "application/xml",
-    "rtf": "application/rtf",
-    "java": "text/x-java-source",
-    "c": "text/x-c",
-    "cpp": "text/x-c++src",
-    "hpp": "text/x-c++hdr",
-    "h": "text/x-chdr",
-    "cs": "text/plain",
-    "php": "application/x-httpd-php",
-    "rb": "text/x-ruby",
-    "go": "text/x-go",
-    "swift": "text/x-swift",
-    "kt": "text/x-kotlin",
-    "kts": "text/x-kotlin",
-    "rs": "text/rust",
-    "ts": "text/typescript",
-    "tsx": "text/typescript",
-    "sql": "application/sql",
-    "sh": "application/x-sh",
-    "yml": "text/yaml",
-    "yaml": "text/yaml",
-    // Image Data
-    "png": "image/png",
-    "jpg": "image/jpeg",
-    "jpeg": "image/jpeg",
-    "webp": "image/webp",
-    "heic": "image/heic",
-    "heif": "image/heif",
-    // Video Data
-    "mp4": "video/mp4",
-    "mpeg": "video/mpeg",
-    "mov": "video/mov",
-    "avi": "video/avi",
-    "flv": "video/x-flv",
-    "mpg": "video/mpg",
-    "webm": "video/webm",
-    "wmv": "video/wmv",
-    "3gp": "video/3gpp",
-    "3gpp": "video/3gpp",
-    // Audio Data
-    "wav": "audio/wav",
-    "mp3": "audio/mp3",
-    "aiff": "audio/aiff",
-    "aac": "audio/aac",
-    "ogg": "audio/ogg",
-    "flac": "audio/flac"
-  };
-
-  // src/app.js
-  import("https://esm.run/@google/genai").then((module) => {
-    window.GoogleGenAI = module.GoogleGenAI;
-    console.log("Google GenAI SDK (@google/genai) の読み込みが完了しました。");
-  }).catch((err) => {
-    console.error("Google Gen AI SDKの読み込みに失敗しました:", err);
-    document.body.innerHTML = `<p style="color: red; padding: 20px;">SDKの読み込みに失敗しました。アプリを起動できません。</p>`;
-  });
-  var broadcastChannel = null;
+  // src/dom-elements.js
   var elements;
   try {
     elements = {
@@ -2339,906 +2002,302 @@ Reason: [NGの場合の理由]`,
         </div>`;
     }
   }
-  function updateMessageMaxWidthVar() {
-    const container = elements.messageContainer;
-    if (!container) return;
-    const isWideMode = state.settings.enableWideMode && window.innerWidth > 800;
-    const percentage = isWideMode ? 0.7 : 0.8;
-    let maxWidthPx = container.clientWidth * percentage;
-    document.documentElement.style.setProperty("--message-max-width", `${maxWidthPx}px`);
-  }
-  __name(updateMessageMaxWidthVar, "updateMessageMaxWidthVar");
-  window.addEventListener("DOMContentLoaded", (event) => {
-    console.log("DOM fully loaded and parsed. Initializing app...");
-    appLogic.initializeApp();
-    const viewport = document.querySelector('meta[name="viewport"]');
-    if (viewport && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
-      document.addEventListener("focusout", () => {
-        viewport.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1");
-        requestAnimationFrame(() => {
-          viewport.setAttribute("content", "width=device-width, initial-scale=1");
-        });
-      });
-    }
-  });
-  function registerServiceWorker() {
-    if (!("serviceWorker" in navigator)) {
-      console.warn("このブラウザはService Workerをサポートしていません。");
-      return;
-    }
-    let isReloading = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (isReloading) return;
-      isReloading = true;
-      console.log("Controller has changed, reloading page for update...");
-      window.location.reload();
-    });
-    const handleUpdateFound = /* @__PURE__ */ __name((registration) => {
-      const newWorker = registration.installing;
-      if (newWorker) {
-        console.log("新しいService Workerのインストールを検知しました。");
-        newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-            console.log("新しいService Workerが待機状態に入りました。アクティベートを試みます。");
-            if (state.db) {
-              state.db.close();
-              console.log("Service Worker更新のため、現在のDB接続を閉じました。");
-            }
-            newWorker.postMessage({ action: "skipWaiting" });
-          }
-        });
-      }
-    }, "handleUpdateFound");
-    navigator.serviceWorker.addEventListener("message", (event) => {
-      if (event.data && event.data.status === "cacheCleared") {
-        console.log("Service Workerから手動キャッシュクリア完了のメッセージを受信。リロードを実行します。");
-        if (isReloading) return;
-        isReloading = true;
-        window.location.reload();
-      }
-    });
-    window.addEventListener("load", async () => {
-      try {
-        const registration = await navigator.serviceWorker.register("./sw.js");
-        console.log("ServiceWorker登録成功 スコープ: ", registration.scope);
-        const checkForUpdates = /* @__PURE__ */ __name(() => {
-          navigator.serviceWorker.ready.then((readyRegistration) => {
-            readyRegistration.update();
-          }).catch((error) => {
-            console.error("navigator.serviceWorker.ready failed:", error);
-          });
-        }, "checkForUpdates");
-        setInterval(checkForUpdates, 60 * 60 * 1e3);
-        document.addEventListener("visibilitychange", () => {
-          if (document.visibilityState === "visible") checkForUpdates();
-        });
-        window.addEventListener("focus", checkForUpdates);
-        if (registration.waiting) {
-          console.log("待機中の新しいService Workerが見つかりました。アクティベートを試みます。");
-          if (state.db) state.db.close();
-          registration.waiting.postMessage({ action: "skipWaiting" });
-        }
-        registration.addEventListener("updatefound", () => handleUpdateFound(registration));
-      } catch (error) {
-        console.error("ServiceWorker処理中にエラー: ", error);
-      }
-    });
-  }
-  __name(registerServiceWorker, "registerServiceWorker");
-  var dbUtils = {
-    openDB() {
-      return new Promise((resolve, reject) => {
-        if (state.db) {
-          resolve(state.db);
-          return;
-        }
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        request.onblocked = (event) => {
-          console.warn("IndexedDBのバージョンアップがブロックされました。古い接続が残っています。", event);
-          uiUtils.showCustomAlert(
-            "アプリの更新が他のチャットセッションのタブによってブロックされています。\n\nこのアプリを開いている他のタブを閉じてから、このタブを再読み込み（リロード）してください。"
-          );
-        };
-        request.onerror = (event) => {
-          console.error("IndexedDBエラー:", event.target.error);
-          reject(`IndexedDBエラー: ${event.target.error}`);
-        };
-        request.onsuccess = (event) => {
-          state.db = event.target.result;
-          console.log("IndexedDBオープン成功");
-          state.db.onerror = (event2) => {
-            console.error(`データベースエラー: ${event2.target.error}`);
-          };
-          resolve(state.db);
-        };
-        request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          const transaction = event.target.transaction;
-          console.log(`[DB Migration] IndexedDBをバージョン ${event.oldVersion} から ${event.newVersion} へアップグレード中...`);
-          if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-            db.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
-          }
-          if (!db.objectStoreNames.contains(CHATS_STORE)) {
-            const chatStore = db.createObjectStore(CHATS_STORE, { keyPath: "id", autoIncrement: true });
-            chatStore.createIndex(CHAT_UPDATEDAT_INDEX, "updatedAt", { unique: false });
-            chatStore.createIndex(CHAT_CREATEDAT_INDEX, "createdAt", { unique: false });
-          }
-          if (!db.objectStoreNames.contains(PROFILES_STORE)) {
-            const profilesStore = db.createObjectStore(PROFILES_STORE, { keyPath: "id", autoIncrement: true });
-          }
-          if (!db.objectStoreNames.contains("image_assets")) {
-            db.createObjectStore("image_assets", { keyPath: "name" });
-          }
-          if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
-            db.createObjectStore(PROJECTS_STORE, { keyPath: "id", autoIncrement: true });
-          }
-          if (event.oldVersion < 10) {
-            console.log("[DB Migration] v10へのデータ移行処理を実行します。");
-            const settingsStore = transaction.objectStore(SETTINGS_STORE);
-            const profilesStore = transaction.objectStore(PROFILES_STORE);
-            const getAllSettingsReq = settingsStore.getAll();
-            getAllSettingsReq.onsuccess = () => {
-              const oldSettingsArray = getAllSettingsReq.result;
-              if (oldSettingsArray.length > 0) {
-                console.log("[DB Migration] 既存の設定を検出しました。新しいプロファイル構造に移行します...");
-                const oldSettingsObject = {};
-                oldSettingsArray.forEach((item) => {
-                  oldSettingsObject[item.key] = item.value;
-                });
-                const profileSettingKeys = [
-                  "apiProvider",
-                  "apiKey",
-                  "zaiApiKey",
-                  "bedrockAccessKey",
-                  "bedrockSecretKey",
-                  "bedrockRegion",
-                  "modelName",
-                  "systemPrompt",
-                  "temperature",
-                  "maxTokens",
-                  "topK",
-                  "topP",
-                  "presencePenalty",
-                  "frequencyPenalty",
-                  "thinkingBudget",
-                  "includeThoughts",
-                  "enableThoughtTranslation",
-                  "thoughtTranslationModel",
-                  "dummyUser",
-                  "applyDummyToProofread",
-                  "applyDummyToTranslate",
-                  "dummyModel",
-                  "reverseDummyOrder",
-                  "concatDummyModel",
-                  "additionalModels",
-                  "enterToSend",
-                  "historySortOrder",
-                  "darkMode",
-                  "fontFamily",
-                  "hideSystemPromptInChat",
-                  "enableSwipeNavigation",
-                  "enableAutoRetry",
-                  "maxRetries",
-                  "useFixedRetryDelay",
-                  "fixedRetryDelaySeconds",
-                  "maxBackoffDelaySeconds",
-                  "enableProofreading",
-                  "proofreadingModelName",
-                  "proofreadingSystemInstruction",
-                  "geminiEnableGrounding",
-                  "geminiEnableFunctionCalling",
-                  "googleSearchApiKey",
-                  "googleSearchEngineId",
-                  "messageOpacity",
-                  "overlayOpacity",
-                  "headerColor",
-                  "allowPromptUiChanges",
-                  "forceFunctionCalling",
-                  "anthropicEffort"
-                ];
-                const newProfileSettings = {};
-                profileSettingKeys.forEach((key) => {
-                  newProfileSettings[key] = oldSettingsObject[key] !== void 0 ? oldSettingsObject[key] : state.settings[key];
-                });
-                const defaultProfile = {
-                  name: "デフォルトプロファイル",
-                  icon: null,
-                  createdAt: Date.now(),
-                  settings: newProfileSettings
-                };
-                const addProfileReq = profilesStore.add(defaultProfile);
-                addProfileReq.onsuccess = (addEvent) => {
-                  const newProfileId = addEvent.target.result;
-                  console.log(`[DB Migration] デフォルトプロファイルを生成しました (ID: ${newProfileId})`);
-                  profileSettingKeys.forEach((key) => {
-                    settingsStore.delete(key);
-                  });
-                  settingsStore.put({ key: "activeProfileId", value: newProfileId });
-                  console.log(`[DB Migration] SETTINGS_STOREを整理し、activeProfileIdを設定しました。`);
-                };
-              }
-            };
-          }
-          if (event.oldVersion < 11) {
-            console.log("[DB Migration] v11へのアップグレード: image_storeを作成します。");
-            if (!db.objectStoreNames.contains(IMAGE_STORE)) {
-              db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
-            }
-            transaction.oncomplete = () => {
-              console.log("[DB Migration] スキーマ更新完了。データ移行処理を開始します。");
-              appLogic.migrateImageData();
-            };
-          }
-          if (event.oldVersion < 12) {
-            console.log("[DB Migration] v12へのアップグレード: memory_storeを作成します。");
-            if (!db.objectStoreNames.contains("memory_store")) {
-              db.createObjectStore("memory_store", { keyPath: "profileId" });
-            }
-          }
-          if (event.oldVersion < 13) {
-            console.log("[DB Migration] v13へのアップグレード: 安全なインポート用の一時ストアを作成します。");
-            const tempStores = [
-              { name: `${PROFILES_STORE}_temp`, options: { keyPath: "id" } },
-              { name: `${CHATS_STORE}_temp`, options: { keyPath: "id" } },
-              { name: `${SETTINGS_STORE}_temp`, options: { keyPath: "key" } },
-              { name: `${IMAGE_STORE}_temp`, options: { keyPath: "id" } },
-              { name: "image_assets_temp", options: { keyPath: "name" } },
-              { name: "memory_store_temp", options: { keyPath: "profileId" } }
-            ];
-            tempStores.forEach((storeInfo) => {
-              if (!db.objectStoreNames.contains(storeInfo.name)) {
-                db.createObjectStore(storeInfo.name, storeInfo.options);
-                console.log(`[DB Migration] Temporary store '${storeInfo.name}' created.`);
-              }
-            });
-          }
-          if (event.oldVersion < 15) {
-            console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
-            if (!db.objectStoreNames.contains("projects_temp")) {
-              db.createObjectStore("projects_temp", { keyPath: "id" });
-              console.log("[DB Migration] 'projects_temp' store created.");
-            }
-          }
-        };
-      });
+
+  // src/state.js
+  var state = {
+    tabId: `tab_${Date.now()}_${Math.random()}`,
+    // このタブを識別するユニークID
+    db: null,
+    currentChatId: null,
+    currentMessages: [],
+    currentSystemPrompt: "",
+    currentPersistentMemory: {},
+    // 現在のチャットの永続メモリ
+    currentSummarizedContext: null,
+    profiles: [],
+    // 全プロファイルのリスト
+    activeProfileId: null,
+    // 現在アクティブなプロファイルのID
+    activeProfile: null,
+    // 現在アクティブなプロファイルの完全なデータ
+    profileIconUrls: /* @__PURE__ */ new Map(),
+    videoUrlCache: /* @__PURE__ */ new Map(),
+    imageUrlCache: /* @__PURE__ */ new Map(),
+    settings: {
+      apiProvider: "gemini",
+      apiKey: "",
+      zaiApiKey: "",
+      openrouterApiKey: "",
+      bedrockAccessKey: "",
+      bedrockSecretKey: "",
+      bedrockRegion: DEFAULT_BEDROCK_REGION,
+      openaiApiKey: "",
+      anthropicApiKey: "",
+      anthropicCacheTTL: "5m",
+      anthropicEffort: "high",
+      novelaiApiKey: "",
+      novelaiModel: "nai-diffusion-4-5-curated",
+      groqApiKey: "",
+      deepseekApiKey: "",
+      xaiApiKey: "",
+      mistralApiKey: "",
+      modelName: DEFAULT_MODEL,
+      systemPrompt: "",
+      temperature: null,
+      maxTokens: null,
+      topK: null,
+      topP: null,
+      thinkingBudget: null,
+      includeThoughts: false,
+      enableThoughtTranslation: true,
+      // 思考プロセスの翻訳を有効にするか
+      thoughtTranslationModel: "gemini-2.5-flash-lite",
+      dummyUser: "",
+      dummyEnabled: true,
+      applyDummyToProofread: false,
+      applyDummyToTranslate: false,
+      dummyModel: "",
+      reverseDummyOrder: false,
+      concatDummyModel: false,
+      additionalModels: "",
+      enterToSend: true,
+      historySortOrder: "updatedAt",
+      darkMode: false,
+      backgroundImageBlob: null,
+      fontFamily: "",
+      hideSystemPromptInChat: false,
+      enableSwipeNavigation: false,
+      enableAutoRetry: true,
+      maxRetries: 30,
+      useFixedRetryDelay: false,
+      fixedRetryDelaySeconds: 15,
+      maxBackoffDelaySeconds: 60,
+      enableApiTimeout: false,
+      apiTimeoutSeconds: 90,
+      enableProofreading: false,
+      proofreadingModelName: "gemini-2.5-flash",
+      proofreadingSystemInstruction: "あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。",
+      geminiEnableGrounding: false,
+      geminiEnableFunctionCalling: false,
+      googleSearchApiKey: "",
+      googleSearchEngineId: "",
+      messageOpacity: 1,
+      overlayOpacity: 0.65,
+      headerColor: "",
+      allowPromptUiChanges: true,
+      forceFunctionCalling: false,
+      autoScroll: true,
+      enableWideMode: true,
+      enableMemory: false,
+      memoryAutoSaveInterval: 30,
+      headerAutoHide: false,
+      summaryModelName: "",
+      // 空の場合はmodelNameを使用
+      summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
+「承知しました」等のAIとしての応答は不要です。要約文のみ出力して下さい。
+
+【最重要ルール】
+- **プロットの維持**: 物語の重要な転換点、登場人物の重要な決断、新しい事実の判明、伏線となりうる発言は、絶対に省略しないでください。
+- **客観的な記述**: 「主人公は〜した。」「〇〇は〜と感じた。」のように、キャラクターの行動と感情を客観的に記述してください。
+- **情報の取捨選択**: 日常的な挨拶や、物語の進行に直接関係のない会話は省略してください。
+- **時系列の維持**: 出来事が起こった順番を正確に保ってください。
+
+最終的な出力は、このあらすじを初めて読む人でも、これまでの物語の流れを正確に理解できるような形式にしてください。`,
+      enableSummaryButton: true,
+      floatingPanelBehavior: "on-click",
+      dropboxSyncFrequency: "instant",
+      sdApiUrl: "",
+      sdApiUser: "",
+      sdApiPassword: "",
+      sdEnableQualityChecker: false,
+      sdQcModel: "gemini-2.5-pro",
+      sdQcPrompt: `あなたはプロンプトと画像を比較し、指示通りに生成されているか評価する専門家です。
+以下のプロンプトと画像の内容を厳密に比較してください。
+
+[プロンプト]
+{prompt}
+
+[評価ルール]
+- プロンプトの要素（人物、服装、背景、構図、雰囲気など）が画像内に明確に反映されていれば "OK" と評価してください。
+- 重要な要素が欠けていたり、指示と明らかに異なる場合は "NG" と評価し、その理由を簡潔に説明してください。
+
+[出力形式]
+評価結果を以下の形式で出力してください。他のテキストは一切含めないでください。
+Result: [OKまたはNG]
+Reason: [NGの場合の理由]`,
+      sdQcRetries: 3,
+      sdPromptImproveModel: "gemini-2.5-flash",
+      sdPromptImproveSystemPrompt: `あなたはプロのプロンプトエンジニアです。提示された「元のプロンプト」と「失敗理由」に基づき、失敗理由を解決するための改善された英語の画像生成プロンプトを生成してください。余計な解説や前置きは一切含めず、改善されたプロンプト本体のみを出力してください。`,
+      debugMode: false
     },
-    // 指定されたストアを取得する内部関数
-    _getStore(storeName, mode = "readonly") {
-      if (!state.db) throw new Error("データベースが開かれていません");
-      const transaction = state.db.transaction([storeName], mode);
-      return transaction.objectStore(storeName);
-    },
-    // 設定を保存
-    async saveSetting(key, value) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        try {
-          console.log(`[DEBUG] saveSetting: key='${key}' の保存トランザクションを開始します。`);
-          const transaction = state.db.transaction([SETTINGS_STORE], "readwrite");
-          const store = transaction.objectStore(SETTINGS_STORE);
-          store.put({ key, value });
-          transaction.oncomplete = () => {
-            console.log(`[DEBUG] saveSetting: key='${key}' のトランザクションが正常に完了しました。`);
-            resolve();
-          };
-          transaction.onerror = (event) => {
-            console.error(`[DEBUG] saveSetting: key='${key}' のトランザクションエラー:`, event.target.error);
-            reject(event.target.error);
-          };
-        } catch (error) {
-          console.error(`[DEBUG] saveSetting: ストアアクセスエラー:`, error);
-          reject(error);
-        }
-      });
-    },
-    async saveChat(optionalTitle = null, chatObjectToSave = null, options = {}) {
-      await this.openDB();
-      let messagesForStats = [];
-      let chatDataToSave;
-      if (!chatObjectToSave) {
-        if ((!state.currentMessages || state.currentMessages.length === 0) && !state.currentSystemPrompt) {
-          if (state.currentChatId) console.log(`saveChat: 既存チャット ${state.currentChatId} にメッセージもシステムプロンプトもないため保存せず`);
-          else console.log("saveChat: 新規チャットに保存するメッセージもシステムプロンプトもなし");
-          return state.currentChatId;
-        }
-        const messagesToSave = state.currentMessages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-          timestamp: msg.timestamp,
-          thoughtSummary: msg.thoughtSummary || null,
-          tool_calls: msg.tool_calls || null,
-          imageIds: msg.imageIds,
-          finishReason: msg.finishReason,
-          safetyRatings: msg.safetyRatings,
-          error: msg.error,
-          isCascaded: msg.isCascaded,
-          isSelected: msg.isSelected,
-          siblingGroupId: msg.siblingGroupId,
-          groundingMetadata: msg.groundingMetadata,
-          // attachments を安全にコピーし、file オブジェクトのみ除外する
-          attachments: msg.attachments ? msg.attachments.map((att) => ({
-            name: att.name,
-            mimeType: att.mimeType,
-            base64Data: att.base64Data,
-            assetId: att.assetId
-          })) : void 0,
-          usageMetadata: msg.usageMetadata,
-          modelName: msg.modelName,
-          executedFunctions: msg.executedFunctions,
-          generated_images: msg.generated_images,
-          generated_videos: msg.generated_videos ? msg.generated_videos.map((video) => ({
-            base64Data: video.base64Data,
-            prompt: video.prompt
-          })) : void 0,
-          isHidden: msg.isHidden,
-          isAutoTrigger: msg.isAutoTrigger
-        }));
-        messagesForStats = messagesToSave;
-        chatDataToSave = {
-          messages: messagesToSave,
-          systemPrompt: state.currentSystemPrompt,
-          persistentMemory: state.currentPersistentMemory || {},
-          summarizedContext: state.currentSummarizedContext || null,
-          isMemoryEnabledForChat: state.isMemoryEnabledForChat
-        };
-      } else {
-        messagesForStats = chatObjectToSave.messages || [];
-        chatDataToSave = chatObjectToSave;
-      }
-      const stats = await this._calculateChatStats(messagesForStats);
-      return new Promise((resolve, reject) => {
-        try {
-          const transaction = state.db.transaction([CHATS_STORE], "readwrite");
-          const store = transaction.objectStore(CHATS_STORE);
-          const now = Date.now();
-          const processSave = /* @__PURE__ */ __name((existingChatData = null) => {
-            let title;
-            if (optionalTitle !== null) {
-              title = optionalTitle;
-            } else if (existingChatData && existingChatData.title) {
-              title = existingChatData.title;
-            } else {
-              const firstUserMessage = (chatDataToSave.messages || []).find((m) => m.role === "user" && !m.isHidden);
-              title = firstUserMessage ? firstUserMessage.content.substring(0, 50) : "無題のチャット";
-            }
-            const chatIdForOperation = existingChatData ? existingChatData.id : state.currentChatId;
-            const finalChatData = {
-              ...chatDataToSave,
-              updatedAt: chatObjectToSave && chatObjectToSave.updatedAt ? chatObjectToSave.updatedAt : now,
-              createdAt: existingChatData ? existingChatData.createdAt : now,
-              title,
-              stats
-            };
-            if (chatIdForOperation) {
-              finalChatData.id = chatIdForOperation;
-            }
-            const inheritedProjectId = chatDataToSave && chatDataToSave.projectId || existingChatData && existingChatData.projectId;
-            if (inheritedProjectId) {
-              finalChatData.projectId = inheritedProjectId;
-            } else if (window.state && window.state.activeProjectId) {
-              finalChatData.projectId = window.state.activeProjectId;
-            }
-            const putRequest = store.put(finalChatData);
-            putRequest.onsuccess = (event) => {
-              const savedId = event.target.result;
-              if (!state.currentChatId && savedId) {
-                state.currentChatId = savedId;
-              }
-              console.log(`チャット ${state.currentChatId ? "更新" : "保存"} 完了 ID:`, state.currentChatId || savedId);
-              if ((state.currentChatId || savedId) === (chatIdForOperation || savedId)) {
-                uiUtils.updateChatTitle(finalChatData.title);
-              }
-              if (!options.skipPush) {
-                appLogic.markAsDirtyAndSchedulePush();
-              }
-            };
-            putRequest.onerror = (event) => {
-              console.error("チャット保存(put)エラー:", event.target.error);
-            };
-          }, "processSave");
-          if (state.currentChatId && !chatObjectToSave) {
-            const getRequest = store.get(state.currentChatId);
-            getRequest.onsuccess = (event) => {
-              const existingChat = event.target.result;
-              if (!existingChat) {
-                console.warn(`ID ${state.currentChatId} のチャットが見つかりません(保存時)。新規として保存します。`);
-                state.currentChatId = null;
-              }
-              processSave(existingChat);
-            };
-            getRequest.onerror = (event) => {
-              console.error("既存チャットの取得エラー(更新用):", event.target.error);
-              state.currentChatId = null;
-              processSave(null);
-            };
-          } else {
-            processSave(chatObjectToSave);
-          }
-          transaction.oncomplete = () => {
-            resolve(state.currentChatId);
-          };
-          transaction.onerror = (event) => {
-            console.error("チャット保存トランザクション失敗:", event.target.error);
-            reject(new Error(`チャット保存トランザクション失敗: ${event.target.error.message}`));
-          };
-        } catch (error) {
-          console.error("チャット保存処理の開始に失敗:", error);
-          reject(error);
-        }
-      });
-    },
-    async _calculateChatStats(messages) {
-      if (!messages) return null;
-      let totalTokens = 0;
-      let inputTokens = 0;
-      let outputTokens = 0;
-      const assetIds = /* @__PURE__ */ new Set();
-      let totalAssetSize = 0;
-      let attachmentCount = 0;
-      messages.forEach((msg) => {
-        if (msg.usageMetadata) {
-          if (typeof msg.usageMetadata.totalTokenCount === "number") {
-            totalTokens += msg.usageMetadata.totalTokenCount;
-          }
-          if (typeof msg.usageMetadata.promptTokenCount === "number") {
-            inputTokens += msg.usageMetadata.promptTokenCount;
-          }
-          if (typeof msg.usageMetadata.candidatesTokenCount === "number") {
-            outputTokens += msg.usageMetadata.candidatesTokenCount;
-          }
-        }
-        if (msg.imageIds) {
-          msg.imageIds.forEach((id) => assetIds.add(id));
-        }
-        if (msg.attachments) {
-          attachmentCount += msg.attachments.length;
-          msg.attachments.forEach((att) => {
-            if (att.base64Data) {
-              totalAssetSize += Math.ceil(att.base64Data.length * 0.75);
-            }
-          });
-        }
-      });
-      if (assetIds.size > 0) {
-        await this.openDB();
-        const store = this._getStore(IMAGE_STORE);
-        const imagePromises = Array.from(assetIds).map((id) => {
-          return new Promise((resolve) => {
-            const request = store.get(id);
-            request.onsuccess = (event) => {
-              if (event.target.result && event.target.result.blob instanceof Blob) {
-                resolve(event.target.result.blob.size);
-              } else {
-                resolve(0);
-              }
-            };
-            request.onerror = () => resolve(0);
-          });
-        });
-        const sizes = await Promise.all(imagePromises);
-        totalAssetSize += sizes.reduce((sum, size) => sum + size, 0);
-      }
-      return {
-        totalTokens,
-        inputTokens,
-        outputTokens,
-        assetCount: assetIds.size + attachmentCount,
-        totalAssetSize
-      };
-    },
-    // チャットタイトルをDBで更新
-    async updateChatTitleDb(id, newTitle) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(CHATS_STORE, "readwrite");
-        const getRequest = store.get(id);
-        getRequest.onsuccess = (event) => {
-          const chatData = event.target.result;
-          if (chatData) {
-            chatData.title = newTitle;
-            chatData.updatedAt = Date.now();
-            const putRequest = store.put(chatData);
-            putRequest.onsuccess = () => {
-              appLogic.markAsDirtyAndSchedulePush(true);
-              resolve();
-            };
-            putRequest.onerror = (event2) => reject(`タイトル更新エラー: ${event2.target.error}`);
-          } else {
-            reject(`チャットが見つかりません: ${id}`);
-          }
-        };
-        getRequest.onerror = (event) => reject(`タイトル更新用チャット取得エラー: ${event.target.error}`);
-        store.transaction.onerror = (event) => reject(`タイトル更新トランザクション失敗: ${event.target.error}`);
-      });
-    },
-    // 指定IDのチャットを取得
-    async getChat(id) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(CHATS_STORE);
-        const request = store.get(id);
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`チャット ${id} 取得エラー: ${event.target.error}`);
-      });
-    },
-    // 全チャットを取得 (ソート順指定可)
-    async getAllChats(sortBy = "updatedAt") {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(CHATS_STORE);
-        const indexName = sortBy === "createdAt" ? CHAT_CREATEDAT_INDEX : CHAT_UPDATEDAT_INDEX;
-        if (!store.indexNames.contains(indexName)) {
-          console.error(`インデックス "${indexName}" が見つかりません。主キー順でフォールバックします。`);
-          const getAllRequest = store.getAll();
-          getAllRequest.onsuccess = (event) => resolve(event.target.result.reverse());
-          getAllRequest.onerror = (event) => reject(`全チャット取得エラー(フォールバック): ${event.target.error}`);
-          return;
-        }
-        const index = store.index(indexName);
-        const request = index.openCursor(null, "prev");
-        const chats = [];
-        request.onsuccess = (event) => {
-          const cursor = event.target.result;
-          if (cursor) {
-            chats.push(cursor.value);
-            cursor.continue();
-          } else {
-            resolve(chats);
-          }
-        };
-        request.onerror = (event) => reject(`全チャット取得エラー (${sortBy}順): ${event.target.error}`);
-      });
-    },
-    // 指定IDのチャットを削除
-    async deleteChat(id) {
-      await this.openDB();
-      const chatToDelete = await this.getChat(id);
-      const imageIdsToDelete = /* @__PURE__ */ new Set();
-      if (chatToDelete && chatToDelete.messages) {
-        chatToDelete.messages.forEach((message) => {
-          (message.imageIds || []).forEach((imgId) => imageIdsToDelete.add(imgId));
-        });
-      }
-      const allOtherChats = (await this.getAllChats()).filter((chat) => chat.id !== id);
-      const activeImageIdsInOtherChats = /* @__PURE__ */ new Set();
-      allOtherChats.forEach((chat) => {
-        (chat.messages || []).forEach((message) => {
-          (message.imageIds || []).forEach((imgId) => activeImageIdsInOtherChats.add(imgId));
-        });
-      });
-      const finalImageIdsToDelete = [...imageIdsToDelete].filter((id2) => !activeImageIdsInOtherChats.has(id2));
-      return new Promise((resolve, reject) => {
-        const storeNames = [CHATS_STORE];
-        if (finalImageIdsToDelete.length > 0) {
-          storeNames.push(IMAGE_STORE);
-        }
-        const transaction = state.db.transaction(storeNames, "readwrite");
-        const chatStore = transaction.objectStore(CHATS_STORE);
-        chatStore.delete(id);
-        if (finalImageIdsToDelete.length > 0) {
-          const imageStore = transaction.objectStore(IMAGE_STORE);
-          console.log(`[Delete Chat] チャット(ID:${id})に関連する ${finalImageIdsToDelete.length}件の画像をimage_storeから削除します。`);
-          finalImageIdsToDelete.forEach((imgId) => imageStore.delete(imgId));
-        }
-        transaction.oncomplete = () => {
-          console.log(`チャット削除完了 (ID: ${id})`);
-          appLogic.markAsDirtyAndSchedulePush(true);
-          resolve();
-        };
-        transaction.onerror = (event) => {
-          console.error(`チャット(ID:${id})の削除トランザクション中にエラー:`, event.target.error);
-          reject(`チャット ${id} 削除エラー: ${event.target.error}`);
-        };
-      });
-    },
-    // 全データ (設定とチャット) をクリア
-    async clearAllData() {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const storeNames = Array.from(state.db.objectStoreNames);
-        if (storeNames.length === 0) {
-          console.log("クリア対象のストアが存在しません。");
-          resolve();
-          return;
-        }
-        console.log(`以下のストアをクリアします: ${storeNames.join(", ")}`);
-        const transaction = state.db.transaction(storeNames, "readwrite");
-        let storesCleared = 0;
-        const totalStores = storeNames.length;
-        transaction.oncomplete = () => {
-          console.log("IndexedDBの全データ削除完了");
-          resolve();
-        };
-        transaction.onerror = (event) => {
-          reject(`データクリアトランザクション失敗: ${event.target.error}`);
-        };
-        storeNames.forEach((storeName) => {
-          const request = transaction.objectStore(storeName).clear();
-          request.onerror = (event) => {
-            console.error(`${storeName} のクリア中にエラー:`, event.target.error);
-          };
-        });
-      });
-    },
-    async getSetting(key) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        try {
-          const store = this._getStore(SETTINGS_STORE);
-          const request = store.get(key);
-          request.onsuccess = (event) => {
-            resolve(event.target.result);
-          };
-          request.onerror = (event) => {
-            reject(event.target.error);
-          };
-        } catch (e) {
-          reject(e);
-        }
-      });
-    },
-    async addProfile(profile) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(PROFILES_STORE, "readwrite");
-        const request = store.add(profile);
-        request.onsuccess = (event) => {
-          console.log(`[DB] プロファイルを新規追加しました (ID: ${event.target.result})`);
-          resolve(event.target.result);
-        };
-        request.onerror = (event) => reject(`プロファイル追加エラー: ${event.target.error}`);
-      });
-    },
-    async getProfile(id) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(PROFILES_STORE);
-        const request = store.get(id);
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`プロファイル(ID: ${id})取得エラー: ${event.target.error}`);
-      });
-    },
-    async getAllProfiles() {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(PROFILES_STORE);
-        const request = store.getAll();
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`全プロファイル取得エラー: ${event.target.error}`);
-      });
-    },
-    async updateProfile(profile) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(PROFILES_STORE, "readwrite");
-        const request = store.put(profile);
-        request.onsuccess = () => {
-          console.log(`[DB] プロファイルを更新しました (ID: ${profile.id})`);
-          resolve();
-        };
-        request.onerror = (event) => reject(`プロファイル(ID: ${profile.id})更新エラー: ${event.target.error}`);
-      });
-    },
-    async deleteProfile(id) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore(PROFILES_STORE, "readwrite");
-        const request = store.delete(id);
-        request.onsuccess = () => {
-          console.log(`[DB] プロファイルを削除しました (ID: ${id})`);
-          resolve();
-        };
-        request.onerror = (event) => reject(`プロファイル(ID: ${id})削除エラー: ${event.target.error}`);
-      });
-    },
-    async getAsset(name) {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore("image_assets");
-        const request = store.get(name);
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`アセット ${name} 取得エラー: ${event.target.error}`);
-      });
-    },
-    async getAllAssets() {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore("image_assets");
-        const request = store.getAll();
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`全アセット取得エラー: ${event.target.error}`);
-      });
-    },
-    async getMemory(profileId) {
-      if (!profileId) return null;
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore("memory_store");
-        const request = store.get(profileId);
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`メモリ(ID: ${profileId})取得エラー: ${event.target.error}`);
-      });
-    },
-    async saveMemory(profileId, memoryData) {
-      if (!profileId) return Promise.reject("プロファイルIDが必要です。");
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore("memory_store", "readwrite");
-        const dataToSave = { profileId, ...memoryData };
-        const request = store.put(dataToSave);
-        request.onsuccess = () => {
-          console.log(`[DB] メモリを保存しました (ID: ${profileId})`);
-          resolve();
-        };
-        request.onerror = (event) => reject(`メモリ(ID: ${profileId})保存エラー: ${event.target.error}`);
-      });
-    },
-    async getAllMemories() {
-      await this.openDB();
-      return new Promise((resolve, reject) => {
-        const store = this._getStore("memory_store");
-        const request = store.getAll();
-        request.onsuccess = (event) => resolve(event.target.result);
-        request.onerror = (event) => reject(`全メモリ取得エラー: ${event.target.error}`);
-      });
-    },
-    /**
-     * [V2] メタデータを受け取り、アセットをDLしてからDBをクリア＆インポートする
-     */
-    async clearAndImportData(data, localAssetsBeforeClear, downloadedAssets, requiredAssetIds) {
-      console.log("[DB Import V2] 安全なデータインポート処理を開始します。");
-      uiUtils.showProgressDialog("データベースを準備中...");
-      const { profiles, chats, memories, projects, assets, settings } = data;
-      const allAvailableAssets = new Map([...localAssetsBeforeClear, ...downloadedAssets]);
-      console.log(`[DB Import V2] 利用可能なアセットの完全なマップを作成しました: ${allAvailableAssets.size}件`);
-      const missingAssetInfo = {};
-      (chats || []).forEach((chat) => {
-        const missingIdsForThisChat = /* @__PURE__ */ new Set();
-        (chat.messages || []).forEach((message) => {
-          if (Array.isArray(message.imageIds) && message.imageIds.length > 0) {
-            message.imageIds.forEach((id) => {
-              if (id && !allAvailableAssets.has(id)) {
-                missingIdsForThisChat.add(id);
-              }
-            });
-          }
-        });
-        if (missingIdsForThisChat.size > 0) {
-          const key = chat.title || `ID:${chat.id}`;
-          missingAssetInfo[key] = [...missingIdsForThisChat];
-        }
-      });
-      if (Object.keys(missingAssetInfo).length > 0) {
-        console.error("[DB Import V2] 必要な画像アセットの一部が見つからないため、インポートを中止します。", missingAssetInfo);
-        const error = new Error("必要な画像アセットのダウンロードに失敗したため、データのインポートを中止しました。再度同期をお試しください。");
-        error.code = "MISSING_ASSETS";
-        error.missingAssetInfo = missingAssetInfo;
-        throw error;
-      }
-      const profilesWithBlobs = (profiles || []).map((p) => {
-        if (p.iconAssetId && allAvailableAssets.has(p.iconAssetId)) {
-          p.icon = allAvailableAssets.get(p.iconAssetId);
-        }
-        return p;
-      });
-      const assetsWithBlobs = (assets || []).map((a) => ({
-        name: a.name,
-        assetId: a.assetId,
-        blob: allAvailableAssets.get(a.assetId),
-        createdAt: a.createdAt
-      })).filter((a) => a.blob);
-      const imagesWithBlobs = [];
-      requiredAssetIds.forEach((id) => {
-        if (allAvailableAssets.has(id)) {
-          imagesWithBlobs.push({
-            id,
-            blob: allAvailableAssets.get(id),
-            createdAt: /* @__PURE__ */ new Date()
-          });
-        }
-      });
-      const tempStoreNames = [
-        `${PROFILES_STORE}_temp`,
-        `${CHATS_STORE}_temp`,
-        `${SETTINGS_STORE}_temp`,
-        `${IMAGE_STORE}_temp`,
-        "image_assets_temp",
-        "memory_store_temp",
-        "projects_temp"
-      ];
-      const mainStoreNames = [
-        PROFILES_STORE,
-        CHATS_STORE,
-        SETTINGS_STORE,
-        IMAGE_STORE,
-        "image_assets",
-        "memory_store",
-        PROJECTS_STORE
-      ];
-      const currentTokens = await dbUtils.getSetting("dropboxTokens");
-      try {
-        uiUtils.updateProgressMessage("データを一時領域にインポート中...");
-        const tempTx = state.db.transaction(tempStoreNames, "readwrite");
-        const tempStores = {
-          "profiles_temp": profilesWithBlobs,
-          "chats_temp": chats || [],
-          "memory_store_temp": memories || [],
-          "projects_temp": projects || [],
-          "image_assets_temp": assetsWithBlobs,
-          "image_store_temp": imagesWithBlobs,
-          "settings_temp": settings || []
-        };
-        const tempClearPromises = tempStoreNames.map((name) => {
-          return new Promise((resolve, reject) => {
-            const request = tempTx.objectStore(name).clear();
-            request.onsuccess = resolve;
-            request.onerror = () => reject(request.error);
-          });
-        });
-        await Promise.all(tempClearPromises);
-        for (const storeName in tempStores) {
-          const store = tempTx.objectStore(storeName);
-          (tempStores[storeName] || []).forEach((item) => store.put(item));
-        }
-        await new Promise((resolve, reject) => {
-          tempTx.oncomplete = resolve;
-          tempTx.onerror = () => reject(tempTx.error);
-        });
-        console.log("[DB Import V2] 一時ストアへのデータ書き込みが完了しました。");
-        uiUtils.updateProgressMessage("データベースを更新中...");
-        const mainTx = state.db.transaction([...mainStoreNames, ...tempStoreNames], "readwrite");
-        const mainClearPromises = mainStoreNames.map((name) => {
-          return new Promise((resolve, reject) => {
-            const request = mainTx.objectStore(name).clear();
-            request.onsuccess = resolve;
-            request.onerror = () => reject(request.error);
-          });
-        });
-        await Promise.all(mainClearPromises);
-        for (let i = 0; i < mainStoreNames.length; i++) {
-          const mainStore = mainTx.objectStore(mainStoreNames[i]);
-          const tempStore = mainTx.objectStore(tempStoreNames[i]);
-          const allTempItemsReq = tempStore.getAll();
-          allTempItemsReq.onsuccess = () => {
-            allTempItemsReq.result.forEach((item) => mainStore.put(item));
-          };
-        }
-        const tempClearPromises2 = tempStoreNames.map((name) => {
-          return new Promise((resolve, reject) => {
-            const request = mainTx.objectStore(name).clear();
-            request.onsuccess = resolve;
-            request.onerror = () => reject(request.error);
-          });
-        });
-        await Promise.all(tempClearPromises2);
-        if (currentTokens) {
-          mainTx.objectStore(SETTINGS_STORE).put(currentTokens);
-        }
-        await new Promise((resolve, reject) => {
-          mainTx.oncomplete = resolve;
-          mainTx.onerror = () => reject(mainTx.error);
-        });
-        console.log("[DB Import V2] メインデータベースの更新が正常に完了しました。");
-        return { removedAssetInfo: missingAssetInfo };
-      } catch (error) {
-        console.error("[DB Import V2] 安全なインポート処理中にエラーが発生しました:", error);
-        try {
-          const cleanupTx = state.db.transaction(tempStoreNames, "readwrite");
-          const cleanupPromises = tempStoreNames.map((name) => {
-            return new Promise((resolve, reject) => {
-              const request = cleanupTx.objectStore(name).clear();
-              request.onsuccess = resolve;
-              request.onerror = () => reject(request.error);
-            });
-          });
-          await Promise.all(cleanupPromises);
-        } catch (cleanupError) {
-          console.error("[DB Import V2] エラー後のクリーンアップに失敗:", cleanupError);
-        }
-        throw error;
-      }
+    syncMessageCounter: 0,
+    backgroundImageUrl: null,
+    isSending: false,
+    abortController: null,
+    editingMessageIndex: null,
+    isEditingSystemPrompt: false,
+    touchStartX: 0,
+    touchStartY: 0,
+    touchEndX: 0,
+    touchEndY: 0,
+    isSwiping: false,
+    isZoomed: false,
+    currentScreen: "chat",
+    panelFadeOutTimer: null,
+    selectedFilesForUpload: [],
+    pendingAttachments: [],
+    isTemporaryBackgroundActive: false,
+    currentScene: null,
+    currentStyleProfiles: {},
+    isMemoryEnabledForChat: true,
+    characterProfileVisibleCharacter: null,
+    sync: {
+      isDirty: false,
+      // ローカルに変更があったか
+      lastSyncId: null,
+      // 最後に同期したクラウドのID
+      isSyncing: false,
+      // 同期処理中か
+      pushTimeoutId: null,
+      // Push処理のデバウンス用タイマーID
+      lastError: null
     }
   };
+
+  // src/debug-logger.js
+  var DebugLogger = {
+    logs: [],
+    MAX_LOGS: 500,
+    originalConsole: {},
+    isInitialized: false,
+    init() {
+      if (state.settings.debugMode) {
+        this._patchConsole();
+      } else {
+        this._unpatchConsole();
+      }
+      this.isInitialized = true;
+      console.log(
+        `[DebugLogger] 初期化完了。デバッグモード: ${state.settings.debugMode ? "ON" : "OFF"}`
+      );
+    },
+    _patchConsole() {
+      if (this.originalConsole.log) return;
+      const consoleMethods = ["log", "error", "warn", "info", "debug"];
+      consoleMethods.forEach((method) => {
+        this.originalConsole[method] = console[method];
+        console[method] = (...args) => {
+          this.addLog(method, args);
+          this.originalConsole[method].apply(console, args);
+        };
+      });
+    },
+    _unpatchConsole() {
+      if (!this.originalConsole.log) return;
+      Object.keys(this.originalConsole).forEach((method) => {
+        console[method] = this.originalConsole[method];
+      });
+      this.originalConsole = {};
+    },
+    addLog(type, args) {
+      const serialize = /* @__PURE__ */ __name((obj) => {
+        try {
+          if (obj instanceof HTMLElement) return `[HTMLElement: ${obj.tagName}]`;
+          if (obj instanceof Event) return `[Event: ${obj.type}]`;
+          return JSON.stringify(
+            obj,
+            (key, value) => {
+              if (typeof value === "object" && value !== null) {
+                if (value instanceof Blob) return "[Blob]";
+                if (value instanceof File) return `[File: ${value.name}]`;
+              }
+              return value;
+            },
+            2
+          );
+        } catch (e) {
+          return "[Unserializable Object]";
+        }
+      }, "serialize");
+      this.logs.push({
+        type,
+        timestamp: /* @__PURE__ */ new Date(),
+        args: args.map(
+          (arg) => typeof arg === "object" && arg !== null ? serialize(arg) : arg
+        )
+      });
+      if (this.logs.length > this.MAX_LOGS) {
+        this.logs.shift();
+      }
+    },
+    getLogs() {
+      return this.logs;
+    },
+    clearLogs() {
+      this.logs = [];
+      console.log("[DebugLogger] ログがクリアされました。");
+    }
+  };
+
+  // src/utils/format.js
+  var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
+  function interruptibleSleep(ms, signal) {
+    return new Promise((resolve, reject) => {
+      if (signal.aborted) {
+        const error = new Error("Sleep aborted");
+        error.name = "AbortError";
+        return reject(error);
+      }
+      let timeoutId;
+      const onAbort = /* @__PURE__ */ __name(() => {
+        clearTimeout(timeoutId);
+        const error = new Error("Sleep aborted");
+        error.name = "AbortError";
+        reject(error);
+      }, "onAbort");
+      timeoutId = setTimeout(() => {
+        signal.removeEventListener("abort", onAbort);
+        resolve();
+      }, ms);
+      signal.addEventListener("abort", onAbort, { once: true });
+    });
+  }
+  __name(interruptibleSleep, "interruptibleSleep");
+  function formatFileSize(bytes) {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  }
+  __name(formatFileSize, "formatFileSize");
+  function base64ToBlob(base64, mimeType) {
+    return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
+  }
+  __name(base64ToBlob, "base64ToBlob");
+
+  // src/utils/html.js
+  var htmlUtils = {
+    // HTML要素内のテキストコンテンツ用エスケープ
+    escapeHtml(text) {
+      if (text === null || text === void 0) return "";
+      const div = document.createElement("div");
+      div.textContent = String(text);
+      return div.innerHTML;
+    },
+    // HTML属性値用エスケープ（より厳格）
+    escapeAttr(text) {
+      if (text === null || text === void 0) return "";
+      return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    },
+    // CSSセレクタ用の安全な文字列を生成
+    escapeSelector(text) {
+      if (text === null || text === void 0) return "";
+      return CSS.escape(String(text));
+    }
+  };
+
+  // src/ui.js
   var uiUtils = {
     setLoadingIndicatorText(text) {
       elements.loadingIndicator.textContent = text;
@@ -4741,6 +3800,8 @@ Reason: [NGの場合の理由]`,
       }, 4e3);
     }
   };
+
+  // src/api.js
   var apiUtils = {
     // Gemini形式からOpenAI形式への変換
     convertGeminiToOpenAIFormat(messagesForApi) {
@@ -5827,36 +4888,69 @@ Reason: [NGの場合の理由]`,
       }
     }
   };
-  function setupBroadcastChannel() {
-    if ("BroadcastChannel" in window) {
-      try {
-        broadcastChannel = new BroadcastChannel("gemini-pwa-sync-channel");
-        console.log("[BroadcastChannel] チャンネルに接続しました。");
-        broadcastChannel.onmessage = async (event) => {
-          const { type, newSyncId, sourceTabId } = event.data;
-          if (sourceTabId === state.tabId) {
-            return;
-          }
-          console.log(`[BroadcastChannel] 他のタブからメッセージを受信:`, event.data);
-          if (type === "SYNC_COMPLETED" && newSyncId) {
-            state.sync.lastSyncId = newSyncId;
-            state.sync.isDirty = false;
-            state.sync.lastError = null;
-            await dbUtils.saveSetting("lastSyncId", newSyncId);
-            await dbUtils.saveSetting("syncIsDirty", false);
-            await dbUtils.saveSetting("syncLastError", null);
-            await dbUtils.saveSetting("lastSyncTimestamp", Date.now());
-            await appLogic.updateDropboxUIState();
-          }
-        };
-      } catch (error) {
-        console.error("[BroadcastChannel] チャンネルの作成に失敗しました:", error);
-      }
-    } else {
-      console.warn("[BroadcastChannel] このブラウザはBroadcastChannelをサポートしていません。");
-    }
-  }
-  __name(setupBroadcastChannel, "setupBroadcastChannel");
+
+  // src/mime-types.js
+  var extensionToMimeTypeMap = {
+    // Text Data
+    pdf: "application/pdf",
+    js: "text/javascript",
+    py: "text/x-python",
+    txt: "text/plain",
+    html: "text/html",
+    htm: "text/html",
+    json: "application/json",
+    css: "text/css",
+    md: "text/markdown",
+    csv: "text/csv",
+    xml: "application/xml",
+    rtf: "application/rtf",
+    java: "text/x-java-source",
+    c: "text/x-c",
+    cpp: "text/x-c++src",
+    hpp: "text/x-c++hdr",
+    h: "text/x-chdr",
+    cs: "text/plain",
+    php: "application/x-httpd-php",
+    rb: "text/x-ruby",
+    go: "text/x-go",
+    swift: "text/x-swift",
+    kt: "text/x-kotlin",
+    kts: "text/x-kotlin",
+    rs: "text/rust",
+    ts: "text/typescript",
+    tsx: "text/typescript",
+    sql: "application/sql",
+    sh: "application/x-sh",
+    yml: "text/yaml",
+    yaml: "text/yaml",
+    // Image Data
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    webp: "image/webp",
+    heic: "image/heic",
+    heif: "image/heif",
+    // Video Data
+    mp4: "video/mp4",
+    mpeg: "video/mpeg",
+    mov: "video/mov",
+    avi: "video/avi",
+    flv: "video/x-flv",
+    mpg: "video/mpg",
+    webm: "video/webm",
+    wmv: "video/wmv",
+    "3gp": "video/3gpp",
+    "3gpp": "video/3gpp",
+    // Audio Data
+    wav: "audio/wav",
+    mp3: "audio/mp3",
+    aiff: "audio/aiff",
+    aac: "audio/aac",
+    ogg: "audio/ogg",
+    flac: "audio/flac"
+  };
+
+  // src/app-logic.js
   var appLogic = {
     _setupEventListenersCallCount: 0,
     timerManager: {
@@ -12774,6 +11868,948 @@ ${msg}`);
       }
     }, "runQualityChecker")
   };
+
+  // src/db.js
+  var dbUtils = {
+    openDB() {
+      return new Promise((resolve, reject) => {
+        if (state.db) {
+          resolve(state.db);
+          return;
+        }
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        request.onblocked = (event) => {
+          console.warn("IndexedDBのバージョンアップがブロックされました。古い接続が残っています。", event);
+          uiUtils.showCustomAlert(
+            "アプリの更新が他のチャットセッションのタブによってブロックされています。\n\nこのアプリを開いている他のタブを閉じてから、このタブを再読み込み（リロード）してください。"
+          );
+        };
+        request.onerror = (event) => {
+          console.error("IndexedDBエラー:", event.target.error);
+          reject(`IndexedDBエラー: ${event.target.error}`);
+        };
+        request.onsuccess = (event) => {
+          state.db = event.target.result;
+          console.log("IndexedDBオープン成功");
+          state.db.onerror = (event2) => {
+            console.error(`データベースエラー: ${event2.target.error}`);
+          };
+          resolve(state.db);
+        };
+        request.onupgradeneeded = (event) => {
+          const db = event.target.result;
+          const transaction = event.target.transaction;
+          console.log(`[DB Migration] IndexedDBをバージョン ${event.oldVersion} から ${event.newVersion} へアップグレード中...`);
+          if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
+            db.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
+          }
+          if (!db.objectStoreNames.contains(CHATS_STORE)) {
+            const chatStore = db.createObjectStore(CHATS_STORE, { keyPath: "id", autoIncrement: true });
+            chatStore.createIndex(CHAT_UPDATEDAT_INDEX, "updatedAt", { unique: false });
+            chatStore.createIndex(CHAT_CREATEDAT_INDEX, "createdAt", { unique: false });
+          }
+          if (!db.objectStoreNames.contains(PROFILES_STORE)) {
+            const profilesStore = db.createObjectStore(PROFILES_STORE, { keyPath: "id", autoIncrement: true });
+          }
+          if (!db.objectStoreNames.contains("image_assets")) {
+            db.createObjectStore("image_assets", { keyPath: "name" });
+          }
+          if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
+            db.createObjectStore(PROJECTS_STORE, { keyPath: "id", autoIncrement: true });
+          }
+          if (event.oldVersion < 10) {
+            console.log("[DB Migration] v10へのデータ移行処理を実行します。");
+            const settingsStore = transaction.objectStore(SETTINGS_STORE);
+            const profilesStore = transaction.objectStore(PROFILES_STORE);
+            const getAllSettingsReq = settingsStore.getAll();
+            getAllSettingsReq.onsuccess = () => {
+              const oldSettingsArray = getAllSettingsReq.result;
+              if (oldSettingsArray.length > 0) {
+                console.log("[DB Migration] 既存の設定を検出しました。新しいプロファイル構造に移行します...");
+                const oldSettingsObject = {};
+                oldSettingsArray.forEach((item) => {
+                  oldSettingsObject[item.key] = item.value;
+                });
+                const profileSettingKeys = [
+                  "apiProvider",
+                  "apiKey",
+                  "zaiApiKey",
+                  "bedrockAccessKey",
+                  "bedrockSecretKey",
+                  "bedrockRegion",
+                  "modelName",
+                  "systemPrompt",
+                  "temperature",
+                  "maxTokens",
+                  "topK",
+                  "topP",
+                  "presencePenalty",
+                  "frequencyPenalty",
+                  "thinkingBudget",
+                  "includeThoughts",
+                  "enableThoughtTranslation",
+                  "thoughtTranslationModel",
+                  "dummyUser",
+                  "applyDummyToProofread",
+                  "applyDummyToTranslate",
+                  "dummyModel",
+                  "reverseDummyOrder",
+                  "concatDummyModel",
+                  "additionalModels",
+                  "enterToSend",
+                  "historySortOrder",
+                  "darkMode",
+                  "fontFamily",
+                  "hideSystemPromptInChat",
+                  "enableSwipeNavigation",
+                  "enableAutoRetry",
+                  "maxRetries",
+                  "useFixedRetryDelay",
+                  "fixedRetryDelaySeconds",
+                  "maxBackoffDelaySeconds",
+                  "enableProofreading",
+                  "proofreadingModelName",
+                  "proofreadingSystemInstruction",
+                  "geminiEnableGrounding",
+                  "geminiEnableFunctionCalling",
+                  "googleSearchApiKey",
+                  "googleSearchEngineId",
+                  "messageOpacity",
+                  "overlayOpacity",
+                  "headerColor",
+                  "allowPromptUiChanges",
+                  "forceFunctionCalling",
+                  "anthropicEffort"
+                ];
+                const newProfileSettings = {};
+                profileSettingKeys.forEach((key) => {
+                  newProfileSettings[key] = oldSettingsObject[key] !== void 0 ? oldSettingsObject[key] : state.settings[key];
+                });
+                const defaultProfile = {
+                  name: "デフォルトプロファイル",
+                  icon: null,
+                  createdAt: Date.now(),
+                  settings: newProfileSettings
+                };
+                const addProfileReq = profilesStore.add(defaultProfile);
+                addProfileReq.onsuccess = (addEvent) => {
+                  const newProfileId = addEvent.target.result;
+                  console.log(`[DB Migration] デフォルトプロファイルを生成しました (ID: ${newProfileId})`);
+                  profileSettingKeys.forEach((key) => {
+                    settingsStore.delete(key);
+                  });
+                  settingsStore.put({ key: "activeProfileId", value: newProfileId });
+                  console.log(`[DB Migration] SETTINGS_STOREを整理し、activeProfileIdを設定しました。`);
+                };
+              }
+            };
+          }
+          if (event.oldVersion < 11) {
+            console.log("[DB Migration] v11へのアップグレード: image_storeを作成します。");
+            if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+              db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
+            }
+            transaction.oncomplete = () => {
+              console.log("[DB Migration] スキーマ更新完了。データ移行処理を開始します。");
+              appLogic.migrateImageData();
+            };
+          }
+          if (event.oldVersion < 12) {
+            console.log("[DB Migration] v12へのアップグレード: memory_storeを作成します。");
+            if (!db.objectStoreNames.contains("memory_store")) {
+              db.createObjectStore("memory_store", { keyPath: "profileId" });
+            }
+          }
+          if (event.oldVersion < 13) {
+            console.log("[DB Migration] v13へのアップグレード: 安全なインポート用の一時ストアを作成します。");
+            const tempStores = [
+              { name: `${PROFILES_STORE}_temp`, options: { keyPath: "id" } },
+              { name: `${CHATS_STORE}_temp`, options: { keyPath: "id" } },
+              { name: `${SETTINGS_STORE}_temp`, options: { keyPath: "key" } },
+              { name: `${IMAGE_STORE}_temp`, options: { keyPath: "id" } },
+              { name: "image_assets_temp", options: { keyPath: "name" } },
+              { name: "memory_store_temp", options: { keyPath: "profileId" } }
+            ];
+            tempStores.forEach((storeInfo) => {
+              if (!db.objectStoreNames.contains(storeInfo.name)) {
+                db.createObjectStore(storeInfo.name, storeInfo.options);
+                console.log(`[DB Migration] Temporary store '${storeInfo.name}' created.`);
+              }
+            });
+          }
+          if (event.oldVersion < 15) {
+            console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
+            if (!db.objectStoreNames.contains("projects_temp")) {
+              db.createObjectStore("projects_temp", { keyPath: "id" });
+              console.log("[DB Migration] 'projects_temp' store created.");
+            }
+          }
+        };
+      });
+    },
+    // 指定されたストアを取得する内部関数
+    _getStore(storeName, mode = "readonly") {
+      if (!state.db) throw new Error("データベースが開かれていません");
+      const transaction = state.db.transaction([storeName], mode);
+      return transaction.objectStore(storeName);
+    },
+    // 設定を保存
+    async saveSetting(key, value) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        try {
+          console.log(`[DEBUG] saveSetting: key='${key}' の保存トランザクションを開始します。`);
+          const transaction = state.db.transaction([SETTINGS_STORE], "readwrite");
+          const store = transaction.objectStore(SETTINGS_STORE);
+          store.put({ key, value });
+          transaction.oncomplete = () => {
+            console.log(`[DEBUG] saveSetting: key='${key}' のトランザクションが正常に完了しました。`);
+            resolve();
+          };
+          transaction.onerror = (event) => {
+            console.error(`[DEBUG] saveSetting: key='${key}' のトランザクションエラー:`, event.target.error);
+            reject(event.target.error);
+          };
+        } catch (error) {
+          console.error(`[DEBUG] saveSetting: ストアアクセスエラー:`, error);
+          reject(error);
+        }
+      });
+    },
+    async saveChat(optionalTitle = null, chatObjectToSave = null, options = {}) {
+      await this.openDB();
+      let messagesForStats = [];
+      let chatDataToSave;
+      if (!chatObjectToSave) {
+        if ((!state.currentMessages || state.currentMessages.length === 0) && !state.currentSystemPrompt) {
+          if (state.currentChatId) console.log(`saveChat: 既存チャット ${state.currentChatId} にメッセージもシステムプロンプトもないため保存せず`);
+          else console.log("saveChat: 新規チャットに保存するメッセージもシステムプロンプトもなし");
+          return state.currentChatId;
+        }
+        const messagesToSave = state.currentMessages.map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          timestamp: msg.timestamp,
+          thoughtSummary: msg.thoughtSummary || null,
+          tool_calls: msg.tool_calls || null,
+          imageIds: msg.imageIds,
+          finishReason: msg.finishReason,
+          safetyRatings: msg.safetyRatings,
+          error: msg.error,
+          isCascaded: msg.isCascaded,
+          isSelected: msg.isSelected,
+          siblingGroupId: msg.siblingGroupId,
+          groundingMetadata: msg.groundingMetadata,
+          // attachments を安全にコピーし、file オブジェクトのみ除外する
+          attachments: msg.attachments ? msg.attachments.map((att) => ({
+            name: att.name,
+            mimeType: att.mimeType,
+            base64Data: att.base64Data,
+            assetId: att.assetId
+          })) : void 0,
+          usageMetadata: msg.usageMetadata,
+          modelName: msg.modelName,
+          executedFunctions: msg.executedFunctions,
+          generated_images: msg.generated_images,
+          generated_videos: msg.generated_videos ? msg.generated_videos.map((video) => ({
+            base64Data: video.base64Data,
+            prompt: video.prompt
+          })) : void 0,
+          isHidden: msg.isHidden,
+          isAutoTrigger: msg.isAutoTrigger
+        }));
+        messagesForStats = messagesToSave;
+        chatDataToSave = {
+          messages: messagesToSave,
+          systemPrompt: state.currentSystemPrompt,
+          persistentMemory: state.currentPersistentMemory || {},
+          summarizedContext: state.currentSummarizedContext || null,
+          isMemoryEnabledForChat: state.isMemoryEnabledForChat
+        };
+      } else {
+        messagesForStats = chatObjectToSave.messages || [];
+        chatDataToSave = chatObjectToSave;
+      }
+      const stats = await this._calculateChatStats(messagesForStats);
+      return new Promise((resolve, reject) => {
+        try {
+          const transaction = state.db.transaction([CHATS_STORE], "readwrite");
+          const store = transaction.objectStore(CHATS_STORE);
+          const now = Date.now();
+          const processSave = /* @__PURE__ */ __name((existingChatData = null) => {
+            let title;
+            if (optionalTitle !== null) {
+              title = optionalTitle;
+            } else if (existingChatData && existingChatData.title) {
+              title = existingChatData.title;
+            } else {
+              const firstUserMessage = (chatDataToSave.messages || []).find((m) => m.role === "user" && !m.isHidden);
+              title = firstUserMessage ? firstUserMessage.content.substring(0, 50) : "無題のチャット";
+            }
+            const chatIdForOperation = existingChatData ? existingChatData.id : state.currentChatId;
+            const finalChatData = {
+              ...chatDataToSave,
+              updatedAt: chatObjectToSave && chatObjectToSave.updatedAt ? chatObjectToSave.updatedAt : now,
+              createdAt: existingChatData ? existingChatData.createdAt : now,
+              title,
+              stats
+            };
+            if (chatIdForOperation) {
+              finalChatData.id = chatIdForOperation;
+            }
+            const inheritedProjectId = chatDataToSave && chatDataToSave.projectId || existingChatData && existingChatData.projectId;
+            if (inheritedProjectId) {
+              finalChatData.projectId = inheritedProjectId;
+            } else if (window.state && window.state.activeProjectId) {
+              finalChatData.projectId = window.state.activeProjectId;
+            }
+            const putRequest = store.put(finalChatData);
+            putRequest.onsuccess = (event) => {
+              const savedId = event.target.result;
+              if (!state.currentChatId && savedId) {
+                state.currentChatId = savedId;
+              }
+              console.log(`チャット ${state.currentChatId ? "更新" : "保存"} 完了 ID:`, state.currentChatId || savedId);
+              if ((state.currentChatId || savedId) === (chatIdForOperation || savedId)) {
+                uiUtils.updateChatTitle(finalChatData.title);
+              }
+              if (!options.skipPush) {
+                appLogic.markAsDirtyAndSchedulePush();
+              }
+            };
+            putRequest.onerror = (event) => {
+              console.error("チャット保存(put)エラー:", event.target.error);
+            };
+          }, "processSave");
+          if (state.currentChatId && !chatObjectToSave) {
+            const getRequest = store.get(state.currentChatId);
+            getRequest.onsuccess = (event) => {
+              const existingChat = event.target.result;
+              if (!existingChat) {
+                console.warn(`ID ${state.currentChatId} のチャットが見つかりません(保存時)。新規として保存します。`);
+                state.currentChatId = null;
+              }
+              processSave(existingChat);
+            };
+            getRequest.onerror = (event) => {
+              console.error("既存チャットの取得エラー(更新用):", event.target.error);
+              state.currentChatId = null;
+              processSave(null);
+            };
+          } else {
+            processSave(chatObjectToSave);
+          }
+          transaction.oncomplete = () => {
+            resolve(state.currentChatId);
+          };
+          transaction.onerror = (event) => {
+            console.error("チャット保存トランザクション失敗:", event.target.error);
+            reject(new Error(`チャット保存トランザクション失敗: ${event.target.error.message}`));
+          };
+        } catch (error) {
+          console.error("チャット保存処理の開始に失敗:", error);
+          reject(error);
+        }
+      });
+    },
+    async _calculateChatStats(messages) {
+      if (!messages) return null;
+      let totalTokens = 0;
+      let inputTokens = 0;
+      let outputTokens = 0;
+      const assetIds = /* @__PURE__ */ new Set();
+      let totalAssetSize = 0;
+      let attachmentCount = 0;
+      messages.forEach((msg) => {
+        if (msg.usageMetadata) {
+          if (typeof msg.usageMetadata.totalTokenCount === "number") {
+            totalTokens += msg.usageMetadata.totalTokenCount;
+          }
+          if (typeof msg.usageMetadata.promptTokenCount === "number") {
+            inputTokens += msg.usageMetadata.promptTokenCount;
+          }
+          if (typeof msg.usageMetadata.candidatesTokenCount === "number") {
+            outputTokens += msg.usageMetadata.candidatesTokenCount;
+          }
+        }
+        if (msg.imageIds) {
+          msg.imageIds.forEach((id) => assetIds.add(id));
+        }
+        if (msg.attachments) {
+          attachmentCount += msg.attachments.length;
+          msg.attachments.forEach((att) => {
+            if (att.base64Data) {
+              totalAssetSize += Math.ceil(att.base64Data.length * 0.75);
+            }
+          });
+        }
+      });
+      if (assetIds.size > 0) {
+        await this.openDB();
+        const store = this._getStore(IMAGE_STORE);
+        const imagePromises = Array.from(assetIds).map((id) => {
+          return new Promise((resolve) => {
+            const request = store.get(id);
+            request.onsuccess = (event) => {
+              if (event.target.result && event.target.result.blob instanceof Blob) {
+                resolve(event.target.result.blob.size);
+              } else {
+                resolve(0);
+              }
+            };
+            request.onerror = () => resolve(0);
+          });
+        });
+        const sizes = await Promise.all(imagePromises);
+        totalAssetSize += sizes.reduce((sum, size) => sum + size, 0);
+      }
+      return {
+        totalTokens,
+        inputTokens,
+        outputTokens,
+        assetCount: assetIds.size + attachmentCount,
+        totalAssetSize
+      };
+    },
+    // チャットタイトルをDBで更新
+    async updateChatTitleDb(id, newTitle) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(CHATS_STORE, "readwrite");
+        const getRequest = store.get(id);
+        getRequest.onsuccess = (event) => {
+          const chatData = event.target.result;
+          if (chatData) {
+            chatData.title = newTitle;
+            chatData.updatedAt = Date.now();
+            const putRequest = store.put(chatData);
+            putRequest.onsuccess = () => {
+              appLogic.markAsDirtyAndSchedulePush(true);
+              resolve();
+            };
+            putRequest.onerror = (event2) => reject(`タイトル更新エラー: ${event2.target.error}`);
+          } else {
+            reject(`チャットが見つかりません: ${id}`);
+          }
+        };
+        getRequest.onerror = (event) => reject(`タイトル更新用チャット取得エラー: ${event.target.error}`);
+        store.transaction.onerror = (event) => reject(`タイトル更新トランザクション失敗: ${event.target.error}`);
+      });
+    },
+    // 指定IDのチャットを取得
+    async getChat(id) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(CHATS_STORE);
+        const request = store.get(id);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`チャット ${id} 取得エラー: ${event.target.error}`);
+      });
+    },
+    // 全チャットを取得 (ソート順指定可)
+    async getAllChats(sortBy = "updatedAt") {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(CHATS_STORE);
+        const indexName = sortBy === "createdAt" ? CHAT_CREATEDAT_INDEX : CHAT_UPDATEDAT_INDEX;
+        if (!store.indexNames.contains(indexName)) {
+          console.error(`インデックス "${indexName}" が見つかりません。主キー順でフォールバックします。`);
+          const getAllRequest = store.getAll();
+          getAllRequest.onsuccess = (event) => resolve(event.target.result.reverse());
+          getAllRequest.onerror = (event) => reject(`全チャット取得エラー(フォールバック): ${event.target.error}`);
+          return;
+        }
+        const index = store.index(indexName);
+        const request = index.openCursor(null, "prev");
+        const chats = [];
+        request.onsuccess = (event) => {
+          const cursor = event.target.result;
+          if (cursor) {
+            chats.push(cursor.value);
+            cursor.continue();
+          } else {
+            resolve(chats);
+          }
+        };
+        request.onerror = (event) => reject(`全チャット取得エラー (${sortBy}順): ${event.target.error}`);
+      });
+    },
+    // 指定IDのチャットを削除
+    async deleteChat(id) {
+      await this.openDB();
+      const chatToDelete = await this.getChat(id);
+      const imageIdsToDelete = /* @__PURE__ */ new Set();
+      if (chatToDelete && chatToDelete.messages) {
+        chatToDelete.messages.forEach((message) => {
+          (message.imageIds || []).forEach((imgId) => imageIdsToDelete.add(imgId));
+        });
+      }
+      const allOtherChats = (await this.getAllChats()).filter((chat) => chat.id !== id);
+      const activeImageIdsInOtherChats = /* @__PURE__ */ new Set();
+      allOtherChats.forEach((chat) => {
+        (chat.messages || []).forEach((message) => {
+          (message.imageIds || []).forEach((imgId) => activeImageIdsInOtherChats.add(imgId));
+        });
+      });
+      const finalImageIdsToDelete = [...imageIdsToDelete].filter((id2) => !activeImageIdsInOtherChats.has(id2));
+      return new Promise((resolve, reject) => {
+        const storeNames = [CHATS_STORE];
+        if (finalImageIdsToDelete.length > 0) {
+          storeNames.push(IMAGE_STORE);
+        }
+        const transaction = state.db.transaction(storeNames, "readwrite");
+        const chatStore = transaction.objectStore(CHATS_STORE);
+        chatStore.delete(id);
+        if (finalImageIdsToDelete.length > 0) {
+          const imageStore = transaction.objectStore(IMAGE_STORE);
+          console.log(`[Delete Chat] チャット(ID:${id})に関連する ${finalImageIdsToDelete.length}件の画像をimage_storeから削除します。`);
+          finalImageIdsToDelete.forEach((imgId) => imageStore.delete(imgId));
+        }
+        transaction.oncomplete = () => {
+          console.log(`チャット削除完了 (ID: ${id})`);
+          appLogic.markAsDirtyAndSchedulePush(true);
+          resolve();
+        };
+        transaction.onerror = (event) => {
+          console.error(`チャット(ID:${id})の削除トランザクション中にエラー:`, event.target.error);
+          reject(`チャット ${id} 削除エラー: ${event.target.error}`);
+        };
+      });
+    },
+    // 全データ (設定とチャット) をクリア
+    async clearAllData() {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const storeNames = Array.from(state.db.objectStoreNames);
+        if (storeNames.length === 0) {
+          console.log("クリア対象のストアが存在しません。");
+          resolve();
+          return;
+        }
+        console.log(`以下のストアをクリアします: ${storeNames.join(", ")}`);
+        const transaction = state.db.transaction(storeNames, "readwrite");
+        let storesCleared = 0;
+        const totalStores = storeNames.length;
+        transaction.oncomplete = () => {
+          console.log("IndexedDBの全データ削除完了");
+          resolve();
+        };
+        transaction.onerror = (event) => {
+          reject(`データクリアトランザクション失敗: ${event.target.error}`);
+        };
+        storeNames.forEach((storeName) => {
+          const request = transaction.objectStore(storeName).clear();
+          request.onerror = (event) => {
+            console.error(`${storeName} のクリア中にエラー:`, event.target.error);
+          };
+        });
+      });
+    },
+    async getSetting(key) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        try {
+          const store = this._getStore(SETTINGS_STORE);
+          const request = store.get(key);
+          request.onsuccess = (event) => {
+            resolve(event.target.result);
+          };
+          request.onerror = (event) => {
+            reject(event.target.error);
+          };
+        } catch (e) {
+          reject(e);
+        }
+      });
+    },
+    async addProfile(profile) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(PROFILES_STORE, "readwrite");
+        const request = store.add(profile);
+        request.onsuccess = (event) => {
+          console.log(`[DB] プロファイルを新規追加しました (ID: ${event.target.result})`);
+          resolve(event.target.result);
+        };
+        request.onerror = (event) => reject(`プロファイル追加エラー: ${event.target.error}`);
+      });
+    },
+    async getProfile(id) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(PROFILES_STORE);
+        const request = store.get(id);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`プロファイル(ID: ${id})取得エラー: ${event.target.error}`);
+      });
+    },
+    async getAllProfiles() {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(PROFILES_STORE);
+        const request = store.getAll();
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`全プロファイル取得エラー: ${event.target.error}`);
+      });
+    },
+    async updateProfile(profile) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(PROFILES_STORE, "readwrite");
+        const request = store.put(profile);
+        request.onsuccess = () => {
+          console.log(`[DB] プロファイルを更新しました (ID: ${profile.id})`);
+          resolve();
+        };
+        request.onerror = (event) => reject(`プロファイル(ID: ${profile.id})更新エラー: ${event.target.error}`);
+      });
+    },
+    async deleteProfile(id) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore(PROFILES_STORE, "readwrite");
+        const request = store.delete(id);
+        request.onsuccess = () => {
+          console.log(`[DB] プロファイルを削除しました (ID: ${id})`);
+          resolve();
+        };
+        request.onerror = (event) => reject(`プロファイル(ID: ${id})削除エラー: ${event.target.error}`);
+      });
+    },
+    async getAsset(name) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("image_assets");
+        const request = store.get(name);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`アセット ${name} 取得エラー: ${event.target.error}`);
+      });
+    },
+    async getAllAssets() {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("image_assets");
+        const request = store.getAll();
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`全アセット取得エラー: ${event.target.error}`);
+      });
+    },
+    async getMemory(profileId) {
+      if (!profileId) return null;
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("memory_store");
+        const request = store.get(profileId);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`メモリ(ID: ${profileId})取得エラー: ${event.target.error}`);
+      });
+    },
+    async saveMemory(profileId, memoryData) {
+      if (!profileId) return Promise.reject("プロファイルIDが必要です。");
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("memory_store", "readwrite");
+        const dataToSave = { profileId, ...memoryData };
+        const request = store.put(dataToSave);
+        request.onsuccess = () => {
+          console.log(`[DB] メモリを保存しました (ID: ${profileId})`);
+          resolve();
+        };
+        request.onerror = (event) => reject(`メモリ(ID: ${profileId})保存エラー: ${event.target.error}`);
+      });
+    },
+    async getAllMemories() {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("memory_store");
+        const request = store.getAll();
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`全メモリ取得エラー: ${event.target.error}`);
+      });
+    },
+    /**
+     * [V2] メタデータを受け取り、アセットをDLしてからDBをクリア＆インポートする
+     */
+    async clearAndImportData(data, localAssetsBeforeClear, downloadedAssets, requiredAssetIds) {
+      console.log("[DB Import V2] 安全なデータインポート処理を開始します。");
+      uiUtils.showProgressDialog("データベースを準備中...");
+      const { profiles, chats, memories, projects, assets, settings } = data;
+      const allAvailableAssets = new Map([...localAssetsBeforeClear, ...downloadedAssets]);
+      console.log(`[DB Import V2] 利用可能なアセットの完全なマップを作成しました: ${allAvailableAssets.size}件`);
+      const missingAssetInfo = {};
+      (chats || []).forEach((chat) => {
+        const missingIdsForThisChat = /* @__PURE__ */ new Set();
+        (chat.messages || []).forEach((message) => {
+          if (Array.isArray(message.imageIds) && message.imageIds.length > 0) {
+            message.imageIds.forEach((id) => {
+              if (id && !allAvailableAssets.has(id)) {
+                missingIdsForThisChat.add(id);
+              }
+            });
+          }
+        });
+        if (missingIdsForThisChat.size > 0) {
+          const key = chat.title || `ID:${chat.id}`;
+          missingAssetInfo[key] = [...missingIdsForThisChat];
+        }
+      });
+      if (Object.keys(missingAssetInfo).length > 0) {
+        console.error("[DB Import V2] 必要な画像アセットの一部が見つからないため、インポートを中止します。", missingAssetInfo);
+        const error = new Error("必要な画像アセットのダウンロードに失敗したため、データのインポートを中止しました。再度同期をお試しください。");
+        error.code = "MISSING_ASSETS";
+        error.missingAssetInfo = missingAssetInfo;
+        throw error;
+      }
+      const profilesWithBlobs = (profiles || []).map((p) => {
+        if (p.iconAssetId && allAvailableAssets.has(p.iconAssetId)) {
+          p.icon = allAvailableAssets.get(p.iconAssetId);
+        }
+        return p;
+      });
+      const assetsWithBlobs = (assets || []).map((a) => ({
+        name: a.name,
+        assetId: a.assetId,
+        blob: allAvailableAssets.get(a.assetId),
+        createdAt: a.createdAt
+      })).filter((a) => a.blob);
+      const imagesWithBlobs = [];
+      requiredAssetIds.forEach((id) => {
+        if (allAvailableAssets.has(id)) {
+          imagesWithBlobs.push({
+            id,
+            blob: allAvailableAssets.get(id),
+            createdAt: /* @__PURE__ */ new Date()
+          });
+        }
+      });
+      const tempStoreNames = [
+        `${PROFILES_STORE}_temp`,
+        `${CHATS_STORE}_temp`,
+        `${SETTINGS_STORE}_temp`,
+        `${IMAGE_STORE}_temp`,
+        "image_assets_temp",
+        "memory_store_temp",
+        "projects_temp"
+      ];
+      const mainStoreNames = [
+        PROFILES_STORE,
+        CHATS_STORE,
+        SETTINGS_STORE,
+        IMAGE_STORE,
+        "image_assets",
+        "memory_store",
+        PROJECTS_STORE
+      ];
+      const currentTokens = await dbUtils.getSetting("dropboxTokens");
+      try {
+        uiUtils.updateProgressMessage("データを一時領域にインポート中...");
+        const tempTx = state.db.transaction(tempStoreNames, "readwrite");
+        const tempStores = {
+          "profiles_temp": profilesWithBlobs,
+          "chats_temp": chats || [],
+          "memory_store_temp": memories || [],
+          "projects_temp": projects || [],
+          "image_assets_temp": assetsWithBlobs,
+          "image_store_temp": imagesWithBlobs,
+          "settings_temp": settings || []
+        };
+        const tempClearPromises = tempStoreNames.map((name) => {
+          return new Promise((resolve, reject) => {
+            const request = tempTx.objectStore(name).clear();
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+          });
+        });
+        await Promise.all(tempClearPromises);
+        for (const storeName in tempStores) {
+          const store = tempTx.objectStore(storeName);
+          (tempStores[storeName] || []).forEach((item) => store.put(item));
+        }
+        await new Promise((resolve, reject) => {
+          tempTx.oncomplete = resolve;
+          tempTx.onerror = () => reject(tempTx.error);
+        });
+        console.log("[DB Import V2] 一時ストアへのデータ書き込みが完了しました。");
+        uiUtils.updateProgressMessage("データベースを更新中...");
+        const mainTx = state.db.transaction([...mainStoreNames, ...tempStoreNames], "readwrite");
+        const mainClearPromises = mainStoreNames.map((name) => {
+          return new Promise((resolve, reject) => {
+            const request = mainTx.objectStore(name).clear();
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+          });
+        });
+        await Promise.all(mainClearPromises);
+        for (let i = 0; i < mainStoreNames.length; i++) {
+          const mainStore = mainTx.objectStore(mainStoreNames[i]);
+          const tempStore = mainTx.objectStore(tempStoreNames[i]);
+          const allTempItemsReq = tempStore.getAll();
+          allTempItemsReq.onsuccess = () => {
+            allTempItemsReq.result.forEach((item) => mainStore.put(item));
+          };
+        }
+        const tempClearPromises2 = tempStoreNames.map((name) => {
+          return new Promise((resolve, reject) => {
+            const request = mainTx.objectStore(name).clear();
+            request.onsuccess = resolve;
+            request.onerror = () => reject(request.error);
+          });
+        });
+        await Promise.all(tempClearPromises2);
+        if (currentTokens) {
+          mainTx.objectStore(SETTINGS_STORE).put(currentTokens);
+        }
+        await new Promise((resolve, reject) => {
+          mainTx.oncomplete = resolve;
+          mainTx.onerror = () => reject(mainTx.error);
+        });
+        console.log("[DB Import V2] メインデータベースの更新が正常に完了しました。");
+        return { removedAssetInfo: missingAssetInfo };
+      } catch (error) {
+        console.error("[DB Import V2] 安全なインポート処理中にエラーが発生しました:", error);
+        try {
+          const cleanupTx = state.db.transaction(tempStoreNames, "readwrite");
+          const cleanupPromises = tempStoreNames.map((name) => {
+            return new Promise((resolve, reject) => {
+              const request = cleanupTx.objectStore(name).clear();
+              request.onsuccess = resolve;
+              request.onerror = () => reject(request.error);
+            });
+          });
+          await Promise.all(cleanupPromises);
+        } catch (cleanupError) {
+          console.error("[DB Import V2] エラー後のクリーンアップに失敗:", cleanupError);
+        }
+        throw error;
+      }
+    }
+  };
+
+  // src/app.js
+  import("https://esm.run/@google/genai").then((module) => {
+    window.GoogleGenAI = module.GoogleGenAI;
+    console.log("Google GenAI SDK (@google/genai) の読み込みが完了しました。");
+  }).catch((err) => {
+    console.error("Google Gen AI SDKの読み込みに失敗しました:", err);
+    document.body.innerHTML = `<p style="color: red; padding: 20px;">SDKの読み込みに失敗しました。アプリを起動できません。</p>`;
+  });
+  var broadcastChannel = null;
+  function updateMessageMaxWidthVar() {
+    const container = elements.messageContainer;
+    if (!container) return;
+    const isWideMode = state.settings.enableWideMode && window.innerWidth > 800;
+    const percentage = isWideMode ? 0.7 : 0.8;
+    let maxWidthPx = container.clientWidth * percentage;
+    document.documentElement.style.setProperty("--message-max-width", `${maxWidthPx}px`);
+  }
+  __name(updateMessageMaxWidthVar, "updateMessageMaxWidthVar");
+  window.addEventListener("DOMContentLoaded", (event) => {
+    console.log("DOM fully loaded and parsed. Initializing app...");
+    appLogic.initializeApp();
+    const viewport = document.querySelector('meta[name="viewport"]');
+    if (viewport && /iPhone|iPad|iPod/.test(navigator.userAgent)) {
+      document.addEventListener("focusout", () => {
+        viewport.setAttribute("content", "width=device-width, initial-scale=1, maximum-scale=1");
+        requestAnimationFrame(() => {
+          viewport.setAttribute("content", "width=device-width, initial-scale=1");
+        });
+      });
+    }
+  });
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) {
+      console.warn("このブラウザはService Workerをサポートしていません。");
+      return;
+    }
+    let isReloading = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (isReloading) return;
+      isReloading = true;
+      console.log("Controller has changed, reloading page for update...");
+      window.location.reload();
+    });
+    const handleUpdateFound = /* @__PURE__ */ __name((registration) => {
+      const newWorker = registration.installing;
+      if (newWorker) {
+        console.log("新しいService Workerのインストールを検知しました。");
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            console.log("新しいService Workerが待機状態に入りました。アクティベートを試みます。");
+            if (state.db) {
+              state.db.close();
+              console.log("Service Worker更新のため、現在のDB接続を閉じました。");
+            }
+            newWorker.postMessage({ action: "skipWaiting" });
+          }
+        });
+      }
+    }, "handleUpdateFound");
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data && event.data.status === "cacheCleared") {
+        console.log("Service Workerから手動キャッシュクリア完了のメッセージを受信。リロードを実行します。");
+        if (isReloading) return;
+        isReloading = true;
+        window.location.reload();
+      }
+    });
+    window.addEventListener("load", async () => {
+      try {
+        const registration = await navigator.serviceWorker.register("./sw.js");
+        console.log("ServiceWorker登録成功 スコープ: ", registration.scope);
+        const checkForUpdates = /* @__PURE__ */ __name(() => {
+          navigator.serviceWorker.ready.then((readyRegistration) => {
+            readyRegistration.update();
+          }).catch((error) => {
+            console.error("navigator.serviceWorker.ready failed:", error);
+          });
+        }, "checkForUpdates");
+        setInterval(checkForUpdates, 60 * 60 * 1e3);
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible") checkForUpdates();
+        });
+        window.addEventListener("focus", checkForUpdates);
+        if (registration.waiting) {
+          console.log("待機中の新しいService Workerが見つかりました。アクティベートを試みます。");
+          if (state.db) state.db.close();
+          registration.waiting.postMessage({ action: "skipWaiting" });
+        }
+        registration.addEventListener("updatefound", () => handleUpdateFound(registration));
+      } catch (error) {
+        console.error("ServiceWorker処理中にエラー: ", error);
+      }
+    });
+  }
+  __name(registerServiceWorker, "registerServiceWorker");
+  function setupBroadcastChannel() {
+    if ("BroadcastChannel" in window) {
+      try {
+        broadcastChannel = new BroadcastChannel("gemini-pwa-sync-channel");
+        console.log("[BroadcastChannel] チャンネルに接続しました。");
+        broadcastChannel.onmessage = async (event) => {
+          const { type, newSyncId, sourceTabId } = event.data;
+          if (sourceTabId === state.tabId) {
+            return;
+          }
+          console.log(`[BroadcastChannel] 他のタブからメッセージを受信:`, event.data);
+          if (type === "SYNC_COMPLETED" && newSyncId) {
+            state.sync.lastSyncId = newSyncId;
+            state.sync.isDirty = false;
+            state.sync.lastError = null;
+            await dbUtils.saveSetting("lastSyncId", newSyncId);
+            await dbUtils.saveSetting("syncIsDirty", false);
+            await dbUtils.saveSetting("syncLastError", null);
+            await dbUtils.saveSetting("lastSyncTimestamp", Date.now());
+            await appLogic.updateDropboxUIState();
+          }
+        };
+      } catch (error) {
+        console.error("[BroadcastChannel] チャンネルの作成に失敗しました:", error);
+      }
+    } else {
+      console.warn("[BroadcastChannel] このブラウザはBroadcastChannelをサポートしていません。");
+    }
+  }
+  __name(setupBroadcastChannel, "setupBroadcastChannel");
   window.appLogic = appLogic;
   window.state = state;
   window.dbUtils = dbUtils;

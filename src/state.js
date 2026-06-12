@@ -59,7 +59,7 @@ export const state = {
         hideSystemPromptInChat: false,
         enableSwipeNavigation: false,
         enableAutoRetry: true,
-        maxRetries: 30, 
+        maxRetries: 30,
         useFixedRetryDelay: false,
         fixedRetryDelaySeconds: 15,
         maxBackoffDelaySeconds: 60,
@@ -67,7 +67,8 @@ export const state = {
         apiTimeoutSeconds: 90,
         enableProofreading: false,
         proofreadingModelName: 'gemini-2.5-flash',
-        proofreadingSystemInstruction: 'あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。',
+        proofreadingSystemInstruction:
+            'あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。',
         geminiEnableGrounding: false,
         geminiEnableFunctionCalling: false,
         googleSearchApiKey: '',
@@ -83,7 +84,7 @@ export const state = {
         memoryAutoSaveInterval: 30,
         headerAutoHide: false,
         summaryModelName: '', // 空の場合はmodelNameを使用
-        summarySystemPrompt:`あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
+        summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
 「承知しました」等のAIとしての応答は不要です。要約文のみ出力して下さい。
 
 【最重要ルール】
@@ -146,6 +147,6 @@ Reason: [NGの場合の理由]`,
         lastSyncId: null, // 最後に同期したクラウドのID
         isSyncing: false, // 同期処理中か
         pushTimeoutId: null, // Push処理のデバウンス用タイマーID
-        lastError: null
-    }
+        lastError: null,
+    },
 };
