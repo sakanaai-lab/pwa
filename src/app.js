@@ -12,339 +12,76 @@ import("https://esm.run/@google/genai").then(module => {
 import { sleep, interruptibleSleep, formatFileSize, base64ToBlob } from './utils/format.js';
 import { htmlUtils } from './utils/html.js';
 
-// --- 定数 ---
-const DB_NAME = 'GeminiPWA_DB';
-const DB_VERSION = 15;
-const PROJECTS_STORE = 'projects'; 
-const SETTINGS_STORE = 'settings';
-const PROFILES_STORE = 'profiles';
-const CHATS_STORE = 'chats';
-const IMAGE_STORE = 'image_store';
-const CHAT_UPDATEDAT_INDEX = 'updatedAtIndex';
-const CHAT_CREATEDAT_INDEX = 'createdAtIndex';
-const DEFAULT_MODEL = 'gemini-2.5-pro';
-const DEFAULT_TEMPERATURE = 0.5;
-const DEFAULT_MAX_TOKENS = 4000;
-const DEFAULT_TOP_K = 40;
-const DEFAULT_TOP_P = 0.95;
-const DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'; // デフォルトフォント
-const CHAT_TITLE_LENGTH = 15;
-const TEXTAREA_MAX_HEIGHT = 120;
-const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
-const ZAI_API_BASE_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
-const OPENROUTER_API_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const GROQ_API_BASE_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com/chat/completions';
-const XAI_API_BASE_URL = 'https://api.x.ai/v1/chat/completions';
-const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1/chat/completions';
-const DUPLICATE_SUFFIX = ' (コピー)';
-const IMPORT_PREFIX = '(取込) ';
-const LIGHT_THEME_COLOR = '#4a90e2';
-const DARK_THEME_COLOR = '#007aff';
-const APP_VERSION = "1.25";
-const DEFAULT_ZAI_MODEL = 'glm-4.6';
-const DEFAULT_OPENROUTER_MODEL = 'x-ai/grok-4.1-fast';
-const VERSION_NOTICE_SESSION_KEY = 'pendingVersionNotice';
-const VERSION_ACK_STORAGE_KEY = 'appVersionAcknowledged';
-const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
-
-// プロバイダーごとのモデルリスト
-const GEMINI_MODELS = [
-    { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
-    { value: 'gemini-2.5-flash', label: 'gemini-2.5-flash' },
-    { value: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
-    { value: 'gemini-2.0-flash', label: 'gemini-2.0-flash' },
-    { value: 'gemini-2.0-flash-lite', label: 'gemini-2.0-flash-lite' },
-    { value: 'gemini-2.5-flash-preview-09-2025', label: 'gemini-2.5-flash-preview-09-2025', group: 'プレビュー版' },
-    { value: 'gemini-2.5-flash-lite-preview-09-2025', label: 'gemini-2.5-flash-lite-preview-09-2025', group: 'プレビュー版' },
-    { value: 'gemini-2.5-flash-image-preview', label: 'gemini-2.5-flash-image-preview (Nano Banana)', group: 'プレビュー版' },
-    { value: 'gemini-3-pro-preview', label: 'gemini-3-pro-preview', group: 'プレビュー版' },
-    { value: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview', group: 'プレビュー版' }
-];
-
-const ZAI_MODELS = [
-    { value: 'glm-4.6', label: 'GLM-4.6' },
-    { value: 'glm-4.5-Air', label: 'GLM-4.5 Air' },
-    { value: 'glm-4.5-flash', label: 'GLM-4.5 Flash' }
-];
-
-const BEDROCK_MODELS = [
-    { value: 'jp.anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (推奨・東京リージョン用)' },
-    { value: 'anthropic.claude-sonnet-4-5-20250929-v1:0', label: 'Claude Sonnet 4.5 (標準リージョン用)' },
-    { value: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2' },
-    { value: 'anthropic.claude-3-5-sonnet-20240620-v1:0', label: 'Claude 3.5 Sonnet v1' },
-    { value: 'anthropic.claude-3-opus-20240229-v1:0', label: 'Claude 3 Opus' },
-    { value: 'anthropic.claude-3-sonnet-20240229-v1:0', label: 'Claude 3 Sonnet' },
-    { value: 'anthropic.claude-3-haiku-20240307-v1:0', label: 'Claude 3 Haiku' }
-];
-
-const DEFAULT_BEDROCK_MODEL = 'jp.anthropic.claude-sonnet-4-5-20250929-v1:0';
-const DEFAULT_BEDROCK_REGION = 'us-east-1';
-
-const OPENAI_MODELS = [
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
-    { value: 'gpt-4.1', label: 'GPT-4.1' },
-    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
-    { value: 'o3', label: 'o3', group: '推論モデル' },
-    { value: 'o4-mini', label: 'o4-mini', group: '推論モデル' },
-];
-const DEFAULT_OPENAI_MODEL = 'gpt-4o';
-
-const ANTHROPIC_MODELS = [
-    { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
-    { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
-    { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
-    { value: 'claude-haiku-4-5-20251001', label: 'Claude Haiku 4.5' },
-    { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
-    { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
-];
-const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
-
-const GROQ_MODELS = [
-    { value: 'moonshotai/kimi-k2-instruct', label: 'Kimi K2 Instruct' },
-    { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B' },
-    { value: 'meta-llama/llama-4-scout-17b-16e-instruct', label: 'Llama 4 Scout 17B' },
-    { value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B Versatile' },
-    { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' },
-    { value: 'qwen/qwen3-32b', label: 'Qwen3 32B' },
-    { value: 'gemma2-9b-it', label: 'Gemma 2 9B' },
-];
-const DEFAULT_GROQ_MODEL = 'moonshotai/kimi-k2-instruct';
-
-const DEEPSEEK_MODELS = [
-    { value: 'deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
-    { value: 'deepseek-chat', label: 'DeepSeek Chat (V3)' },
-    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (R1)' },
-];
-const DEFAULT_DEEPSEEK_MODEL = 'deepseek-chat';
-
-const XAI_MODELS = [
-    { value: 'grok-4', label: 'Grok 4' },
-    { value: 'grok-3', label: 'Grok 3' },
-    { value: 'grok-3-mini', label: 'Grok 3 Mini' },
-    { value: 'grok-2-1212', label: 'Grok 2' },
-];
-const DEFAULT_XAI_MODEL = 'grok-4';
-
-const MISTRAL_MODELS = [
-    { value: 'mistral-large-latest', label: 'Mistral Large (latest)' },
-    { value: 'mistral-medium-latest', label: 'Mistral Medium (latest)' },
-    { value: 'mistral-small-latest', label: 'Mistral Small (latest)' },
-    { value: 'codestral-latest', label: 'Codestral (latest)' },
-    { value: 'open-mistral-nemo', label: 'Mistral Nemo' },
-];
-const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
-
-const VERSION_HISTORY = {
-    "1.25": [
-        "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
-    ],
-    "1.24": [
-        "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
-        "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
-        "コスト計算を改善：5分/1時間キャッシュ書き込みを区別して計算。料金テーブルを現行価格に更新（Opus 4.5〜4.8: $5/$25、Haiku 4.5: $1/$5 等）。",
-        "モデル名が記録されていないメッセージを現在のモデル価格で計算してしまい推定コストがずれる問題を修正。",
-        "長期記憶の自動学習間隔に「75」「100メッセージごと」を追加。"
-    ],
-    "1.22": [
-        "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
-    ],
-    "1.20": [
-        "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
-        "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
-        "重複定義されていた `exportProfile` / `importProfile` を統合し、プロファイルのインポート後にアクティブプロファイル反映・UI更新・同期フラグ更新が確実に行われるよう修正しました。",
-        "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。",
-        "履歴一覧のトークン表示を改善し、合計トークンに加えて入力（prompt）/出力（completion）の内訳を表示するようにしました。"
-    ],
-    "1.14": [
-        "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
-        "Claude Opus 4.7モデルを追加。",
-        "モデルの応答にターン番号とモデル名を小さく表示するようにしました（例: #1 claude-opus-4-6）。",
-        "モデル側の吹き出し幅を拡大し、スマホでも読みやすくしました。",
-        "Anthropicプロンプトキャッシュ設定に「なし（キャッシュ未使用）」オプションを追加。"
-    ],
-    "1.13": [
-        "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
-        "Function Calling使用後にツールをOFFにしてチャットすると発生していた`tool_use without tool_result`エラーを修正。",
-        "Claude APIのプロンプトキャッシングを大幅改善。ツール定義と会話履歴にキャッシュブレークポイントを追加し、長い会話でのAPI費用を削減。"
-    ],
-    "1.12": [
-        "ユーザー追加モデル対応を全面強化。思考プロセス翻訳、校正、要約、画像品質チェック、プロンプト改善の各機能で、ユーザーが追加したモデルを選択可能に。",
-        "「追加モデル (カンマ区切り):」入力後、ページリロード不要で全モデル選択セレクターに即座に反映されるよう改善。",
-        "`edit_image`関数にユーザー指定モデル機能を追加。`gemini-3-pro-image-preview`を含む任意のモデルで画像編集が可能に。",
-        "開発者が更新を停止しても、ユーザーが新規モデルを追加すれば各種機能で使用できる拡張性の高い設計を実現。"
-    ],
-    "1.11": [
-        "デバッグモード有効時のみ、`OpenRouter`、`Z.ai`、`AmazonBedrock`のプロバイダーを追加。開発者向け機能のため既存機能との連携は保証されていません。",
-        "設定画面に「ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える」を追加。",
-        "metadata内のキャラクター名や関係性名に特殊文字が使用されているとquerySelectorが正常に動作しない問題を修正"
-    ],
-    "1.1": [
-        "gemini-3-pro-previewモデルを追加しました。",
-        "gemini-3-pro-previewでのFunction Calling使用時に発生していた「thought_signature」エラーを修正しました。"
-    ],
-    "1.0": [
-        "Dropbox連携機能とStable Diffusion WebUI/Forge/Reforge連携を追加し、PWA内のデータと画像生成ワークフローをクラウドやローカル環境とシームレスに同期できるようにしました。",
-        "添付ファイルのサムネイル表示やアップデート内容を告知するダイアログ、URLコンテンツを取り込むfetch_url_content関数、プロファイルへのgemini-2.5-pro使用回数表示、デバッグモード切替などのUI/機能改善を実装しました。",
-        "gemini-2.5-flash-imageやveo-3.1シリーズなど最新モデルの追加、画像/動画関連関数のモデル選択改善、URL要約や要約機能まわりのエラーハンドリング強化を行いました。",
-        "Firefoxでのパフォーマンス劣化や再生成時の履歴破損、記憶管理画面の不具合など多数のバグを修正し、DB関連関数の保存ロジックも刷新しました。"
-    ]
-};
-const SWIPE_THRESHOLD = 50; // スワイプ判定の閾値 (px)
-const ZOOM_THRESHOLD = 1.01; // ズーム状態と判定するスケールの閾値 (誤差考慮)
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 最大ファイルサイズ (例: 10MB)
-const MAX_TOTAL_ATTACHMENT_SIZE = 50 * 1024 * 1024; // 1メッセージあたりの合計添付ファイルサイズ上限 (例: 50MB) - API制限も考慮
-const INITIAL_RETRY_DELAY = 100; // 初期リトライ遅延時間 (ミリ秒)
-const MAX_PROFILES = 5; // プロファイル作成の上限数
+// --- 定数 ---（src/constants.js へ抽出。挙動は不変）
+import {
+    DB_NAME,
+    DB_VERSION,
+    PROJECTS_STORE,
+    SETTINGS_STORE,
+    PROFILES_STORE,
+    CHATS_STORE,
+    IMAGE_STORE,
+    CHAT_UPDATEDAT_INDEX,
+    CHAT_CREATEDAT_INDEX,
+    DEFAULT_MODEL,
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TOP_K,
+    DEFAULT_TOP_P,
+    DEFAULT_FONT_FAMILY,
+    CHAT_TITLE_LENGTH,
+    TEXTAREA_MAX_HEIGHT,
+    GEMINI_API_BASE_URL,
+    ZAI_API_BASE_URL,
+    OPENROUTER_API_BASE_URL,
+    GROQ_API_BASE_URL,
+    DEEPSEEK_API_BASE_URL,
+    XAI_API_BASE_URL,
+    MISTRAL_API_BASE_URL,
+    DUPLICATE_SUFFIX,
+    IMPORT_PREFIX,
+    LIGHT_THEME_COLOR,
+    DARK_THEME_COLOR,
+    APP_VERSION,
+    DEFAULT_ZAI_MODEL,
+    DEFAULT_OPENROUTER_MODEL,
+    VERSION_NOTICE_SESSION_KEY,
+    VERSION_ACK_STORAGE_KEY,
+    VERSION_LEGACY_STORAGE_KEY,
+    GEMINI_MODELS,
+    ZAI_MODELS,
+    BEDROCK_MODELS,
+    DEFAULT_BEDROCK_MODEL,
+    DEFAULT_BEDROCK_REGION,
+    OPENAI_MODELS,
+    DEFAULT_OPENAI_MODEL,
+    ANTHROPIC_MODELS,
+    DEFAULT_ANTHROPIC_MODEL,
+    GROQ_MODELS,
+    DEFAULT_GROQ_MODEL,
+    DEEPSEEK_MODELS,
+    DEFAULT_DEEPSEEK_MODEL,
+    XAI_MODELS,
+    DEFAULT_XAI_MODEL,
+    MISTRAL_MODELS,
+    DEFAULT_MISTRAL_MODEL,
+    VERSION_HISTORY,
+    SWIPE_THRESHOLD,
+    ZOOM_THRESHOLD,
+    MAX_FILE_SIZE,
+    MAX_TOTAL_ATTACHMENT_SIZE,
+    INITIAL_RETRY_DELAY,
+    MAX_PROFILES
+} from "./constants.js";
 let broadcastChannel = null; // タブ間通信用
 // --- デバッグログ機能 ---
-const DebugLogger = {
-    logs: [],
-    MAX_LOGS: 500,
-    originalConsole: {},
-    isInitialized: false,
-
-    init() {
-        if (state.settings.debugMode) {
-            this._patchConsole();
-        } else {
-            this._unpatchConsole();
-        }
-        this.isInitialized = true;
-        console.log(`[DebugLogger] 初期化完了。デバッグモード: ${state.settings.debugMode ? 'ON' : 'OFF'}`);
-    },
-
-    _patchConsole() {
-        if (this.originalConsole.log) return; // 既にパッチ済み
-
-        const consoleMethods = ['log', 'error', 'warn', 'info', 'debug'];
-        consoleMethods.forEach(method => {
-            this.originalConsole[method] = console[method];
-            console[method] = (...args) => {
-                // ログを内部配列に保存
-                this.addLog(method, args);
-                // 元のコンソールメソッドを呼び出す
-                this.originalConsole[method].apply(console, args);
-            };
-        });
-    },
-
-    _unpatchConsole() {
-        if (!this.originalConsole.log) return; // パッチされていない
-
-        Object.keys(this.originalConsole).forEach(method => {
-            console[method] = this.originalConsole[method];
-        });
-        this.originalConsole = {};
-    },
-
-    addLog(type, args) {
-        // 循環参照を避けるための簡易的なシリアライザ
-        const serialize = (obj) => {
-            try {
-                // DOM要素や特殊なオブジェクトは文字列に変換
-                if (obj instanceof HTMLElement) return `[HTMLElement: ${obj.tagName}]`;
-                if (obj instanceof Event) return `[Event: ${obj.type}]`;
-                // 通常のオブジェクトはJSONに変換
-                return JSON.stringify(obj, (key, value) => {
-                    if (typeof value === 'object' && value !== null) {
-                        if (value instanceof Blob) return '[Blob]';
-                        if (value instanceof File) return `[File: ${value.name}]`;
-                    }
-                    return value;
-                }, 2);
-            } catch (e) {
-                return '[Unserializable Object]';
-            }
-        };
-
-        this.logs.push({
-            type,
-            timestamp: new Date(),
-            args: args.map(arg => (typeof arg === 'object' && arg !== null) ? serialize(arg) : arg)
-        });
-
-        // ログが最大数を超えたら古いものから削除
-        if (this.logs.length > this.MAX_LOGS) {
-            this.logs.shift();
-        }
-    },
-
-    getLogs() {
-        return this.logs;
-    },
-
-    clearLogs() {
-        this.logs = [];
-        console.log("[DebugLogger] ログがクリアされました。");
-    }
-};
+// デバッグログ機能（src/debug-logger.js へ抽出）
+import { DebugLogger } from "./debug-logger.js";
 
 
 // 添付を確定する処理
-const extensionToMimeTypeMap = {
-    // Text Data
-    'pdf': 'application/pdf',
-    'js': 'text/javascript',
-    'py': 'text/x-python',
-    'txt': 'text/plain',
-    'html': 'text/html',
-    'htm': 'text/html',
-    'json': 'application/json',
-    'css': 'text/css',
-    'md': 'text/markdown',
-    'csv': 'text/csv',
-    'xml': 'application/xml',
-    'rtf': 'application/rtf',
-    'java': 'text/x-java-source',
-    'c': 'text/x-c',
-    'cpp': 'text/x-c++src',
-    'hpp': 'text/x-c++hdr',
-    'h': 'text/x-chdr',
-    'cs': 'text/plain',
-    'php': 'application/x-httpd-php',
-    'rb': 'text/x-ruby',
-    'go': 'text/x-go',
-    'swift': 'text/x-swift',
-    'kt': 'text/x-kotlin',
-    'kts': 'text/x-kotlin',
-    'rs': 'text/rust',
-    'ts': 'text/typescript',
-    'tsx': 'text/typescript',
-    'sql': 'application/sql',
-    'sh': 'application/x-sh',
-    'yml': 'text/yaml',
-    'yaml': 'text/yaml',
-
-    // Image Data
-    'png': 'image/png',
-    'jpg': 'image/jpeg',
-    'jpeg': 'image/jpeg',
-    'webp': 'image/webp',
-    'heic': 'image/heic',
-    'heif': 'image/heif',
-
-    // Video Data
-    'mp4': 'video/mp4',
-    'mpeg': 'video/mpeg',
-    'mov': 'video/mov',
-    'avi': 'video/avi',
-    'flv': 'video/x-flv',
-    'mpg': 'video/mpg',
-    'webm': 'video/webm',
-    'wmv': 'video/wmv',
-    '3gp': 'video/3gpp',
-    '3gpp': 'video/3gpp',
-
-    // Audio Data
-    'wav': 'audio/wav',
-    'mp3': 'audio/mp3',
-    'aiff': 'audio/aiff',
-    'aac': 'audio/aac',
-    'ogg': 'audio/ogg',
-    'flac': 'audio/flac',
-};
+// 拡張子→MIMEタイプ表（src/mime-types.js へ抽出）
+import { extensionToMimeTypeMap } from "./mime-types.js";
 
 // --- DOM要素 ---
 let elements;
@@ -626,154 +363,8 @@ try {
 }
 
 // --- アプリ状態 ---
-const state = {
-    tabId: `tab_${Date.now()}_${Math.random()}`, // このタブを識別するユニークID
-    db: null,
-    currentChatId: null,
-    currentMessages: [],
-    currentSystemPrompt: '',
-    currentPersistentMemory: {}, // 現在のチャットの永続メモリ
-    currentSummarizedContext: null,
-    profiles: [], // 全プロファイルのリスト
-    activeProfileId: null, // 現在アクティブなプロファイルのID
-    activeProfile: null, // 現在アクティブなプロファイルの完全なデータ
-    profileIconUrls: new Map(),
-    videoUrlCache: new Map(),
-    imageUrlCache: new Map(),
-    settings: {
-        apiProvider: 'gemini',
-        apiKey: '',
-        zaiApiKey: '',
-        openrouterApiKey: '',
-        bedrockAccessKey: '',
-        bedrockSecretKey: '',
-        bedrockRegion: DEFAULT_BEDROCK_REGION,
-        openaiApiKey: '',
-        anthropicApiKey: '',
-        anthropicCacheTTL: '5m',
-        anthropicEffort: 'high',
-        novelaiApiKey: '',
-        novelaiModel: 'nai-diffusion-4-5-curated',
-        groqApiKey: '',
-        deepseekApiKey: '',
-        xaiApiKey: '',
-        mistralApiKey: '',
-        modelName: DEFAULT_MODEL,
-        systemPrompt: '',
-        temperature: null,
-        maxTokens: null,
-        topK: null,
-        topP: null,
-        thinkingBudget: null,
-        includeThoughts: false,
-        enableThoughtTranslation: true, // 思考プロセスの翻訳を有効にするか
-        thoughtTranslationModel: 'gemini-2.5-flash-lite',
-        dummyUser: '',
-        dummyEnabled: true,
-        applyDummyToProofread: false,
-        applyDummyToTranslate: false,
-        dummyModel: '',
-        reverseDummyOrder: false,
-        concatDummyModel: false,
-        additionalModels: '',
-        enterToSend: true,
-        historySortOrder: 'updatedAt',
-        darkMode: false,
-        backgroundImageBlob: null,
-        fontFamily: '',
-        hideSystemPromptInChat: false,
-        enableSwipeNavigation: false,
-        enableAutoRetry: true,
-        maxRetries: 30, 
-        useFixedRetryDelay: false,
-        fixedRetryDelaySeconds: 15,
-        maxBackoffDelaySeconds: 60,
-        enableApiTimeout: false,
-        apiTimeoutSeconds: 90,
-        enableProofreading: false,
-        proofreadingModelName: 'gemini-2.5-flash',
-        proofreadingSystemInstruction: 'あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。',
-        geminiEnableGrounding: false,
-        geminiEnableFunctionCalling: false,
-        googleSearchApiKey: '',
-        googleSearchEngineId: '',
-        messageOpacity: 1,
-        overlayOpacity: 0.65,
-        headerColor: '',
-        allowPromptUiChanges: true,
-        forceFunctionCalling: false,
-        autoScroll: true,
-        enableWideMode: true,
-        enableMemory: false,
-        memoryAutoSaveInterval: 30,
-        headerAutoHide: false,
-        summaryModelName: '', // 空の場合はmodelNameを使用
-        summarySystemPrompt:`あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
-「承知しました」等のAIとしての応答は不要です。要約文のみ出力して下さい。
-
-【最重要ルール】
-- **プロットの維持**: 物語の重要な転換点、登場人物の重要な決断、新しい事実の判明、伏線となりうる発言は、絶対に省略しないでください。
-- **客観的な記述**: 「主人公は〜した。」「〇〇は〜と感じた。」のように、キャラクターの行動と感情を客観的に記述してください。
-- **情報の取捨選択**: 日常的な挨拶や、物語の進行に直接関係のない会話は省略してください。
-- **時系列の維持**: 出来事が起こった順番を正確に保ってください。
-
-最終的な出力は、このあらすじを初めて読む人でも、これまでの物語の流れを正確に理解できるような形式にしてください。`,
-        enableSummaryButton: true,
-        floatingPanelBehavior: 'on-click',
-        dropboxSyncFrequency: 'instant',
-        sdApiUrl: '',
-        sdApiUser: '',
-        sdApiPassword: '',
-        sdEnableQualityChecker: false,
-        sdQcModel: 'gemini-2.5-pro',
-        sdQcPrompt: `あなたはプロンプトと画像を比較し、指示通りに生成されているか評価する専門家です。
-以下のプロンプトと画像の内容を厳密に比較してください。
-
-[プロンプト]
-{prompt}
-
-[評価ルール]
-- プロンプトの要素（人物、服装、背景、構図、雰囲気など）が画像内に明確に反映されていれば "OK" と評価してください。
-- 重要な要素が欠けていたり、指示と明らかに異なる場合は "NG" と評価し、その理由を簡潔に説明してください。
-
-[出力形式]
-評価結果を以下の形式で出力してください。他のテキストは一切含めないでください。
-Result: [OKまたはNG]
-Reason: [NGの場合の理由]`,
-        sdQcRetries: 3,
-        sdPromptImproveModel: 'gemini-2.5-flash',
-        sdPromptImproveSystemPrompt: `あなたはプロのプロンプトエンジニアです。提示された「元のプロンプト」と「失敗理由」に基づき、失敗理由を解決するための改善された英語の画像生成プロンプトを生成してください。余計な解説や前置きは一切含めず、改善されたプロンプト本体のみを出力してください。`,
-        debugMode: false,
-    },
-    syncMessageCounter: 0,
-    backgroundImageUrl: null,
-    isSending: false,
-    abortController: null,
-    editingMessageIndex: null,
-    isEditingSystemPrompt: false,
-    touchStartX: 0,
-    touchStartY: 0,
-    touchEndX: 0,
-    touchEndY: 0,
-    isSwiping: false,
-    isZoomed: false,
-    currentScreen: 'chat',
-    panelFadeOutTimer: null,
-    selectedFilesForUpload: [],
-    pendingAttachments: [],
-    isTemporaryBackgroundActive: false,
-    currentScene: null,
-    currentStyleProfiles: {},
-    isMemoryEnabledForChat: true,
-    characterProfileVisibleCharacter: null,
-    sync: {
-        isDirty: false, // ローカルに変更があったか
-        lastSyncId: null, // 最後に同期したクラウドのID
-        isSyncing: false, // 同期処理中か
-        pushTimeoutId: null, // Push処理のデバウンス用タイマーID
-        lastError: null
-    }
-};
+// --- アプリ状態 ---（src/state.js へ抽出。挙動は不変）
+import { state } from "./state.js";
 
 function updateMessageMaxWidthVar() {
     const container = elements.messageContainer;
