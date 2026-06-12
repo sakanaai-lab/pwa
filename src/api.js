@@ -1,10 +1,18 @@
 // apiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { DEEPSEEK_API_BASE_URL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, INITIAL_RETRY_DELAY, OPENROUTER_API_BASE_URL, ZAI_API_BASE_URL } from './constants.js';
+import { DEEPSEEK_API_BASE_URL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
 import { state } from './state.js';
 import { uiUtils } from './ui.js';
+
+// systemInstruction（文字列 / Geminiパーツ形式）からプレーンテキストを取り出すヘルパー
+function extractSystemText(systemInstruction) {
+    if (!systemInstruction) return null;
+    if (typeof systemInstruction === 'string') return systemInstruction;
+    if (systemInstruction.parts) return systemInstruction.parts.map(p => p.text || '').join('');
+    return null;
+}
 
 export const apiUtils = {
     // Gemini形式からOpenAI形式への変換
@@ -769,13 +777,14 @@ export const apiUtils = {
         return textToTranslate;
     },
 
-    // Z.ai APIを呼び出す
-    async callZaiApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-        console.log(`[Debug] callZaiApi: Z.ai APIを呼び出します。`);
+    // OpenAI互換プロバイダー（Function Calling対応）の共通実装。
+    // Z.ai / OpenRouter の差分は cfg で吸収する（wire は変更しない）。
+    async _callOpenAICompatibleWithTools(cfg, messagesForApi, generationConfig, systemInstruction, forceCalling = false, signal = null) {
+        console.log(`[Debug] _callOpenAICompatibleWithTools: ${cfg.label} APIを呼び出します。`);
 
-        const apiKey = state.settings.zaiApiKey || state.settings.apiKey;
+        const apiKey = cfg.getApiKey();
         if (!apiKey) {
-            throw new Error("Z.ai APIキーが設定されていません。");
+            throw new Error(cfg.missingKeyMessage);
         }
 
         // signalが渡されていない場合のみstate.abortControllerを作成
@@ -784,208 +793,7 @@ export const apiUtils = {
             signal = state.abortController.signal;
         }
 
-        const model = state.settings.modelName || DEFAULT_ZAI_MODEL;
-
-        // Gemini形式のメッセージをOpenAI形式に変換
-        const openAIMessages = this.convertGeminiToOpenAIFormat(messagesForApi);
-
-        // システムプロンプトの処理
-        if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0) {
-            const systemText = systemInstruction.parts[0].text;
-            if (systemText) {
-                // システムメッセージを先頭に追加
-                openAIMessages.unshift({
-                    role: 'system',
-                    content: systemText
-                });
-            }
-        }
-
-        // リクエストボディの構築
-        const requestBody = {
-            model: model,
-            messages: openAIMessages
-        };
-
-        // 生成パラメータの変換
-        if (generationConfig) {
-            if (generationConfig.temperature !== undefined) {
-                requestBody.temperature = generationConfig.temperature;
-            }
-            if (generationConfig.maxOutputTokens !== undefined) {
-                requestBody.max_tokens = generationConfig.maxOutputTokens;
-            }
-            if (generationConfig.topP !== undefined) {
-                requestBody.top_p = generationConfig.topP;
-            }
-            // Z.ai APIではtop_kはサポートされていない可能性があるため、変換しない
-        }
-
-        // Function Callingの処理
-        if (state.settings.geminiEnableFunctionCalling && window.functionDeclarations) {
-            // Gemini形式のfunction declarationsをOpenAI形式に変換
-            const openAITools = [];
-            
-            for (const geminiTool of window.functionDeclarations) {
-                if (geminiTool.function_declarations && Array.isArray(geminiTool.function_declarations)) {
-                    // Gemini形式: { function_declarations: [{ name, description, parameters }] }
-                    for (const funcDecl of geminiTool.function_declarations) {
-                        openAITools.push({
-                            type: 'function',
-                            function: {
-                                name: funcDecl.name,
-                                description: funcDecl.description || '',
-                                parameters: funcDecl.parameters || {}
-                            }
-                        });
-                    }
-                } else if (geminiTool.google_search) {
-                    // Google SearchはZ.aiではサポートされていない可能性があるためスキップ
-                    console.warn("Z.ai APIではGoogle Searchはサポートされていません。スキップします。");
-                }
-            }
-
-            if (openAITools.length > 0) {
-                requestBody.tools = openAITools;
-                if (forceCalling) {
-                    requestBody.tool_choice = 'required';
-                } else {
-                    requestBody.tool_choice = 'auto';
-                }
-                console.log(`Z.ai APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
-            }
-        }
-
-        console.log("Z.aiへの送信データ:", JSON.stringify(requestBody, (key, value) => {
-            if (key === 'data' && typeof value === 'string' && value.length > 100) {
-                return value.substring(0, 50) + '...[省略]...' + value.substring(value.length - 20);
-            }
-            return value;
-        }, 2));
-        
-        // メッセージ構造の詳細をログ出力（デバッグ用）
-        if (requestBody.messages && requestBody.messages.length > 0) {
-            const recentMessages = requestBody.messages.slice(-6);
-            console.log('[Z.ai Debug] 送信する最近のメッセージ構造:');
-            recentMessages.forEach((msg, idx) => {
-                const info = { role: msg.role };
-                if (msg.tool_calls) {
-                    info.tool_calls = msg.tool_calls.map(tc => ({ id: tc.id, name: tc.function?.name }));
-                }
-                if (msg.tool_call_id) {
-                    info.tool_call_id = msg.tool_call_id;
-                }
-                // contentの存在を常に表示（空文字列でも）
-                if ('content' in msg) {
-                    if (typeof msg.content === 'string') {
-                        if (msg.content === '') {
-                            info.content = '""'; // 空文字列を明示
-                        } else {
-                            info.content_preview = msg.content.substring(0, 50) + '...';
-                        }
-                    } else {
-                        info.content_type = typeof msg.content;
-                    }
-                } else {
-                    info.no_content_field = true;
-                }
-                console.log(`  [${idx}]`, JSON.stringify(info));
-            });
-        }
-        
-        console.log("ターゲットエンドポイント:", ZAI_API_BASE_URL);
-
-        try {
-            const timestamp = new Date().toLocaleTimeString();
-            console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Z.ai API...`);
-
-            const response = await fetch(ZAI_API_BASE_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify(requestBody),
-                signal
-            });
-
-            const receivedTimestamp = new Date().toLocaleTimeString();
-            console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Z.ai API. Status: ${response.status}`);
-
-            if (!response.ok) {
-                let errorMsg = `APIエラー (${response.status}): ${response.statusText}`;
-                let errorData = null;
-                try {
-                    errorData = await response.json();
-                    console.error("APIエラーレスポンスボディ:", errorData);
-                    if (errorData.error && errorData.error.message) {
-                        errorMsg = `APIエラー (${response.status}): ${errorData.error.message}`;
-                    } else if (errorData.message) {
-                        errorMsg = `APIエラー (${response.status}): ${errorData.message}`;
-                    }
-                } catch (e) {
-                    console.error("APIエラーレスポンスボディのパース失敗:", e);
-                }
-                const error = new Error(errorMsg);
-                error.status = response.status;
-                error.data = errorData;
-                throw error;
-            }
-
-            // レスポンスを取得してGemini形式に変換
-            const openAIResponse = await response.json();
-            
-            // デバッグ用：Z.ai APIからのレスポンス構造を確認
-            if (openAIResponse.choices && openAIResponse.choices[0]) {
-                const choice = openAIResponse.choices[0];
-                console.log('[Z.ai Debug] APIレスポンス情報:');
-                console.log(`  - finish_reason: ${choice.finish_reason}`);
-                if (choice.message) {
-                    if (choice.message.tool_calls) {
-                        console.log(`  - tool_calls数: ${choice.message.tool_calls.length}`);
-                        choice.message.tool_calls.forEach((tc, idx) => {
-                            console.log(`    [${idx}] id: ${tc.id}, name: ${tc.function?.name}`);
-                        });
-                    }
-                    if (choice.message.content) {
-                        console.log(`  - content: ${choice.message.content.substring(0, 50)}...`);
-                    }
-                }
-            }
-            
-            const geminiFormatResponse = this.convertOpenAIToGeminiFormat(openAIResponse);
-
-            // Responseオブジェクトのように扱えるようにラップ
-            return {
-                ok: true,
-                status: response.status,
-                json: async () => geminiFormatResponse
-            };
-        } catch (error) {
-            if (error.name === 'AbortError') {
-                throw new Error("リクエストがキャンセルされました。");
-            } else {
-                throw error;
-            }
-        }
-    },
-
-    // OpenRouter APIを呼び出す
-    async callOpenRouterApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-        console.log(`[Debug] callOpenRouterApi: OpenRouter APIを呼び出します。`);
-
-        const apiKey = state.settings.openrouterApiKey;
-        if (!apiKey) {
-            throw new Error("OpenRouter APIキーが設定されていません。");
-        }
-
-        // signalが渡されていない場合のみstate.abortControllerを作成
-        if (!signal) {
-            state.abortController = new AbortController();
-            signal = state.abortController.signal;
-        }
-
-        const model = state.settings.modelName || DEFAULT_OPENROUTER_MODEL;
+        const model = state.settings.modelName || cfg.defaultModel;
 
         // Gemini形式のメッセージをOpenAI形式に変換
         const openAIMessages = this.convertGeminiToOpenAIFormat(messagesForApi);
@@ -1025,7 +833,7 @@ export const apiUtils = {
         if (state.settings.geminiEnableFunctionCalling && window.functionDeclarations) {
             // Gemini形式のfunction declarationsをOpenAI形式に変換
             const openAITools = [];
-            
+
             for (const geminiTool of window.functionDeclarations) {
                 if (geminiTool.function_declarations && Array.isArray(geminiTool.function_declarations)) {
                     // Gemini形式: { function_declarations: [{ name, description, parameters }] }
@@ -1040,8 +848,7 @@ export const apiUtils = {
                         });
                     }
                 } else if (geminiTool.google_search) {
-                    // Google SearchはOpenRouterではサポートされていない可能性があるためスキップ
-                    console.warn("OpenRouter APIではGoogle Searchはサポートされていません。スキップします。");
+                    console.warn(`${cfg.label} APIではGoogle Searchはサポートされていません。スキップします。`);
                 }
             }
 
@@ -1052,21 +859,21 @@ export const apiUtils = {
                 } else {
                     requestBody.tool_choice = 'auto';
                 }
-                console.log(`OpenRouter APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
+                console.log(`${cfg.label} APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
             }
         }
 
-        console.log("OpenRouterへの送信データ:", JSON.stringify(requestBody, (key, value) => {
+        console.log(`${cfg.label}への送信データ:`, JSON.stringify(requestBody, (key, value) => {
             if (key === 'data' && typeof value === 'string' && value.length > 100) {
                 return value.substring(0, 50) + '...[省略]...' + value.substring(value.length - 20);
             }
             return value;
         }, 2));
-        
+
         // メッセージ構造の詳細をログ出力（デバッグ用）
         if (requestBody.messages && requestBody.messages.length > 0) {
             const recentMessages = requestBody.messages.slice(-6);
-            console.log('[OpenRouter Debug] 送信する最近のメッセージ構造:');
+            console.log(`[${cfg.label} Debug] 送信する最近のメッセージ構造:`);
             recentMessages.forEach((msg, idx) => {
                 const info = { role: msg.role };
                 if (msg.tool_calls) {
@@ -1092,27 +899,26 @@ export const apiUtils = {
                 console.log(`  [${idx}]`, JSON.stringify(info));
             });
         }
-        
-        console.log("ターゲットエンドポイント:", OPENROUTER_API_BASE_URL);
+
+        console.log("ターゲットエンドポイント:", cfg.baseUrl);
 
         try {
             const timestamp = new Date().toLocaleTimeString();
-            console.log(`[API_DEBUG ${timestamp}] Sending fetch request to OpenRouter API...`);
+            console.log(`[API_DEBUG ${timestamp}] Sending fetch request to ${cfg.label} API...`);
 
-            const response = await fetch(OPENROUTER_API_BASE_URL, {
+            const response = await fetch(cfg.baseUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${apiKey}`,
-                    'HTTP-Referer': window.location.origin,
-                    'X-Title': 'Aquarium Chat'
+                    ...cfg.extraHeaders()
                 },
                 body: JSON.stringify(requestBody),
                 signal
             });
 
             const receivedTimestamp = new Date().toLocaleTimeString();
-            console.log(`[API_DEBUG ${receivedTimestamp}] Received response from OpenRouter API. Status: ${response.status}`);
+            console.log(`[API_DEBUG ${receivedTimestamp}] Received response from ${cfg.label} API. Status: ${response.status}`);
 
             if (!response.ok) {
                 let errorMsg = `APIエラー (${response.status}): ${response.statusText}`;
@@ -1120,22 +926,22 @@ export const apiUtils = {
                 try {
                     errorData = await response.json();
                     console.error("APIエラーレスポンスボディ:", errorData);
-                    
-                    // 詳細なエラー情報をログ出力
-                    if (errorData.error) {
-                        console.error("[OpenRouter] エラー詳細:", JSON.stringify(errorData.error, null, 2));
+
+                    // 詳細なエラー情報をログ出力（OpenRouter等）
+                    if (cfg.verboseError && errorData.error) {
+                        console.error(`[${cfg.label}] エラー詳細:`, JSON.stringify(errorData.error, null, 2));
                         if (errorData.error.metadata) {
-                            console.error("[OpenRouter] メタデータ:", errorData.error.metadata);
+                            console.error(`[${cfg.label}] メタデータ:`, errorData.error.metadata);
                         }
                         if (errorData.error.code) {
-                            console.error("[OpenRouter] エラーコード:", errorData.error.code);
+                            console.error(`[${cfg.label}] エラーコード:`, errorData.error.code);
                         }
                     }
-                    
+
                     if (errorData.error && errorData.error.message) {
                         errorMsg = `APIエラー (${response.status}): ${errorData.error.message}`;
-                        // OpenRouter特有の追加情報があれば追加
-                        if (errorData.error.code) {
+                        // プロバイダー特有の追加情報があれば追加
+                        if (cfg.verboseError && errorData.error.code) {
                             errorMsg += ` (code: ${errorData.error.code})`;
                         }
                     } else if (errorData.message) {
@@ -1152,11 +958,11 @@ export const apiUtils = {
 
             // レスポンスを取得してGemini形式に変換
             const openAIResponse = await response.json();
-            
-            // デバッグ用：OpenRouter APIからのレスポンス構造を確認
+
+            // デバッグ用：APIからのレスポンス構造を確認
             if (openAIResponse.choices && openAIResponse.choices[0]) {
                 const choice = openAIResponse.choices[0];
-                console.log('[OpenRouter Debug] APIレスポンス情報:');
+                console.log(`[${cfg.label} Debug] APIレスポンス情報:`);
                 console.log(`  - finish_reason: ${choice.finish_reason}`);
                 if (choice.message) {
                     if (choice.message.tool_calls) {
@@ -1170,7 +976,7 @@ export const apiUtils = {
                     }
                 }
             }
-            
+
             const geminiFormatResponse = this.convertOpenAIToGeminiFormat(openAIResponse);
 
             // Responseオブジェクトのように扱えるようにラップ
@@ -1336,18 +1142,470 @@ export const apiUtils = {
         }
     },
 
-    // プロバイダーに応じて適切なAPIを呼び出すラッパー関数
-    async callApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-        const provider = state.settings.apiProvider || 'gemini';
-        
-        if (provider === 'zai') {
-            return await this.callZaiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
-        } else if (provider === 'openrouter') {
-            return await this.callOpenRouterApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
-        } else if (provider === 'bedrock') {
-            return await this.callBedrockApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+    // OpenAI Chat Completions API（純正OpenAI）を呼び出す
+    async callOpenAIApi(messages, config, systemInstruction, tools, forceCalling, signal) {
+        const apiKey = state.settings.openaiApiKey;
+        if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
+
+        const model = state.settings.modelName || 'gpt-4o';
+        const isReasoningModel = /^o\d/i.test(model);
+        const requestBody = {
+            model,
+            messages: [],
+            max_completion_tokens: config.maxOutputTokens ?? 4000,
+            stream: false
+        };
+        if (!isReasoningModel) {
+            requestBody.temperature = config.temperature ?? 0.7;
+            requestBody.top_p = config.topP ?? 1.0;
+        }
+
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
+        this.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
+
+        // Gemini形式のfunction_declarationsをOpenAI tools形式に変換
+        if (tools && tools.length > 0) {
+            const convertTypes = (schema) => {
+                if (!schema || typeof schema !== 'object') return schema;
+                if (Array.isArray(schema)) return schema.map(convertTypes);
+                const result = {};
+                for (const [key, val] of Object.entries(schema)) {
+                    if (key === 'type' && typeof val === 'string') {
+                        result[key] = val.toLowerCase();
+                    } else if (val && typeof val === 'object') {
+                        result[key] = convertTypes(val);
+                    } else {
+                        result[key] = val;
+                    }
+                }
+                return result;
+            };
+            const openAITools = [];
+            for (const toolGroup of tools) {
+                for (const decl of (toolGroup.function_declarations || [])) {
+                    openAITools.push({
+                        type: 'function',
+                        function: {
+                            name: decl.name,
+                            description: decl.description || '',
+                            parameters: convertTypes(decl.parameters) || { type: 'object', properties: {} }
+                        }
+                    });
+                }
+            }
+            if (openAITools.length > 0) {
+                requestBody.tools = openAITools;
+                if (forceCalling) requestBody.tool_choice = 'required';
+            }
+        }
+
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({}));
+            const e = new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
+        }
+        const data = await response.json();
+        const geminiFormat = this.convertOpenAIToGeminiFormat(data);
+        return { ok: true, status: 200, json: async () => geminiFormat };
+    },
+
+    // Anthropic Messages API を呼び出す
+    async callAnthropicApi(messages, config, systemInstruction, tools, forceCalling, signal) {
+        const apiKey = state.settings.anthropicApiKey;
+        if (!apiKey) { const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
+
+        const effort = state.settings.anthropicEffort || null;
+        const useAdaptive = !!effort;
+        const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
+        const useThinking = useAdaptive || useManualThinking;
+        const maxTokens = useAdaptive
+            ? Math.max(config.maxOutputTokens ?? 16000, 16000)
+            : useManualThinking
+                ? Math.max(config.maxOutputTokens ?? 4000, state.settings.thinkingBudget + 1000)
+                : config.maxOutputTokens ?? 4000;
+
+        const cacheTTL = state.settings.anthropicCacheTTL || '5m';
+        const cacheControl = cacheTTL === 'none' ? null
+            : cacheTTL === '1h' ? { type: "ephemeral", ttl: "1h" }
+            : { type: "ephemeral" };
+
+        const model = state.settings.modelName || 'claude-opus-4-6';
+        const requestBody = {
+            model,
+            messages: [],
+            max_tokens: maxTokens,
+        };
+
+        if (useAdaptive) {
+            requestBody.thinking = { type: 'adaptive' };
+            requestBody.temperature = 1;
+        } else if (useManualThinking) {
+            requestBody.thinking = { type: 'enabled', budget_tokens: state.settings.thinkingBudget };
+            requestBody.temperature = 1;
         } else {
-            return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+            requestBody.temperature = config.temperature ?? 0.7;
+        }
+        if (effort) {
+            requestBody.output_config = { effort };
+        }
+
+        const _staticText = systemInstruction?._staticText;
+        const _dynamicText = systemInstruction?._dynamicText;
+        if (_staticText !== undefined || _dynamicText !== undefined) {
+            // 静的部分（システムプロンプト・ナレッジ）をキャッシュ、動的部分（記憶・サマリー）はキャッシュ対象外
+            const blocks = [];
+            if (_staticText) {
+                const block = { type: "text", text: _staticText };
+                if (cacheControl) block.cache_control = cacheControl;
+                blocks.push(block);
+            }
+            if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
+            if (blocks.length > 0) requestBody.system = blocks;
+        } else {
+            const systemText = extractSystemText(systemInstruction);
+            if (systemText) {
+                const block = { type: "text", text: systemText };
+                if (cacheControl) block.cache_control = cacheControl;
+                requestBody.system = [block];
+            }
+        }
+
+        // Add tools in Anthropic format (input_schema instead of parameters)
+        if (tools && tools.length > 0) {
+            const convertTypes = (schema) => {
+                if (!schema || typeof schema !== 'object') return schema;
+                if (Array.isArray(schema)) return schema.map(convertTypes);
+                const result = {};
+                for (const [key, val] of Object.entries(schema)) {
+                    if (key === 'type' && typeof val === 'string') {
+                        result[key] = val.toLowerCase();
+                    } else if (val && typeof val === 'object') {
+                        result[key] = convertTypes(val);
+                    } else {
+                        result[key] = val;
+                    }
+                }
+                return result;
+            };
+            const anthropicTools = [];
+            for (const toolGroup of tools) {
+                for (const decl of (toolGroup.function_declarations || [])) {
+                    anthropicTools.push({
+                        name: decl.name,
+                        description: decl.description || '',
+                        input_schema: convertTypes(decl.parameters) || { type: 'object', properties: {} }
+                    });
+                }
+            }
+            if (anthropicTools.length > 0) {
+                requestBody.tools = anthropicTools;
+                // thinking有効時はtool_choice強制不可
+                if (forceCalling && !useThinking) {
+                    requestBody.tool_choice = { type: 'any' };
+                }
+            }
+        }
+
+        // Convert Gemini-format messages to Anthropic format
+        // Anthropic requires strict user/assistant alternation, so consecutive user messages must be merged
+        const anthropicMessages = [];
+        const pushAnthropicMsg = (role, content) => {
+            const blocks = Array.isArray(content) ? content : [{ type: 'text', text: content }];
+            if (blocks.length === 0) return;
+            const last = anthropicMessages[anthropicMessages.length - 1];
+            if (last && last.role === role) {
+                // 同じロールが連続した場合はマージ（特にtool_result後のuserメッセージ）
+                if (!Array.isArray(last.content)) {
+                    last.content = [{ type: 'text', text: last.content }];
+                }
+                last.content = [...last.content, ...blocks];
+            } else {
+                anthropicMessages.push({ role, content: blocks.length === 1 && blocks[0].type === 'text' ? blocks[0].text : blocks });
+            }
+        };
+
+        for (const geminiMsg of messages) {
+            const msgParts = geminiMsg.parts || [];
+            if (geminiMsg.role === 'tool') {
+                // Tool results → user message with tool_result content blocks
+                const toolResultBlocks = [];
+                for (const part of msgParts) {
+                    if (part.functionResponse) {
+                        const toolUseId = part.functionResponse._toolCallId || part.functionResponse.name;
+                        const content = typeof part.functionResponse.response === 'string'
+                            ? part.functionResponse.response
+                            : JSON.stringify(part.functionResponse.response);
+                        toolResultBlocks.push({ type: 'tool_result', tool_use_id: toolUseId, content });
+                    }
+                }
+                if (toolResultBlocks.length > 0) pushAnthropicMsg('user', toolResultBlocks);
+            } else {
+                const role = geminiMsg.role === 'model' ? 'assistant' : 'user';
+                const contentBlocks = [];
+                for (const part of msgParts) {
+                    if (part.text && part.thought !== true) {
+                        // 思考ブロックはsignatureなしでは再送できないためスキップ
+                        contentBlocks.push({ type: 'text', text: part.text });
+                    } else if (part.functionCall) {
+                        contentBlocks.push({
+                            type: 'tool_use',
+                            id: part.functionCall._toolCallId || `toolu_${Date.now()}`,
+                            name: part.functionCall.name,
+                            input: part.functionCall.args || {}
+                        });
+                    } else if (part.inlineData) {
+                        const mimeType = part.inlineData.mimeType;
+                        // data URL prefix ("data:...;base64,") を除去して純粋なbase64を取り出す
+                        const rawData = part.inlineData.data.replace(/^data:[^;]+;base64,/, '');
+                        if (mimeType.startsWith('image/')) {
+                            const ANTHROPIC_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                            if (!ANTHROPIC_IMAGE_TYPES.includes(mimeType)) {
+                                const e = new Error(`Anthropic APIはこの画像形式（${mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
+                                e.status = 400;
+                                throw e;
+                            }
+                            contentBlocks.push({
+                                type: 'image',
+                                source: { type: 'base64', media_type: mimeType, data: rawData }
+                            });
+                        } else if (mimeType === 'application/pdf') {
+                            contentBlocks.push({
+                                type: 'document',
+                                source: { type: 'base64', media_type: 'application/pdf', data: rawData }
+                            });
+                        } else {
+                            // テキスト・その他のファイルはデコードしてテキストブロックとして送信
+                            try {
+                                const decoded = decodeURIComponent(escape(atob(rawData)));
+                                contentBlocks.push({ type: 'text', text: decoded });
+                            } catch {
+                                contentBlocks.push({ type: 'text', text: rawData });
+                            }
+                        }
+                    }
+                }
+                if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
+            }
+        }
+        // Post-process: strip orphaned tool_use blocks (no matching tool_result in next message)
+        // This happens when _aggregateMessages merges tool call results into a single model message
+        // but discards the intermediate tool response messages from the conversation history.
+        for (let i = 0; i < anthropicMessages.length; i++) {
+            const msg = anthropicMessages[i];
+            if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+            const toolUseIds = msg.content.filter(b => b.type === 'tool_use').map(b => b.id);
+            if (toolUseIds.length === 0) continue;
+
+            const nextMsg = anthropicMessages[i + 1];
+            const nextContent = nextMsg && Array.isArray(nextMsg.content) ? nextMsg.content : [];
+            const toolResultIds = new Set(nextContent.filter(b => b.type === 'tool_result').map(b => b.tool_use_id));
+            const orphanedIds = new Set(toolUseIds.filter(id => !toolResultIds.has(id)));
+            if (orphanedIds.size === 0) continue;
+
+            const filtered = msg.content.filter(b => !(b.type === 'tool_use' && orphanedIds.has(b.id)));
+            if (filtered.length === 0) {
+                filtered.push({ type: 'text', text: '(tool execution result incorporated)' });
+            }
+            msg.content = filtered.length === 1 && filtered[0].type === 'text' ? filtered[0].text : filtered;
+        }
+
+        // 会話履歴はトップレベルcache_control（自動キャッシュ）で管理する。
+        // これがないと履歴全体が毎ターン通常入力で課金されるため必須。
+        // TTLは設定値に従う。返信間隔が5分を超える使い方では1h TTLが必要
+        // （5分TTLだとターン毎に履歴全体の再書き込みが発生し、増分書込の節約額を大きく上回る）。
+        if (cacheControl && anthropicMessages.length >= 2) {
+            requestBody.cache_control = cacheControl;
+        }
+
+        anthropicMessages.forEach(msg => requestBody.messages.push(msg));
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true'
+            },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(()=>({}));
+            const e = new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
+        }
+        const data = await response.json();
+        const parts = [];
+        for (const block of (data.content || [])) {
+            if (block.type === 'thinking' && block.thinking) {
+                parts.push({ text: block.thinking, thought: true });
+            } else if (block.type === 'text' && block.text) {
+                parts.push({ text: block.text });
+            } else if (block.type === 'tool_use') {
+                // Function call → Gemini functionCall format with _toolCallId
+                parts.push({
+                    functionCall: {
+                        name: block.name,
+                        args: block.input,
+                        _toolCallId: block.id
+                    }
+                });
+            }
+        }
+        // Anthropicがコンテンツフィルタリング等で空レスポンスを返した場合（リトライ不要なので400扱い）
+        if (parts.length === 0) {
+            const stopReason = data.stop_reason || '';
+            const errMsg = stopReason === 'max_tokens'
+                ? 'Anthropic: トークン上限に達しました。会話履歴を短くするか、max_tokensを増やしてください。'
+                : 'Anthropic: 空の応答が返されました。会話内容がコンテンツポリシーに抵触しているか、Claudeがこのシーンに応じられない状態です。';
+            const e = new Error(errMsg);
+            e.status = 400;
+            throw e;
+        }
+        const geminiFormat = {
+            candidates: [{
+                content: { parts },
+                finishReason: 'STOP'
+            }]
+        };
+        if (data.usage) {
+            const cacheWrite = data.usage.cache_creation_input_tokens || 0;
+            const cacheRead = data.usage.cache_read_input_tokens || 0;
+            const cacheCreation = data.usage.cache_creation || {};
+            const cacheWrite5m = cacheCreation.ephemeral_5m_input_tokens ?? (cacheTTL === '1h' ? 0 : cacheWrite);
+            const cacheWrite1h = cacheCreation.ephemeral_1h_input_tokens ?? (cacheTTL === '1h' ? cacheWrite : 0);
+            const inputTotal = (data.usage.input_tokens || 0) + cacheWrite + cacheRead;
+            console.log(`[Cache] cache_write=${cacheWrite} cache_read=${cacheRead} input=${data.usage.input_tokens || 0} output=${data.usage.output_tokens || 0}`);
+            geminiFormat.usageMetadata = {
+                promptTokenCount: inputTotal,
+                candidatesTokenCount: data.usage.output_tokens || 0,
+                totalTokenCount: inputTotal + (data.usage.output_tokens || 0),
+                cacheCreationInputTokens: cacheWrite,
+                cacheReadInputTokens: cacheRead,
+                cacheCreation5mInputTokens: cacheWrite5m,
+                cacheCreation1hInputTokens: cacheWrite1h
+            };
+        }
+        return { ok: true, status: 200, json: async () => geminiFormat };
+    },
+
+    // OpenAI互換プロバイダー（Function Calling非対応: Groq / DeepSeek / xAI / Mistral）の共通実装
+    async callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
+        if (!apiKey) { const e = new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`); e.status = 401; throw e; }
+
+        const model = state.settings.modelName;
+        const isReasoningModel = /r1|reasoner/i.test(model);
+        const requestBody = {
+            model,
+            messages: [],
+            max_tokens: config.maxOutputTokens ?? 4000,
+            stream: false
+        };
+        if (!isReasoningModel) {
+            requestBody.temperature = config.temperature ?? 0.7;
+            requestBody.top_p = config.topP ?? 1.0;
+        }
+
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
+        this.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
+
+        const response = await fetch(baseUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify(requestBody),
+            signal
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            const e = new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
+            e.status = response.status;
+            throw e;
+        }
+        const data = await response.json();
+        const geminiFormat = this.convertOpenAIToGeminiFormat(data);
+        return { ok: true, status: 200, json: async () => geminiFormat };
+    },
+
+    // プロジェクトのナレッジファイルをsystemInstructionへ注入する（旧 app.js モンキーパッチより移設）
+    _injectProjectKnowledge(systemInstruction) {
+        const knowledge = state.activeProjectKnowledge;
+        if (knowledge && knowledge.length > 0) {
+            const knowledgeText = knowledge.map(f => `### ${f.name}\n${f.content}`).join('\n\n---\n\n');
+            const prevStatic = systemInstruction?._staticText !== undefined
+                ? systemInstruction._staticText
+                : (extractSystemText(systemInstruction) || '');
+            const prevDynamic = systemInstruction?._dynamicText || '';
+            const newStaticText = prevStatic
+                ? `${prevStatic}\n\n---\n## ナレッジ\n\n${knowledgeText}`
+                : `## ナレッジ\n\n${knowledgeText}`;
+            const combined = [prevDynamic, newStaticText].filter(Boolean).join('\n\n');
+            return {
+                parts: [{ text: combined }],
+                _staticText: newStaticText,
+                _dynamicText: prevDynamic
+            };
+        }
+        return systemInstruction;
+    },
+
+    // プロバイダーに応じて適切なAPIアダプタへ振り分けるディスパッチャ。
+    // ナレッジ注入もここで一括して行う（旧 app.js のモンキーパッチを統合）。
+    async callApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
+        systemInstruction = this._injectProjectKnowledge(systemInstruction);
+
+        const provider = state.settings.apiProvider || 'gemini';
+
+        switch (provider) {
+            case 'zai':
+                return await this._callOpenAICompatibleWithTools({
+                    label: 'Z.ai',
+                    baseUrl: ZAI_API_BASE_URL,
+                    defaultModel: DEFAULT_ZAI_MODEL,
+                    getApiKey: () => state.settings.zaiApiKey || state.settings.apiKey,
+                    missingKeyMessage: 'Z.ai APIキーが設定されていません。',
+                    extraHeaders: () => ({}),
+                    verboseError: false
+                }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+            case 'openrouter':
+                return await this._callOpenAICompatibleWithTools({
+                    label: 'OpenRouter',
+                    baseUrl: OPENROUTER_API_BASE_URL,
+                    defaultModel: DEFAULT_OPENROUTER_MODEL,
+                    getApiKey: () => state.settings.openrouterApiKey,
+                    missingKeyMessage: 'OpenRouter APIキーが設定されていません。',
+                    extraHeaders: () => ({ 'HTTP-Referer': window.location.origin, 'X-Title': 'Aquarium Chat' }),
+                    verboseError: true
+                }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+            case 'bedrock':
+                return await this.callBedrockApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+            case 'openai':
+                return await this.callOpenAIApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+            case 'anthropic':
+                return await this.callAnthropicApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+            case 'groq':
+                return await this.callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, 'Groq', messagesForApi, generationConfig, systemInstruction, signal);
+            case 'deepseek':
+                return await this.callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, 'DeepSeek', messagesForApi, generationConfig, systemInstruction, signal);
+            case 'xai':
+                return await this.callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, 'xAI', messagesForApi, generationConfig, systemInstruction, signal);
+            case 'mistral':
+                return await this.callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, 'Mistral', messagesForApi, generationConfig, systemInstruction, signal);
+            default:
+                return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
         }
     }
 };

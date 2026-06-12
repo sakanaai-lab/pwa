@@ -1541,194 +1541,6 @@ ${relationship_context}`;
     }
   };
 
-  // src/constants.js
-  var DB_NAME = "GeminiPWA_DB";
-  var DB_VERSION = 15;
-  var PROJECTS_STORE = "projects";
-  var SETTINGS_STORE = "settings";
-  var PROFILES_STORE = "profiles";
-  var CHATS_STORE = "chats";
-  var IMAGE_STORE = "image_store";
-  var CHAT_UPDATEDAT_INDEX = "updatedAtIndex";
-  var CHAT_CREATEDAT_INDEX = "createdAtIndex";
-  var DEFAULT_MODEL = "gemini-2.5-pro";
-  var DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  var CHAT_TITLE_LENGTH = 15;
-  var TEXTAREA_MAX_HEIGHT = 120;
-  var GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
-  var ZAI_API_BASE_URL = "https://api.z.ai/api/paas/v4/chat/completions";
-  var OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
-  var GROQ_API_BASE_URL = "https://api.groq.com/openai/v1/chat/completions";
-  var DEEPSEEK_API_BASE_URL = "https://api.deepseek.com/chat/completions";
-  var XAI_API_BASE_URL = "https://api.x.ai/v1/chat/completions";
-  var MISTRAL_API_BASE_URL = "https://api.mistral.ai/v1/chat/completions";
-  var DUPLICATE_SUFFIX = " (コピー)";
-  var IMPORT_PREFIX = "(取込) ";
-  var LIGHT_THEME_COLOR = "#4a90e2";
-  var DARK_THEME_COLOR = "#007aff";
-  var APP_VERSION = "1.25";
-  var DEFAULT_ZAI_MODEL = "glm-4.6";
-  var DEFAULT_OPENROUTER_MODEL = "x-ai/grok-4.1-fast";
-  var VERSION_NOTICE_SESSION_KEY = "pendingVersionNotice";
-  var VERSION_ACK_STORAGE_KEY = "appVersionAcknowledged";
-  var VERSION_LEGACY_STORAGE_KEY = "appVersion";
-  var GEMINI_MODELS = [
-    { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
-    { value: "gemini-2.5-flash", label: "gemini-2.5-flash" },
-    { value: "gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite" },
-    { value: "gemini-2.0-flash", label: "gemini-2.0-flash" },
-    { value: "gemini-2.0-flash-lite", label: "gemini-2.0-flash-lite" },
-    {
-      value: "gemini-2.5-flash-preview-09-2025",
-      label: "gemini-2.5-flash-preview-09-2025",
-      group: "プレビュー版"
-    },
-    {
-      value: "gemini-2.5-flash-lite-preview-09-2025",
-      label: "gemini-2.5-flash-lite-preview-09-2025",
-      group: "プレビュー版"
-    },
-    {
-      value: "gemini-2.5-flash-image-preview",
-      label: "gemini-2.5-flash-image-preview (Nano Banana)",
-      group: "プレビュー版"
-    },
-    { value: "gemini-3-pro-preview", label: "gemini-3-pro-preview", group: "プレビュー版" },
-    { value: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview", group: "プレビュー版" }
-  ];
-  var ZAI_MODELS = [
-    { value: "glm-4.6", label: "GLM-4.6" },
-    { value: "glm-4.5-Air", label: "GLM-4.5 Air" },
-    { value: "glm-4.5-flash", label: "GLM-4.5 Flash" }
-  ];
-  var BEDROCK_MODELS = [
-    {
-      value: "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
-      label: "Claude Sonnet 4.5 (推奨・東京リージョン用)"
-    },
-    {
-      value: "anthropic.claude-sonnet-4-5-20250929-v1:0",
-      label: "Claude Sonnet 4.5 (標準リージョン用)"
-    },
-    { value: "anthropic.claude-3-5-sonnet-20241022-v2:0", label: "Claude 3.5 Sonnet v2" },
-    { value: "anthropic.claude-3-5-sonnet-20240620-v1:0", label: "Claude 3.5 Sonnet v1" },
-    { value: "anthropic.claude-3-opus-20240229-v1:0", label: "Claude 3 Opus" },
-    { value: "anthropic.claude-3-sonnet-20240229-v1:0", label: "Claude 3 Sonnet" },
-    { value: "anthropic.claude-3-haiku-20240307-v1:0", label: "Claude 3 Haiku" }
-  ];
-  var DEFAULT_BEDROCK_MODEL = "jp.anthropic.claude-sonnet-4-5-20250929-v1:0";
-  var DEFAULT_BEDROCK_REGION = "us-east-1";
-  var OPENAI_MODELS = [
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o mini" },
-    { value: "gpt-4.1", label: "GPT-4.1" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
-    { value: "o3", label: "o3", group: "推論モデル" },
-    { value: "o4-mini", label: "o4-mini", group: "推論モデル" }
-  ];
-  var DEFAULT_OPENAI_MODEL = "gpt-4o";
-  var ANTHROPIC_MODELS = [
-    { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
-    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
-    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
-    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
-    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" }
-  ];
-  var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
-  var GROQ_MODELS = [
-    { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
-    { value: "meta-llama/llama-4-maverick-17b-128e-instruct", label: "Llama 4 Maverick 17B" },
-    { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B" },
-    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
-    { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
-    { value: "qwen/qwen3-32b", label: "Qwen3 32B" },
-    { value: "gemma2-9b-it", label: "Gemma 2 9B" }
-  ];
-  var DEFAULT_GROQ_MODEL = "moonshotai/kimi-k2-instruct";
-  var DEEPSEEK_MODELS = [
-    { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
-    { value: "deepseek-chat", label: "DeepSeek Chat (V3)" },
-    { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" }
-  ];
-  var DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
-  var XAI_MODELS = [
-    { value: "grok-4", label: "Grok 4" },
-    { value: "grok-3", label: "Grok 3" },
-    { value: "grok-3-mini", label: "Grok 3 Mini" },
-    { value: "grok-2-1212", label: "Grok 2" }
-  ];
-  var DEFAULT_XAI_MODEL = "grok-4";
-  var MISTRAL_MODELS = [
-    { value: "mistral-large-latest", label: "Mistral Large (latest)" },
-    { value: "mistral-medium-latest", label: "Mistral Medium (latest)" },
-    { value: "mistral-small-latest", label: "Mistral Small (latest)" },
-    { value: "codestral-latest", label: "Codestral (latest)" },
-    { value: "open-mistral-nemo", label: "Mistral Nemo" }
-  ];
-  var DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
-  var VERSION_HISTORY = {
-    1.25: [
-      "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
-    ],
-    1.24: [
-      "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
-      "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
-      "コスト計算を改善：5分/1時間キャッシュ書き込みを区別して計算。料金テーブルを現行価格に更新（Opus 4.5〜4.8: $5/$25、Haiku 4.5: $1/$5 等）。",
-      "モデル名が記録されていないメッセージを現在のモデル価格で計算してしまい推定コストがずれる問題を修正。",
-      "長期記憶の自動学習間隔に「75」「100メッセージごと」を追加。"
-    ],
-    1.22: [
-      "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
-    ],
-    "1.20": [
-      "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
-      "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
-      "重複定義されていた `exportProfile` / `importProfile` を統合し、プロファイルのインポート後にアクティブプロファイル反映・UI更新・同期フラグ更新が確実に行われるよう修正しました。",
-      "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。",
-      "履歴一覧のトークン表示を改善し、合計トークンに加えて入力（prompt）/出力（completion）の内訳を表示するようにしました。"
-    ],
-    1.14: [
-      "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
-      "Claude Opus 4.7モデルを追加。",
-      "モデルの応答にターン番号とモデル名を小さく表示するようにしました（例: #1 claude-opus-4-6）。",
-      "モデル側の吹き出し幅を拡大し、スマホでも読みやすくしました。",
-      "Anthropicプロンプトキャッシュ設定に「なし（キャッシュ未使用）」オプションを追加。"
-    ],
-    1.13: [
-      "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
-      "Function Calling使用後にツールをOFFにしてチャットすると発生していた`tool_use without tool_result`エラーを修正。",
-      "Claude APIのプロンプトキャッシングを大幅改善。ツール定義と会話履歴にキャッシュブレークポイントを追加し、長い会話でのAPI費用を削減。"
-    ],
-    1.12: [
-      "ユーザー追加モデル対応を全面強化。思考プロセス翻訳、校正、要約、画像品質チェック、プロンプト改善の各機能で、ユーザーが追加したモデルを選択可能に。",
-      "「追加モデル (カンマ区切り):」入力後、ページリロード不要で全モデル選択セレクターに即座に反映されるよう改善。",
-      "`edit_image`関数にユーザー指定モデル機能を追加。`gemini-3-pro-image-preview`を含む任意のモデルで画像編集が可能に。",
-      "開発者が更新を停止しても、ユーザーが新規モデルを追加すれば各種機能で使用できる拡張性の高い設計を実現。"
-    ],
-    1.11: [
-      "デバッグモード有効時のみ、`OpenRouter`、`Z.ai`、`AmazonBedrock`のプロバイダーを追加。開発者向け機能のため既存機能との連携は保証されていません。",
-      "設定画面に「ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える」を追加。",
-      "metadata内のキャラクター名や関係性名に特殊文字が使用されているとquerySelectorが正常に動作しない問題を修正"
-    ],
-    1.1: [
-      "gemini-3-pro-previewモデルを追加しました。",
-      "gemini-3-pro-previewでのFunction Calling使用時に発生していた「thought_signature」エラーを修正しました。"
-    ],
-    "1.0": [
-      "Dropbox連携機能とStable Diffusion WebUI/Forge/Reforge連携を追加し、PWA内のデータと画像生成ワークフローをクラウドやローカル環境とシームレスに同期できるようにしました。",
-      "添付ファイルのサムネイル表示やアップデート内容を告知するダイアログ、URLコンテンツを取り込むfetch_url_content関数、プロファイルへのgemini-2.5-pro使用回数表示、デバッグモード切替などのUI/機能改善を実装しました。",
-      "gemini-2.5-flash-imageやveo-3.1シリーズなど最新モデルの追加、画像/動画関連関数のモデル選択改善、URL要約や要約機能まわりのエラーハンドリング強化を行いました。",
-      "Firefoxでのパフォーマンス劣化や再生成時の履歴破損、記憶管理画面の不具合など多数のバグを修正し、DB関連関数の保存ロジックも刷新しました。"
-    ]
-  };
-  var SWIPE_THRESHOLD = 50;
-  var ZOOM_THRESHOLD = 1.01;
-  var MAX_FILE_SIZE = 10 * 1024 * 1024;
-  var MAX_TOTAL_ATTACHMENT_SIZE = 50 * 1024 * 1024;
-  var INITIAL_RETRY_DELAY = 100;
-  var MAX_PROFILES = 5;
-
   // src/dom-elements.js
   var elements;
   try {
@@ -2002,6 +1814,194 @@ ${relationship_context}`;
         </div>`;
     }
   }
+
+  // src/constants.js
+  var DB_NAME = "GeminiPWA_DB";
+  var DB_VERSION = 15;
+  var PROJECTS_STORE = "projects";
+  var SETTINGS_STORE = "settings";
+  var PROFILES_STORE = "profiles";
+  var CHATS_STORE = "chats";
+  var IMAGE_STORE = "image_store";
+  var CHAT_UPDATEDAT_INDEX = "updatedAtIndex";
+  var CHAT_CREATEDAT_INDEX = "createdAtIndex";
+  var DEFAULT_MODEL = "gemini-2.5-pro";
+  var DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var CHAT_TITLE_LENGTH = 15;
+  var TEXTAREA_MAX_HEIGHT = 120;
+  var GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
+  var ZAI_API_BASE_URL = "https://api.z.ai/api/paas/v4/chat/completions";
+  var OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
+  var GROQ_API_BASE_URL = "https://api.groq.com/openai/v1/chat/completions";
+  var DEEPSEEK_API_BASE_URL = "https://api.deepseek.com/chat/completions";
+  var XAI_API_BASE_URL = "https://api.x.ai/v1/chat/completions";
+  var MISTRAL_API_BASE_URL = "https://api.mistral.ai/v1/chat/completions";
+  var DUPLICATE_SUFFIX = " (コピー)";
+  var IMPORT_PREFIX = "(取込) ";
+  var LIGHT_THEME_COLOR = "#4a90e2";
+  var DARK_THEME_COLOR = "#007aff";
+  var APP_VERSION = "1.25";
+  var DEFAULT_ZAI_MODEL = "glm-4.6";
+  var DEFAULT_OPENROUTER_MODEL = "x-ai/grok-4.1-fast";
+  var VERSION_NOTICE_SESSION_KEY = "pendingVersionNotice";
+  var VERSION_ACK_STORAGE_KEY = "appVersionAcknowledged";
+  var VERSION_LEGACY_STORAGE_KEY = "appVersion";
+  var GEMINI_MODELS = [
+    { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
+    { value: "gemini-2.5-flash", label: "gemini-2.5-flash" },
+    { value: "gemini-2.5-flash-lite", label: "gemini-2.5-flash-lite" },
+    { value: "gemini-2.0-flash", label: "gemini-2.0-flash" },
+    { value: "gemini-2.0-flash-lite", label: "gemini-2.0-flash-lite" },
+    {
+      value: "gemini-2.5-flash-preview-09-2025",
+      label: "gemini-2.5-flash-preview-09-2025",
+      group: "プレビュー版"
+    },
+    {
+      value: "gemini-2.5-flash-lite-preview-09-2025",
+      label: "gemini-2.5-flash-lite-preview-09-2025",
+      group: "プレビュー版"
+    },
+    {
+      value: "gemini-2.5-flash-image-preview",
+      label: "gemini-2.5-flash-image-preview (Nano Banana)",
+      group: "プレビュー版"
+    },
+    { value: "gemini-3-pro-preview", label: "gemini-3-pro-preview", group: "プレビュー版" },
+    { value: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview", group: "プレビュー版" }
+  ];
+  var ZAI_MODELS = [
+    { value: "glm-4.6", label: "GLM-4.6" },
+    { value: "glm-4.5-Air", label: "GLM-4.5 Air" },
+    { value: "glm-4.5-flash", label: "GLM-4.5 Flash" }
+  ];
+  var BEDROCK_MODELS = [
+    {
+      value: "jp.anthropic.claude-sonnet-4-5-20250929-v1:0",
+      label: "Claude Sonnet 4.5 (推奨・東京リージョン用)"
+    },
+    {
+      value: "anthropic.claude-sonnet-4-5-20250929-v1:0",
+      label: "Claude Sonnet 4.5 (標準リージョン用)"
+    },
+    { value: "anthropic.claude-3-5-sonnet-20241022-v2:0", label: "Claude 3.5 Sonnet v2" },
+    { value: "anthropic.claude-3-5-sonnet-20240620-v1:0", label: "Claude 3.5 Sonnet v1" },
+    { value: "anthropic.claude-3-opus-20240229-v1:0", label: "Claude 3 Opus" },
+    { value: "anthropic.claude-3-sonnet-20240229-v1:0", label: "Claude 3 Sonnet" },
+    { value: "anthropic.claude-3-haiku-20240307-v1:0", label: "Claude 3 Haiku" }
+  ];
+  var DEFAULT_BEDROCK_MODEL = "jp.anthropic.claude-sonnet-4-5-20250929-v1:0";
+  var DEFAULT_BEDROCK_REGION = "us-east-1";
+  var OPENAI_MODELS = [
+    { value: "gpt-4o", label: "GPT-4o" },
+    { value: "gpt-4o-mini", label: "GPT-4o mini" },
+    { value: "gpt-4.1", label: "GPT-4.1" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
+    { value: "o3", label: "o3", group: "推論モデル" },
+    { value: "o4-mini", label: "o4-mini", group: "推論モデル" }
+  ];
+  var DEFAULT_OPENAI_MODEL = "gpt-4o";
+  var ANTHROPIC_MODELS = [
+    { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
+    { value: "claude-opus-4-6", label: "Claude Opus 4.6" },
+    { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+    { value: "claude-haiku-4-5-20251001", label: "Claude Haiku 4.5" },
+    { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
+    { value: "claude-3-5-haiku-20241022", label: "Claude 3.5 Haiku" }
+  ];
+  var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+  var GROQ_MODELS = [
+    { value: "moonshotai/kimi-k2-instruct", label: "Kimi K2 Instruct" },
+    { value: "meta-llama/llama-4-maverick-17b-128e-instruct", label: "Llama 4 Maverick 17B" },
+    { value: "meta-llama/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout 17B" },
+    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile" },
+    { value: "llama-3.1-8b-instant", label: "Llama 3.1 8B Instant" },
+    { value: "qwen/qwen3-32b", label: "Qwen3 32B" },
+    { value: "gemma2-9b-it", label: "Gemma 2 9B" }
+  ];
+  var DEFAULT_GROQ_MODEL = "moonshotai/kimi-k2-instruct";
+  var DEEPSEEK_MODELS = [
+    { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
+    { value: "deepseek-chat", label: "DeepSeek Chat (V3)" },
+    { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" }
+  ];
+  var DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+  var XAI_MODELS = [
+    { value: "grok-4", label: "Grok 4" },
+    { value: "grok-3", label: "Grok 3" },
+    { value: "grok-3-mini", label: "Grok 3 Mini" },
+    { value: "grok-2-1212", label: "Grok 2" }
+  ];
+  var DEFAULT_XAI_MODEL = "grok-4";
+  var MISTRAL_MODELS = [
+    { value: "mistral-large-latest", label: "Mistral Large (latest)" },
+    { value: "mistral-medium-latest", label: "Mistral Medium (latest)" },
+    { value: "mistral-small-latest", label: "Mistral Small (latest)" },
+    { value: "codestral-latest", label: "Codestral (latest)" },
+    { value: "open-mistral-nemo", label: "Mistral Nemo" }
+  ];
+  var DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
+  var VERSION_HISTORY = {
+    1.25: [
+      "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
+    ],
+    1.24: [
+      "【セキュリティ修正】AI応答・インポートしたログ内の生HTMLが実行され得るXSS脆弱性を修正。生HTMLはエスケープ表示、javascript:等の危険なリンクは無効化されます（APIキー・Dropboxトークン保護のため必ず更新してください）。",
+      "Anthropic会話履歴キャッシュを改善：トップレベル自動キャッシュ方式（cache_control）に変更し、キャッシュポイントが会話の伸びに合わせて自動前進。TTLは設定値（5分/1時間）に従います。",
+      "コスト計算を改善：5分/1時間キャッシュ書き込みを区別して計算。料金テーブルを現行価格に更新（Opus 4.5〜4.8: $5/$25、Haiku 4.5: $1/$5 等）。",
+      "モデル名が記録されていないメッセージを現在のモデル価格で計算してしまい推定コストがずれる問題を修正。",
+      "長期記憶の自動学習間隔に「75」「100メッセージごと」を追加。"
+    ],
+    1.22: [
+      "Dropbox自動同期でデータが一時的に消えて見える不具合を修正。競合マージ後にページ全体を再読み込みしていた処理を、チャット履歴のみ静かに再読み込みするソフトリロードに変更しました。"
+    ],
+    "1.20": [
+      "初回の会話往復後にチャットタイトルが自動生成されない不具合を修正。プロバイダー別（Gemini / Anthropic / OpenAI互換）のタイトル生成ロジックが正しく動作するよう改善しました。",
+      "重複定義されていた `autoGenerateTitle` を整理し、意図しない上書きによる挙動不一致を解消しました。",
+      "重複定義されていた `exportProfile` / `importProfile` を統合し、プロファイルのインポート後にアクティブプロファイル反映・UI更新・同期フラグ更新が確実に行われるよう修正しました。",
+      "内部コードの重複を削減し、将来の保守時に不具合を生みにくい構成へ整理しました。",
+      "履歴一覧のトークン表示を改善し、合計トークンに加えて入力（prompt）/出力（completion）の内訳を表示するようにしました。"
+    ],
+    1.14: [
+      "Claude APIの適応的思考（adaptive thinking）に対応。思考の深さ（effort: low/medium/high/max）を設定画面から選択可能に。",
+      "Claude Opus 4.7モデルを追加。",
+      "モデルの応答にターン番号とモデル名を小さく表示するようにしました（例: #1 claude-opus-4-6）。",
+      "モデル側の吹き出し幅を拡大し、スマホでも読みやすくしました。",
+      "Anthropicプロンプトキャッシュ設定に「なし（キャッシュ未使用）」オプションを追加。"
+    ],
+    1.13: [
+      "Claude API使用時にトークン数（候補トークン/合計トークン）が表示されない不具合を修正。",
+      "Function Calling使用後にツールをOFFにしてチャットすると発生していた`tool_use without tool_result`エラーを修正。",
+      "Claude APIのプロンプトキャッシングを大幅改善。ツール定義と会話履歴にキャッシュブレークポイントを追加し、長い会話でのAPI費用を削減。"
+    ],
+    1.12: [
+      "ユーザー追加モデル対応を全面強化。思考プロセス翻訳、校正、要約、画像品質チェック、プロンプト改善の各機能で、ユーザーが追加したモデルを選択可能に。",
+      "「追加モデル (カンマ区切り):」入力後、ページリロード不要で全モデル選択セレクターに即座に反映されるよう改善。",
+      "`edit_image`関数にユーザー指定モデル機能を追加。`gemini-3-pro-image-preview`を含む任意のモデルで画像編集が可能に。",
+      "開発者が更新を停止しても、ユーザーが新規モデルを追加すれば各種機能で使用できる拡張性の高い設計を実現。"
+    ],
+    1.11: [
+      "デバッグモード有効時のみ、`OpenRouter`、`Z.ai`、`AmazonBedrock`のプロバイダーを追加。開発者向け機能のため既存機能との連携は保証されていません。",
+      "設定画面に「ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える」を追加。",
+      "metadata内のキャラクター名や関係性名に特殊文字が使用されているとquerySelectorが正常に動作しない問題を修正"
+    ],
+    1.1: [
+      "gemini-3-pro-previewモデルを追加しました。",
+      "gemini-3-pro-previewでのFunction Calling使用時に発生していた「thought_signature」エラーを修正しました。"
+    ],
+    "1.0": [
+      "Dropbox連携機能とStable Diffusion WebUI/Forge/Reforge連携を追加し、PWA内のデータと画像生成ワークフローをクラウドやローカル環境とシームレスに同期できるようにしました。",
+      "添付ファイルのサムネイル表示やアップデート内容を告知するダイアログ、URLコンテンツを取り込むfetch_url_content関数、プロファイルへのgemini-2.5-pro使用回数表示、デバッグモード切替などのUI/機能改善を実装しました。",
+      "gemini-2.5-flash-imageやveo-3.1シリーズなど最新モデルの追加、画像/動画関連関数のモデル選択改善、URL要約や要約機能まわりのエラーハンドリング強化を行いました。",
+      "Firefoxでのパフォーマンス劣化や再生成時の履歴破損、記憶管理画面の不具合など多数のバグを修正し、DB関連関数の保存ロジックも刷新しました。"
+    ]
+  };
+  var SWIPE_THRESHOLD = 50;
+  var ZOOM_THRESHOLD = 1.01;
+  var MAX_FILE_SIZE = 10 * 1024 * 1024;
+  var MAX_TOTAL_ATTACHMENT_SIZE = 50 * 1024 * 1024;
+  var INITIAL_RETRY_DELAY = 100;
+  var MAX_PROFILES = 5;
 
   // src/state.js
   var state = {
@@ -3802,6 +3802,13 @@ Reason: [NGの場合の理由]`,
   };
 
   // src/api.js
+  function extractSystemText(systemInstruction) {
+    if (!systemInstruction) return null;
+    if (typeof systemInstruction === "string") return systemInstruction;
+    if (systemInstruction.parts) return systemInstruction.parts.map((p) => p.text || "").join("");
+    return null;
+  }
+  __name(extractSystemText, "extractSystemText");
   var apiUtils = {
     // Gemini形式からOpenAI形式への変換
     convertGeminiToOpenAIFormat(messagesForApi) {
@@ -4428,18 +4435,19 @@ Reason: [NGの場合の理由]`,
       console.error("思考プロセスの翻訳中にエラーが発生しました。原文を返します。", lastError);
       return textToTranslate;
     },
-    // Z.ai APIを呼び出す
-    async callZaiApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-      console.log(`[Debug] callZaiApi: Z.ai APIを呼び出します。`);
-      const apiKey = state.settings.zaiApiKey || state.settings.apiKey;
+    // OpenAI互換プロバイダー（Function Calling対応）の共通実装。
+    // Z.ai / OpenRouter の差分は cfg で吸収する（wire は変更しない）。
+    async _callOpenAICompatibleWithTools(cfg, messagesForApi, generationConfig, systemInstruction, forceCalling = false, signal = null) {
+      console.log(`[Debug] _callOpenAICompatibleWithTools: ${cfg.label} APIを呼び出します。`);
+      const apiKey = cfg.getApiKey();
       if (!apiKey) {
-        throw new Error("Z.ai APIキーが設定されていません。");
+        throw new Error(cfg.missingKeyMessage);
       }
       if (!signal) {
         state.abortController = new AbortController();
         signal = state.abortController.signal;
       }
-      const model = state.settings.modelName || DEFAULT_ZAI_MODEL;
+      const model = state.settings.modelName || cfg.defaultModel;
       const openAIMessages = this.convertGeminiToOpenAIFormat(messagesForApi);
       if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0) {
         const systemText = systemInstruction.parts[0].text;
@@ -4480,7 +4488,7 @@ Reason: [NGの場合の理由]`,
               });
             }
           } else if (geminiTool.google_search) {
-            console.warn("Z.ai APIではGoogle Searchはサポートされていません。スキップします。");
+            console.warn(`${cfg.label} APIではGoogle Searchはサポートされていません。スキップします。`);
           }
         }
         if (openAITools.length > 0) {
@@ -4490,10 +4498,10 @@ Reason: [NGの場合の理由]`,
           } else {
             requestBody.tool_choice = "auto";
           }
-          console.log(`Z.ai APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
+          console.log(`${cfg.label} APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
         }
       }
-      console.log("Z.aiへの送信データ:", JSON.stringify(requestBody, (key, value) => {
+      console.log(`${cfg.label}への送信データ:`, JSON.stringify(requestBody, (key, value) => {
         if (key === "data" && typeof value === "string" && value.length > 100) {
           return value.substring(0, 50) + "...[省略]..." + value.substring(value.length - 20);
         }
@@ -4501,7 +4509,7 @@ Reason: [NGの場合の理由]`,
       }, 2));
       if (requestBody.messages && requestBody.messages.length > 0) {
         const recentMessages = requestBody.messages.slice(-6);
-        console.log("[Z.ai Debug] 送信する最近のメッセージ構造:");
+        console.log(`[${cfg.label} Debug] 送信する最近のメッセージ構造:`);
         recentMessages.forEach((msg, idx) => {
           const info = { role: msg.role };
           if (msg.tool_calls) {
@@ -4526,204 +4534,40 @@ Reason: [NGの場合の理由]`,
           console.log(`  [${idx}]`, JSON.stringify(info));
         });
       }
-      console.log("ターゲットエンドポイント:", ZAI_API_BASE_URL);
+      console.log("ターゲットエンドポイント:", cfg.baseUrl);
       try {
         const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-        console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Z.ai API...`);
-        const response = await fetch(ZAI_API_BASE_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${apiKey}`
-          },
-          body: JSON.stringify(requestBody),
-          signal
-        });
-        const receivedTimestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-        console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Z.ai API. Status: ${response.status}`);
-        if (!response.ok) {
-          let errorMsg = `APIエラー (${response.status}): ${response.statusText}`;
-          let errorData = null;
-          try {
-            errorData = await response.json();
-            console.error("APIエラーレスポンスボディ:", errorData);
-            if (errorData.error && errorData.error.message) {
-              errorMsg = `APIエラー (${response.status}): ${errorData.error.message}`;
-            } else if (errorData.message) {
-              errorMsg = `APIエラー (${response.status}): ${errorData.message}`;
-            }
-          } catch (e) {
-            console.error("APIエラーレスポンスボディのパース失敗:", e);
-          }
-          const error = new Error(errorMsg);
-          error.status = response.status;
-          error.data = errorData;
-          throw error;
-        }
-        const openAIResponse = await response.json();
-        if (openAIResponse.choices && openAIResponse.choices[0]) {
-          const choice = openAIResponse.choices[0];
-          console.log("[Z.ai Debug] APIレスポンス情報:");
-          console.log(`  - finish_reason: ${choice.finish_reason}`);
-          if (choice.message) {
-            if (choice.message.tool_calls) {
-              console.log(`  - tool_calls数: ${choice.message.tool_calls.length}`);
-              choice.message.tool_calls.forEach((tc, idx) => {
-                console.log(`    [${idx}] id: ${tc.id}, name: ${tc.function?.name}`);
-              });
-            }
-            if (choice.message.content) {
-              console.log(`  - content: ${choice.message.content.substring(0, 50)}...`);
-            }
-          }
-        }
-        const geminiFormatResponse = this.convertOpenAIToGeminiFormat(openAIResponse);
-        return {
-          ok: true,
-          status: response.status,
-          json: /* @__PURE__ */ __name(async () => geminiFormatResponse, "json")
-        };
-      } catch (error) {
-        if (error.name === "AbortError") {
-          throw new Error("リクエストがキャンセルされました。");
-        } else {
-          throw error;
-        }
-      }
-    },
-    // OpenRouter APIを呼び出す
-    async callOpenRouterApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-      console.log(`[Debug] callOpenRouterApi: OpenRouter APIを呼び出します。`);
-      const apiKey = state.settings.openrouterApiKey;
-      if (!apiKey) {
-        throw new Error("OpenRouter APIキーが設定されていません。");
-      }
-      if (!signal) {
-        state.abortController = new AbortController();
-        signal = state.abortController.signal;
-      }
-      const model = state.settings.modelName || DEFAULT_OPENROUTER_MODEL;
-      const openAIMessages = this.convertGeminiToOpenAIFormat(messagesForApi);
-      if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0) {
-        const systemText = systemInstruction.parts[0].text;
-        if (systemText) {
-          openAIMessages.unshift({
-            role: "system",
-            content: systemText
-          });
-        }
-      }
-      const requestBody = {
-        model,
-        messages: openAIMessages
-      };
-      if (generationConfig) {
-        if (generationConfig.temperature !== void 0) {
-          requestBody.temperature = generationConfig.temperature;
-        }
-        if (generationConfig.maxOutputTokens !== void 0) {
-          requestBody.max_tokens = generationConfig.maxOutputTokens;
-        }
-        if (generationConfig.topP !== void 0) {
-          requestBody.top_p = generationConfig.topP;
-        }
-      }
-      if (state.settings.geminiEnableFunctionCalling && window.functionDeclarations) {
-        const openAITools = [];
-        for (const geminiTool of window.functionDeclarations) {
-          if (geminiTool.function_declarations && Array.isArray(geminiTool.function_declarations)) {
-            for (const funcDecl of geminiTool.function_declarations) {
-              openAITools.push({
-                type: "function",
-                function: {
-                  name: funcDecl.name,
-                  description: funcDecl.description || "",
-                  parameters: funcDecl.parameters || {}
-                }
-              });
-            }
-          } else if (geminiTool.google_search) {
-            console.warn("OpenRouter APIではGoogle Searchはサポートされていません。スキップします。");
-          }
-        }
-        if (openAITools.length > 0) {
-          requestBody.tools = openAITools;
-          if (forceCalling) {
-            requestBody.tool_choice = "required";
-          } else {
-            requestBody.tool_choice = "auto";
-          }
-          console.log(`OpenRouter APIに ${openAITools.length} 個のFunction Callingツールを設定しました。`);
-        }
-      }
-      console.log("OpenRouterへの送信データ:", JSON.stringify(requestBody, (key, value) => {
-        if (key === "data" && typeof value === "string" && value.length > 100) {
-          return value.substring(0, 50) + "...[省略]..." + value.substring(value.length - 20);
-        }
-        return value;
-      }, 2));
-      if (requestBody.messages && requestBody.messages.length > 0) {
-        const recentMessages = requestBody.messages.slice(-6);
-        console.log("[OpenRouter Debug] 送信する最近のメッセージ構造:");
-        recentMessages.forEach((msg, idx) => {
-          const info = { role: msg.role };
-          if (msg.tool_calls) {
-            info.tool_calls = msg.tool_calls.map((tc) => ({ id: tc.id, name: tc.function?.name }));
-          }
-          if (msg.tool_call_id) {
-            info.tool_call_id = msg.tool_call_id;
-          }
-          if ("content" in msg) {
-            if (typeof msg.content === "string") {
-              if (msg.content === "") {
-                info.content = '""';
-              } else {
-                info.content_preview = msg.content.substring(0, 50) + "...";
-              }
-            } else {
-              info.content_type = typeof msg.content;
-            }
-          } else {
-            info.no_content_field = true;
-          }
-          console.log(`  [${idx}]`, JSON.stringify(info));
-        });
-      }
-      console.log("ターゲットエンドポイント:", OPENROUTER_API_BASE_URL);
-      try {
-        const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-        console.log(`[API_DEBUG ${timestamp}] Sending fetch request to OpenRouter API...`);
-        const response = await fetch(OPENROUTER_API_BASE_URL, {
+        console.log(`[API_DEBUG ${timestamp}] Sending fetch request to ${cfg.label} API...`);
+        const response = await fetch(cfg.baseUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${apiKey}`,
-            "HTTP-Referer": window.location.origin,
-            "X-Title": "Aquarium Chat"
+            ...cfg.extraHeaders()
           },
           body: JSON.stringify(requestBody),
           signal
         });
         const receivedTimestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
-        console.log(`[API_DEBUG ${receivedTimestamp}] Received response from OpenRouter API. Status: ${response.status}`);
+        console.log(`[API_DEBUG ${receivedTimestamp}] Received response from ${cfg.label} API. Status: ${response.status}`);
         if (!response.ok) {
           let errorMsg = `APIエラー (${response.status}): ${response.statusText}`;
           let errorData = null;
           try {
             errorData = await response.json();
             console.error("APIエラーレスポンスボディ:", errorData);
-            if (errorData.error) {
-              console.error("[OpenRouter] エラー詳細:", JSON.stringify(errorData.error, null, 2));
+            if (cfg.verboseError && errorData.error) {
+              console.error(`[${cfg.label}] エラー詳細:`, JSON.stringify(errorData.error, null, 2));
               if (errorData.error.metadata) {
-                console.error("[OpenRouter] メタデータ:", errorData.error.metadata);
+                console.error(`[${cfg.label}] メタデータ:`, errorData.error.metadata);
               }
               if (errorData.error.code) {
-                console.error("[OpenRouter] エラーコード:", errorData.error.code);
+                console.error(`[${cfg.label}] エラーコード:`, errorData.error.code);
               }
             }
             if (errorData.error && errorData.error.message) {
               errorMsg = `APIエラー (${response.status}): ${errorData.error.message}`;
-              if (errorData.error.code) {
+              if (cfg.verboseError && errorData.error.code) {
                 errorMsg += ` (code: ${errorData.error.code})`;
               }
             } else if (errorData.message) {
@@ -4740,7 +4584,7 @@ Reason: [NGの場合の理由]`,
         const openAIResponse = await response.json();
         if (openAIResponse.choices && openAIResponse.choices[0]) {
           const choice = openAIResponse.choices[0];
-          console.log("[OpenRouter Debug] APIレスポンス情報:");
+          console.log(`[${cfg.label} Debug] APIレスポンス情報:`);
           console.log(`  - finish_reason: ${choice.finish_reason}`);
           if (choice.message) {
             if (choice.message.tool_calls) {
@@ -4874,17 +4718,427 @@ Reason: [NGの場合の理由]`,
         throw new Error(`Bedrock APIエラー: ${error.message}`);
       }
     },
-    // プロバイダーに応じて適切なAPIを呼び出すラッパー関数
-    async callApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
-      const provider = state.settings.apiProvider || "gemini";
-      if (provider === "zai") {
-        return await this.callZaiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
-      } else if (provider === "openrouter") {
-        return await this.callOpenRouterApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
-      } else if (provider === "bedrock") {
-        return await this.callBedrockApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+    // OpenAI Chat Completions API（純正OpenAI）を呼び出す
+    async callOpenAIApi(messages, config, systemInstruction, tools, forceCalling, signal) {
+      const apiKey = state.settings.openaiApiKey;
+      if (!apiKey) {
+        const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。");
+        e.status = 401;
+        throw e;
+      }
+      const model = state.settings.modelName || "gpt-4o";
+      const isReasoningModel = /^o\d/i.test(model);
+      const requestBody = {
+        model,
+        messages: [],
+        max_completion_tokens: config.maxOutputTokens ?? 4e3,
+        stream: false
+      };
+      if (!isReasoningModel) {
+        requestBody.temperature = config.temperature ?? 0.7;
+        requestBody.top_p = config.topP ?? 1;
+      }
+      const systemText = extractSystemText(systemInstruction);
+      if (systemText) requestBody.messages.push({ role: "system", content: systemText });
+      this.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
+      if (tools && tools.length > 0) {
+        const convertTypes = /* @__PURE__ */ __name((schema) => {
+          if (!schema || typeof schema !== "object") return schema;
+          if (Array.isArray(schema)) return schema.map(convertTypes);
+          const result = {};
+          for (const [key, val] of Object.entries(schema)) {
+            if (key === "type" && typeof val === "string") {
+              result[key] = val.toLowerCase();
+            } else if (val && typeof val === "object") {
+              result[key] = convertTypes(val);
+            } else {
+              result[key] = val;
+            }
+          }
+          return result;
+        }, "convertTypes");
+        const openAITools = [];
+        for (const toolGroup of tools) {
+          for (const decl of toolGroup.function_declarations || []) {
+            openAITools.push({
+              type: "function",
+              function: {
+                name: decl.name,
+                description: decl.description || "",
+                parameters: convertTypes(decl.parameters) || { type: "object", properties: {} }
+              }
+            });
+          }
+        }
+        if (openAITools.length > 0) {
+          requestBody.tools = openAITools;
+          if (forceCalling) requestBody.tool_choice = "required";
+        }
+      }
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify(requestBody),
+        signal
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const e = new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
+        e.status = response.status;
+        throw e;
+      }
+      const data = await response.json();
+      const geminiFormat = this.convertOpenAIToGeminiFormat(data);
+      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
+    },
+    // Anthropic Messages API を呼び出す
+    async callAnthropicApi(messages, config, systemInstruction, tools, forceCalling, signal) {
+      const apiKey = state.settings.anthropicApiKey;
+      if (!apiKey) {
+        const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。");
+        e.status = 401;
+        throw e;
+      }
+      const effort = state.settings.anthropicEffort || null;
+      const useAdaptive = !!effort;
+      const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
+      const useThinking = useAdaptive || useManualThinking;
+      const maxTokens = useAdaptive ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
+      const cacheTTL = state.settings.anthropicCacheTTL || "5m";
+      const cacheControl = cacheTTL === "none" ? null : cacheTTL === "1h" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
+      const model = state.settings.modelName || "claude-opus-4-6";
+      const requestBody = {
+        model,
+        messages: [],
+        max_tokens: maxTokens
+      };
+      if (useAdaptive) {
+        requestBody.thinking = { type: "adaptive" };
+        requestBody.temperature = 1;
+      } else if (useManualThinking) {
+        requestBody.thinking = { type: "enabled", budget_tokens: state.settings.thinkingBudget };
+        requestBody.temperature = 1;
       } else {
-        return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+        requestBody.temperature = config.temperature ?? 0.7;
+      }
+      if (effort) {
+        requestBody.output_config = { effort };
+      }
+      const _staticText = systemInstruction?._staticText;
+      const _dynamicText = systemInstruction?._dynamicText;
+      if (_staticText !== void 0 || _dynamicText !== void 0) {
+        const blocks = [];
+        if (_staticText) {
+          const block = { type: "text", text: _staticText };
+          if (cacheControl) block.cache_control = cacheControl;
+          blocks.push(block);
+        }
+        if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
+        if (blocks.length > 0) requestBody.system = blocks;
+      } else {
+        const systemText = extractSystemText(systemInstruction);
+        if (systemText) {
+          const block = { type: "text", text: systemText };
+          if (cacheControl) block.cache_control = cacheControl;
+          requestBody.system = [block];
+        }
+      }
+      if (tools && tools.length > 0) {
+        const convertTypes = /* @__PURE__ */ __name((schema) => {
+          if (!schema || typeof schema !== "object") return schema;
+          if (Array.isArray(schema)) return schema.map(convertTypes);
+          const result = {};
+          for (const [key, val] of Object.entries(schema)) {
+            if (key === "type" && typeof val === "string") {
+              result[key] = val.toLowerCase();
+            } else if (val && typeof val === "object") {
+              result[key] = convertTypes(val);
+            } else {
+              result[key] = val;
+            }
+          }
+          return result;
+        }, "convertTypes");
+        const anthropicTools = [];
+        for (const toolGroup of tools) {
+          for (const decl of toolGroup.function_declarations || []) {
+            anthropicTools.push({
+              name: decl.name,
+              description: decl.description || "",
+              input_schema: convertTypes(decl.parameters) || { type: "object", properties: {} }
+            });
+          }
+        }
+        if (anthropicTools.length > 0) {
+          requestBody.tools = anthropicTools;
+          if (forceCalling && !useThinking) {
+            requestBody.tool_choice = { type: "any" };
+          }
+        }
+      }
+      const anthropicMessages = [];
+      const pushAnthropicMsg = /* @__PURE__ */ __name((role, content) => {
+        const blocks = Array.isArray(content) ? content : [{ type: "text", text: content }];
+        if (blocks.length === 0) return;
+        const last = anthropicMessages[anthropicMessages.length - 1];
+        if (last && last.role === role) {
+          if (!Array.isArray(last.content)) {
+            last.content = [{ type: "text", text: last.content }];
+          }
+          last.content = [...last.content, ...blocks];
+        } else {
+          anthropicMessages.push({ role, content: blocks.length === 1 && blocks[0].type === "text" ? blocks[0].text : blocks });
+        }
+      }, "pushAnthropicMsg");
+      for (const geminiMsg of messages) {
+        const msgParts = geminiMsg.parts || [];
+        if (geminiMsg.role === "tool") {
+          const toolResultBlocks = [];
+          for (const part of msgParts) {
+            if (part.functionResponse) {
+              const toolUseId = part.functionResponse._toolCallId || part.functionResponse.name;
+              const content = typeof part.functionResponse.response === "string" ? part.functionResponse.response : JSON.stringify(part.functionResponse.response);
+              toolResultBlocks.push({ type: "tool_result", tool_use_id: toolUseId, content });
+            }
+          }
+          if (toolResultBlocks.length > 0) pushAnthropicMsg("user", toolResultBlocks);
+        } else {
+          const role = geminiMsg.role === "model" ? "assistant" : "user";
+          const contentBlocks = [];
+          for (const part of msgParts) {
+            if (part.text && part.thought !== true) {
+              contentBlocks.push({ type: "text", text: part.text });
+            } else if (part.functionCall) {
+              contentBlocks.push({
+                type: "tool_use",
+                id: part.functionCall._toolCallId || `toolu_${Date.now()}`,
+                name: part.functionCall.name,
+                input: part.functionCall.args || {}
+              });
+            } else if (part.inlineData) {
+              const mimeType = part.inlineData.mimeType;
+              const rawData = part.inlineData.data.replace(/^data:[^;]+;base64,/, "");
+              if (mimeType.startsWith("image/")) {
+                const ANTHROPIC_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+                if (!ANTHROPIC_IMAGE_TYPES.includes(mimeType)) {
+                  const e = new Error(`Anthropic APIはこの画像形式（${mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
+                  e.status = 400;
+                  throw e;
+                }
+                contentBlocks.push({
+                  type: "image",
+                  source: { type: "base64", media_type: mimeType, data: rawData }
+                });
+              } else if (mimeType === "application/pdf") {
+                contentBlocks.push({
+                  type: "document",
+                  source: { type: "base64", media_type: "application/pdf", data: rawData }
+                });
+              } else {
+                try {
+                  const decoded = decodeURIComponent(escape(atob(rawData)));
+                  contentBlocks.push({ type: "text", text: decoded });
+                } catch {
+                  contentBlocks.push({ type: "text", text: rawData });
+                }
+              }
+            }
+          }
+          if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
+        }
+      }
+      for (let i = 0; i < anthropicMessages.length; i++) {
+        const msg = anthropicMessages[i];
+        if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+        const toolUseIds = msg.content.filter((b) => b.type === "tool_use").map((b) => b.id);
+        if (toolUseIds.length === 0) continue;
+        const nextMsg = anthropicMessages[i + 1];
+        const nextContent = nextMsg && Array.isArray(nextMsg.content) ? nextMsg.content : [];
+        const toolResultIds = new Set(nextContent.filter((b) => b.type === "tool_result").map((b) => b.tool_use_id));
+        const orphanedIds = new Set(toolUseIds.filter((id) => !toolResultIds.has(id)));
+        if (orphanedIds.size === 0) continue;
+        const filtered = msg.content.filter((b) => !(b.type === "tool_use" && orphanedIds.has(b.id)));
+        if (filtered.length === 0) {
+          filtered.push({ type: "text", text: "(tool execution result incorporated)" });
+        }
+        msg.content = filtered.length === 1 && filtered[0].type === "text" ? filtered[0].text : filtered;
+      }
+      if (cacheControl && anthropicMessages.length >= 2) {
+        requestBody.cache_control = cacheControl;
+      }
+      anthropicMessages.forEach((msg) => requestBody.messages.push(msg));
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true"
+        },
+        body: JSON.stringify(requestBody),
+        signal
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const e = new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
+        e.status = response.status;
+        throw e;
+      }
+      const data = await response.json();
+      const parts = [];
+      for (const block of data.content || []) {
+        if (block.type === "thinking" && block.thinking) {
+          parts.push({ text: block.thinking, thought: true });
+        } else if (block.type === "text" && block.text) {
+          parts.push({ text: block.text });
+        } else if (block.type === "tool_use") {
+          parts.push({
+            functionCall: {
+              name: block.name,
+              args: block.input,
+              _toolCallId: block.id
+            }
+          });
+        }
+      }
+      if (parts.length === 0) {
+        const stopReason = data.stop_reason || "";
+        const errMsg = stopReason === "max_tokens" ? "Anthropic: トークン上限に達しました。会話履歴を短くするか、max_tokensを増やしてください。" : "Anthropic: 空の応答が返されました。会話内容がコンテンツポリシーに抵触しているか、Claudeがこのシーンに応じられない状態です。";
+        const e = new Error(errMsg);
+        e.status = 400;
+        throw e;
+      }
+      const geminiFormat = {
+        candidates: [{
+          content: { parts },
+          finishReason: "STOP"
+        }]
+      };
+      if (data.usage) {
+        const cacheWrite = data.usage.cache_creation_input_tokens || 0;
+        const cacheRead = data.usage.cache_read_input_tokens || 0;
+        const cacheCreation = data.usage.cache_creation || {};
+        const cacheWrite5m = cacheCreation.ephemeral_5m_input_tokens ?? (cacheTTL === "1h" ? 0 : cacheWrite);
+        const cacheWrite1h = cacheCreation.ephemeral_1h_input_tokens ?? (cacheTTL === "1h" ? cacheWrite : 0);
+        const inputTotal = (data.usage.input_tokens || 0) + cacheWrite + cacheRead;
+        console.log(`[Cache] cache_write=${cacheWrite} cache_read=${cacheRead} input=${data.usage.input_tokens || 0} output=${data.usage.output_tokens || 0}`);
+        geminiFormat.usageMetadata = {
+          promptTokenCount: inputTotal,
+          candidatesTokenCount: data.usage.output_tokens || 0,
+          totalTokenCount: inputTotal + (data.usage.output_tokens || 0),
+          cacheCreationInputTokens: cacheWrite,
+          cacheReadInputTokens: cacheRead,
+          cacheCreation5mInputTokens: cacheWrite5m,
+          cacheCreation1hInputTokens: cacheWrite1h
+        };
+      }
+      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
+    },
+    // OpenAI互換プロバイダー（Function Calling非対応: Groq / DeepSeek / xAI / Mistral）の共通実装
+    async callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
+      if (!apiKey) {
+        const e = new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`);
+        e.status = 401;
+        throw e;
+      }
+      const model = state.settings.modelName;
+      const isReasoningModel = /r1|reasoner/i.test(model);
+      const requestBody = {
+        model,
+        messages: [],
+        max_tokens: config.maxOutputTokens ?? 4e3,
+        stream: false
+      };
+      if (!isReasoningModel) {
+        requestBody.temperature = config.temperature ?? 0.7;
+        requestBody.top_p = config.topP ?? 1;
+      }
+      const systemText = extractSystemText(systemInstruction);
+      if (systemText) requestBody.messages.push({ role: "system", content: systemText });
+      this.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
+      const response = await fetch(baseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+        body: JSON.stringify(requestBody),
+        signal
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const e = new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
+        e.status = response.status;
+        throw e;
+      }
+      const data = await response.json();
+      const geminiFormat = this.convertOpenAIToGeminiFormat(data);
+      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
+    },
+    // プロジェクトのナレッジファイルをsystemInstructionへ注入する（旧 app.js モンキーパッチより移設）
+    _injectProjectKnowledge(systemInstruction) {
+      const knowledge = state.activeProjectKnowledge;
+      if (knowledge && knowledge.length > 0) {
+        const knowledgeText = knowledge.map((f) => `### ${f.name}
+${f.content}`).join("\n\n---\n\n");
+        const prevStatic = systemInstruction?._staticText !== void 0 ? systemInstruction._staticText : extractSystemText(systemInstruction) || "";
+        const prevDynamic = systemInstruction?._dynamicText || "";
+        const newStaticText = prevStatic ? `${prevStatic}
+
+---
+## ナレッジ
+
+${knowledgeText}` : `## ナレッジ
+
+${knowledgeText}`;
+        const combined = [prevDynamic, newStaticText].filter(Boolean).join("\n\n");
+        return {
+          parts: [{ text: combined }],
+          _staticText: newStaticText,
+          _dynamicText: prevDynamic
+        };
+      }
+      return systemInstruction;
+    },
+    // プロバイダーに応じて適切なAPIアダプタへ振り分けるディスパッチャ。
+    // ナレッジ注入もここで一括して行う（旧 app.js のモンキーパッチを統合）。
+    async callApi(messagesForApi, generationConfig, systemInstruction, tools = null, forceCalling = false, signal = null) {
+      systemInstruction = this._injectProjectKnowledge(systemInstruction);
+      const provider = state.settings.apiProvider || "gemini";
+      switch (provider) {
+        case "zai":
+          return await this._callOpenAICompatibleWithTools({
+            label: "Z.ai",
+            baseUrl: ZAI_API_BASE_URL,
+            defaultModel: DEFAULT_ZAI_MODEL,
+            getApiKey: /* @__PURE__ */ __name(() => state.settings.zaiApiKey || state.settings.apiKey, "getApiKey"),
+            missingKeyMessage: "Z.ai APIキーが設定されていません。",
+            extraHeaders: /* @__PURE__ */ __name(() => ({}), "extraHeaders"),
+            verboseError: false
+          }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+        case "openrouter":
+          return await this._callOpenAICompatibleWithTools({
+            label: "OpenRouter",
+            baseUrl: OPENROUTER_API_BASE_URL,
+            defaultModel: DEFAULT_OPENROUTER_MODEL,
+            getApiKey: /* @__PURE__ */ __name(() => state.settings.openrouterApiKey, "getApiKey"),
+            missingKeyMessage: "OpenRouter APIキーが設定されていません。",
+            extraHeaders: /* @__PURE__ */ __name(() => ({ "HTTP-Referer": window.location.origin, "X-Title": "Aquarium Chat" }), "extraHeaders"),
+            verboseError: true
+          }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+        case "bedrock":
+          return await this.callBedrockApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+        case "openai":
+          return await this.callOpenAIApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+        case "anthropic":
+          return await this.callAnthropicApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
+        case "groq":
+          return await this.callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, "Groq", messagesForApi, generationConfig, systemInstruction, signal);
+        case "deepseek":
+          return await this.callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, "DeepSeek", messagesForApi, generationConfig, systemInstruction, signal);
+        case "xai":
+          return await this.callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, "xAI", messagesForApi, generationConfig, systemInstruction, signal);
+        case "mistral":
+          return await this.callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, "Mistral", messagesForApi, generationConfig, systemInstruction, signal);
+        default:
+          return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
       }
     }
   };
@@ -13333,7 +13587,6 @@ ${pageText}
     }
   })();
   (() => {
-    const oCallApi = window.appLogic?.callApi;
     const initPhase7 = /* @__PURE__ */ __name(() => {
       const customGroup = document.getElementById("user-defined-models-group");
       const mainSelect = document.getElementById("model-name");
@@ -13572,410 +13825,5 @@ ${pageText}
     } else {
       setTimeout(initPhase7, 1200);
     }
-    const oApiUtilsCallApi = apiUtils.callApi;
-    const multiProviderCallApi = /* @__PURE__ */ __name(async function(messagesForApi, config, systemInstruction, tools, forceCalling, signal) {
-      const knowledge = window.state.activeProjectKnowledge;
-      if (knowledge && knowledge.length > 0) {
-        const knowledgeText = knowledge.map((f) => `### ${f.name}
-${f.content}`).join("\n\n---\n\n");
-        const prevStatic = systemInstruction?._staticText !== void 0 ? systemInstruction._staticText : extractSystemText(systemInstruction) || "";
-        const prevDynamic = systemInstruction?._dynamicText || "";
-        const newStaticText = prevStatic ? `${prevStatic}
-
----
-## ナレッジ
-
-${knowledgeText}` : `## ナレッジ
-
-${knowledgeText}`;
-        const combined = [prevDynamic, newStaticText].filter(Boolean).join("\n\n");
-        systemInstruction = {
-          parts: [{ text: combined }],
-          _staticText: newStaticText,
-          _dynamicText: prevDynamic
-        };
-      }
-      const provider = state.settings.apiProvider || "gemini";
-      if (provider === "openai") {
-        return await callOpenAIApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-      } else if (provider === "anthropic") {
-        return await callAnthropicApiWrapper(messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-      } else if (provider === "groq") {
-        return await callOpenAICompatibleApi(state.settings.groqApiKey, GROQ_API_BASE_URL, "Groq", messagesForApi, config, systemInstruction, signal);
-      } else if (provider === "deepseek") {
-        return await callOpenAICompatibleApi(state.settings.deepseekApiKey, DEEPSEEK_API_BASE_URL, "DeepSeek", messagesForApi, config, systemInstruction, signal);
-      } else if (provider === "xai") {
-        return await callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, "xAI", messagesForApi, config, systemInstruction, signal);
-      } else if (provider === "mistral") {
-        return await callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, "Mistral", messagesForApi, config, systemInstruction, signal);
-      } else {
-        return await oApiUtilsCallApi.call(this, messagesForApi, config, systemInstruction, tools, forceCalling, signal);
-      }
-    }, "multiProviderCallApi");
-    apiUtils.callApi = multiProviderCallApi;
-    if (window.appLogic) {
-      window.appLogic.callApi = multiProviderCallApi;
-    }
-    function extractSystemText(systemInstruction) {
-      if (!systemInstruction) return null;
-      if (typeof systemInstruction === "string") return systemInstruction;
-      if (systemInstruction.parts) return systemInstruction.parts.map((p) => p.text || "").join("");
-      return null;
-    }
-    __name(extractSystemText, "extractSystemText");
-    async function callOpenAIApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
-      const apiKey = state.settings.openaiApiKey;
-      if (!apiKey) {
-        const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。");
-        e.status = 401;
-        throw e;
-      }
-      const model = state.settings.modelName || "gpt-4o";
-      const isReasoningModel = /^o\d/i.test(model);
-      const requestBody = {
-        model,
-        messages: [],
-        max_completion_tokens: config.maxOutputTokens ?? 4e3,
-        stream: false
-      };
-      if (!isReasoningModel) {
-        requestBody.temperature = config.temperature ?? 0.7;
-        requestBody.top_p = config.topP ?? 1;
-      }
-      const systemText = extractSystemText(systemInstruction);
-      if (systemText) requestBody.messages.push({ role: "system", content: systemText });
-      apiUtils.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
-      if (tools && tools.length > 0) {
-        const convertTypes = /* @__PURE__ */ __name((schema) => {
-          if (!schema || typeof schema !== "object") return schema;
-          if (Array.isArray(schema)) return schema.map(convertTypes);
-          const result = {};
-          for (const [key, val] of Object.entries(schema)) {
-            if (key === "type" && typeof val === "string") {
-              result[key] = val.toLowerCase();
-            } else if (val && typeof val === "object") {
-              result[key] = convertTypes(val);
-            } else {
-              result[key] = val;
-            }
-          }
-          return result;
-        }, "convertTypes");
-        const openAITools = [];
-        for (const toolGroup of tools) {
-          for (const decl of toolGroup.function_declarations || []) {
-            openAITools.push({
-              type: "function",
-              function: {
-                name: decl.name,
-                description: decl.description || "",
-                parameters: convertTypes(decl.parameters) || { type: "object", properties: {} }
-              }
-            });
-          }
-        }
-        if (openAITools.length > 0) {
-          requestBody.tools = openAITools;
-          if (forceCalling) requestBody.tool_choice = "required";
-        }
-      }
-      const response = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify(requestBody),
-        signal
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const e = new Error(`OpenAI APIエラー: ${err.error?.message || response.statusText}`);
-        e.status = response.status;
-        throw e;
-      }
-      const data = await response.json();
-      const geminiFormat = apiUtils.convertOpenAIToGeminiFormat(data);
-      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
-    }
-    __name(callOpenAIApiWrapper, "callOpenAIApiWrapper");
-    async function callAnthropicApiWrapper(messages, config, systemInstruction, tools, forceCalling, signal) {
-      const apiKey = state.settings.anthropicApiKey;
-      if (!apiKey) {
-        const e = new Error("Anthropic APIキーが設定されていません。設定画面で追加してください。");
-        e.status = 401;
-        throw e;
-      }
-      const effort = state.settings.anthropicEffort || null;
-      const useAdaptive = !!effort;
-      const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
-      const useThinking = useAdaptive || useManualThinking;
-      const maxTokens = useAdaptive ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
-      const cacheTTL = state.settings.anthropicCacheTTL || "5m";
-      const cacheControl = cacheTTL === "none" ? null : cacheTTL === "1h" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
-      const model = state.settings.modelName || "claude-opus-4-6";
-      const requestBody = {
-        model,
-        messages: [],
-        max_tokens: maxTokens
-      };
-      if (useAdaptive) {
-        requestBody.thinking = { type: "adaptive" };
-        requestBody.temperature = 1;
-      } else if (useManualThinking) {
-        requestBody.thinking = { type: "enabled", budget_tokens: state.settings.thinkingBudget };
-        requestBody.temperature = 1;
-      } else {
-        requestBody.temperature = config.temperature ?? 0.7;
-      }
-      if (effort) {
-        requestBody.output_config = { effort };
-      }
-      const _staticText = systemInstruction?._staticText;
-      const _dynamicText = systemInstruction?._dynamicText;
-      if (_staticText !== void 0 || _dynamicText !== void 0) {
-        const blocks = [];
-        if (_staticText) {
-          const block = { type: "text", text: _staticText };
-          if (cacheControl) block.cache_control = cacheControl;
-          blocks.push(block);
-        }
-        if (_dynamicText) blocks.push({ type: "text", text: _dynamicText });
-        if (blocks.length > 0) requestBody.system = blocks;
-      } else {
-        const systemText = extractSystemText(systemInstruction);
-        if (systemText) {
-          const block = { type: "text", text: systemText };
-          if (cacheControl) block.cache_control = cacheControl;
-          requestBody.system = [block];
-        }
-      }
-      if (tools && tools.length > 0) {
-        const convertTypes = /* @__PURE__ */ __name((schema) => {
-          if (!schema || typeof schema !== "object") return schema;
-          if (Array.isArray(schema)) return schema.map(convertTypes);
-          const result = {};
-          for (const [key, val] of Object.entries(schema)) {
-            if (key === "type" && typeof val === "string") {
-              result[key] = val.toLowerCase();
-            } else if (val && typeof val === "object") {
-              result[key] = convertTypes(val);
-            } else {
-              result[key] = val;
-            }
-          }
-          return result;
-        }, "convertTypes");
-        const anthropicTools = [];
-        for (const toolGroup of tools) {
-          for (const decl of toolGroup.function_declarations || []) {
-            anthropicTools.push({
-              name: decl.name,
-              description: decl.description || "",
-              input_schema: convertTypes(decl.parameters) || { type: "object", properties: {} }
-            });
-          }
-        }
-        if (anthropicTools.length > 0) {
-          requestBody.tools = anthropicTools;
-          if (forceCalling && !useThinking) {
-            requestBody.tool_choice = { type: "any" };
-          }
-        }
-      }
-      const anthropicMessages = [];
-      const pushAnthropicMsg = /* @__PURE__ */ __name((role, content) => {
-        const blocks = Array.isArray(content) ? content : [{ type: "text", text: content }];
-        if (blocks.length === 0) return;
-        const last = anthropicMessages[anthropicMessages.length - 1];
-        if (last && last.role === role) {
-          if (!Array.isArray(last.content)) {
-            last.content = [{ type: "text", text: last.content }];
-          }
-          last.content = [...last.content, ...blocks];
-        } else {
-          anthropicMessages.push({ role, content: blocks.length === 1 && blocks[0].type === "text" ? blocks[0].text : blocks });
-        }
-      }, "pushAnthropicMsg");
-      for (const geminiMsg of messages) {
-        const msgParts = geminiMsg.parts || [];
-        if (geminiMsg.role === "tool") {
-          const toolResultBlocks = [];
-          for (const part of msgParts) {
-            if (part.functionResponse) {
-              const toolUseId = part.functionResponse._toolCallId || part.functionResponse.name;
-              const content = typeof part.functionResponse.response === "string" ? part.functionResponse.response : JSON.stringify(part.functionResponse.response);
-              toolResultBlocks.push({ type: "tool_result", tool_use_id: toolUseId, content });
-            }
-          }
-          if (toolResultBlocks.length > 0) pushAnthropicMsg("user", toolResultBlocks);
-        } else {
-          const role = geminiMsg.role === "model" ? "assistant" : "user";
-          const contentBlocks = [];
-          for (const part of msgParts) {
-            if (part.text && part.thought !== true) {
-              contentBlocks.push({ type: "text", text: part.text });
-            } else if (part.functionCall) {
-              contentBlocks.push({
-                type: "tool_use",
-                id: part.functionCall._toolCallId || `toolu_${Date.now()}`,
-                name: part.functionCall.name,
-                input: part.functionCall.args || {}
-              });
-            } else if (part.inlineData) {
-              const mimeType = part.inlineData.mimeType;
-              const rawData = part.inlineData.data.replace(/^data:[^;]+;base64,/, "");
-              if (mimeType.startsWith("image/")) {
-                const ANTHROPIC_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
-                if (!ANTHROPIC_IMAGE_TYPES.includes(mimeType)) {
-                  const e = new Error(`Anthropic APIはこの画像形式（${mimeType}）に対応していません。JPEG・PNG・GIF・WebP形式に変換してから送信してください。※iPhoneのHEIC画像は、設定→カメラ→フォーマットを「互換性優先」に変更するか、JPEGに変換してください。`);
-                  e.status = 400;
-                  throw e;
-                }
-                contentBlocks.push({
-                  type: "image",
-                  source: { type: "base64", media_type: mimeType, data: rawData }
-                });
-              } else if (mimeType === "application/pdf") {
-                contentBlocks.push({
-                  type: "document",
-                  source: { type: "base64", media_type: "application/pdf", data: rawData }
-                });
-              } else {
-                try {
-                  const decoded = decodeURIComponent(escape(atob(rawData)));
-                  contentBlocks.push({ type: "text", text: decoded });
-                } catch {
-                  contentBlocks.push({ type: "text", text: rawData });
-                }
-              }
-            }
-          }
-          if (contentBlocks.length > 0) pushAnthropicMsg(role, contentBlocks);
-        }
-      }
-      for (let i = 0; i < anthropicMessages.length; i++) {
-        const msg = anthropicMessages[i];
-        if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
-        const toolUseIds = msg.content.filter((b) => b.type === "tool_use").map((b) => b.id);
-        if (toolUseIds.length === 0) continue;
-        const nextMsg = anthropicMessages[i + 1];
-        const nextContent = nextMsg && Array.isArray(nextMsg.content) ? nextMsg.content : [];
-        const toolResultIds = new Set(nextContent.filter((b) => b.type === "tool_result").map((b) => b.tool_use_id));
-        const orphanedIds = new Set(toolUseIds.filter((id) => !toolResultIds.has(id)));
-        if (orphanedIds.size === 0) continue;
-        const filtered = msg.content.filter((b) => !(b.type === "tool_use" && orphanedIds.has(b.id)));
-        if (filtered.length === 0) {
-          filtered.push({ type: "text", text: "(tool execution result incorporated)" });
-        }
-        msg.content = filtered.length === 1 && filtered[0].type === "text" ? filtered[0].text : filtered;
-      }
-      if (cacheControl && anthropicMessages.length >= 2) {
-        requestBody.cache_control = cacheControl;
-      }
-      anthropicMessages.forEach((msg) => requestBody.messages.push(msg));
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "anthropic-dangerous-direct-browser-access": "true"
-        },
-        body: JSON.stringify(requestBody),
-        signal
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const e = new Error(`Anthropic APIエラー: ${err.error?.message || response.statusText}`);
-        e.status = response.status;
-        throw e;
-      }
-      const data = await response.json();
-      const parts = [];
-      for (const block of data.content || []) {
-        if (block.type === "thinking" && block.thinking) {
-          parts.push({ text: block.thinking, thought: true });
-        } else if (block.type === "text" && block.text) {
-          parts.push({ text: block.text });
-        } else if (block.type === "tool_use") {
-          parts.push({
-            functionCall: {
-              name: block.name,
-              args: block.input,
-              _toolCallId: block.id
-            }
-          });
-        }
-      }
-      if (parts.length === 0) {
-        const stopReason = data.stop_reason || "";
-        const errMsg = stopReason === "max_tokens" ? "Anthropic: トークン上限に達しました。会話履歴を短くするか、max_tokensを増やしてください。" : "Anthropic: 空の応答が返されました。会話内容がコンテンツポリシーに抵触しているか、Claudeがこのシーンに応じられない状態です。";
-        const e = new Error(errMsg);
-        e.status = 400;
-        throw e;
-      }
-      const geminiFormat = {
-        candidates: [{
-          content: { parts },
-          finishReason: "STOP"
-        }]
-      };
-      if (data.usage) {
-        const cacheWrite = data.usage.cache_creation_input_tokens || 0;
-        const cacheRead = data.usage.cache_read_input_tokens || 0;
-        const cacheCreation = data.usage.cache_creation || {};
-        const cacheWrite5m = cacheCreation.ephemeral_5m_input_tokens ?? (cacheTTL === "1h" ? 0 : cacheWrite);
-        const cacheWrite1h = cacheCreation.ephemeral_1h_input_tokens ?? (cacheTTL === "1h" ? cacheWrite : 0);
-        const inputTotal = (data.usage.input_tokens || 0) + cacheWrite + cacheRead;
-        console.log(`[Cache] cache_write=${cacheWrite} cache_read=${cacheRead} input=${data.usage.input_tokens || 0} output=${data.usage.output_tokens || 0}`);
-        geminiFormat.usageMetadata = {
-          promptTokenCount: inputTotal,
-          candidatesTokenCount: data.usage.output_tokens || 0,
-          totalTokenCount: inputTotal + (data.usage.output_tokens || 0),
-          cacheCreationInputTokens: cacheWrite,
-          cacheReadInputTokens: cacheRead,
-          cacheCreation5mInputTokens: cacheWrite5m,
-          cacheCreation1hInputTokens: cacheWrite1h
-        };
-      }
-      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
-    }
-    __name(callAnthropicApiWrapper, "callAnthropicApiWrapper");
-    async function callOpenAICompatibleApi(apiKey, baseUrl, providerName, messages, config, systemInstruction, signal) {
-      if (!apiKey) {
-        const e = new Error(`${providerName} APIキーが設定されていません。設定画面で追加してください。`);
-        e.status = 401;
-        throw e;
-      }
-      const model = state.settings.modelName;
-      const isReasoningModel = /r1|reasoner/i.test(model);
-      const requestBody = {
-        model,
-        messages: [],
-        max_tokens: config.maxOutputTokens ?? 4e3,
-        stream: false
-      };
-      if (!isReasoningModel) {
-        requestBody.temperature = config.temperature ?? 0.7;
-        requestBody.top_p = config.topP ?? 1;
-      }
-      const systemText = extractSystemText(systemInstruction);
-      if (systemText) requestBody.messages.push({ role: "system", content: systemText });
-      apiUtils.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
-      const response = await fetch(baseUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-        body: JSON.stringify(requestBody),
-        signal
-      });
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const e = new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);
-        e.status = response.status;
-        throw e;
-      }
-      const data = await response.json();
-      const geminiFormat = apiUtils.convertOpenAIToGeminiFormat(data);
-      return { ok: true, status: 200, json: /* @__PURE__ */ __name(async () => geminiFormat, "json") };
-    }
-    __name(callOpenAICompatibleApi, "callOpenAICompatibleApi");
   })();
 })();
