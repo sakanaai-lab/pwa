@@ -7553,12 +7553,17 @@ AI: ${firstModelContent}`;
           const apiKey = apiKeyMap[provider];
           const baseUrl = baseUrlMap[provider];
           if (!apiKey || !baseUrl) return;
+          const titleModelMap = {
+            deepseek: DEFAULT_DEEPSEEK_MODEL
+            // 'deepseek-chat'（非リーズナー）
+          };
+          const titleModel = titleModelMap[provider] || state.settings.modelName;
           const resp = await fetch(baseUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
             body: JSON.stringify({
-              model: state.settings.modelName,
-              max_tokens: 30,
+              model: titleModel,
+              max_tokens: 200,
               messages: [{ role: "user", content: titlePrompt }]
             })
           });
