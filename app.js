@@ -2164,6 +2164,167 @@ Reason: [NGの場合の理由]`,
     }
   };
 
+  // src/db-migrations.js
+  var BASE_STORES = [
+    { name: SETTINGS_STORE, options: { keyPath: "key" } },
+    {
+      name: CHATS_STORE,
+      options: { keyPath: "id", autoIncrement: true },
+      indexes: [
+        { name: CHAT_UPDATEDAT_INDEX, keyPath: "updatedAt", options: { unique: false } },
+        { name: CHAT_CREATEDAT_INDEX, keyPath: "createdAt", options: { unique: false } }
+      ]
+    },
+    { name: PROFILES_STORE, options: { keyPath: "id", autoIncrement: true } },
+    { name: "image_assets", options: { keyPath: "name" } },
+    // Phase 4: プロジェクト機能のストア
+    { name: PROJECTS_STORE, options: { keyPath: "id", autoIncrement: true } }
+  ];
+  var PROFILE_SETTING_KEYS = [
+    "apiProvider",
+    "apiKey",
+    "zaiApiKey",
+    "bedrockAccessKey",
+    "bedrockSecretKey",
+    "bedrockRegion",
+    "modelName",
+    "systemPrompt",
+    "temperature",
+    "maxTokens",
+    "topK",
+    "topP",
+    "presencePenalty",
+    "frequencyPenalty",
+    "thinkingBudget",
+    "includeThoughts",
+    "enableThoughtTranslation",
+    "thoughtTranslationModel",
+    "dummyUser",
+    "applyDummyToProofread",
+    "applyDummyToTranslate",
+    "dummyModel",
+    "reverseDummyOrder",
+    "concatDummyModel",
+    "additionalModels",
+    "enterToSend",
+    "historySortOrder",
+    "darkMode",
+    "fontFamily",
+    "hideSystemPromptInChat",
+    "enableSwipeNavigation",
+    "enableAutoRetry",
+    "maxRetries",
+    "useFixedRetryDelay",
+    "fixedRetryDelaySeconds",
+    "maxBackoffDelaySeconds",
+    "enableProofreading",
+    "proofreadingModelName",
+    "proofreadingSystemInstruction",
+    "geminiEnableGrounding",
+    "geminiEnableFunctionCalling",
+    "googleSearchApiKey",
+    "googleSearchEngineId",
+    "messageOpacity",
+    "overlayOpacity",
+    "headerColor",
+    "allowPromptUiChanges",
+    "forceFunctionCalling",
+    "anthropicEffort"
+  ];
+  function createStore(db, def) {
+    if (db.objectStoreNames.contains(def.name)) return;
+    const store = db.createObjectStore(def.name, def.options);
+    for (const idx of def.indexes || []) {
+      store.createIndex(idx.name, idx.keyPath, idx.options);
+    }
+  }
+  __name(createStore, "createStore");
+  function applyDbMigrations(db, transaction, event, deps = {}) {
+    const { settingsDefaults = {}, migrateImageData = /* @__PURE__ */ __name(() => {
+    }, "migrateImageData") } = deps;
+    console.log(`[DB Migration] IndexedDBをバージョン ${event.oldVersion} から ${event.newVersion} へアップグレード中...`);
+    for (const def of BASE_STORES) {
+      createStore(db, def);
+    }
+    if (event.oldVersion < 10) {
+      console.log("[DB Migration] v10へのデータ移行処理を実行します。");
+      const settingsStore = transaction.objectStore(SETTINGS_STORE);
+      const profilesStore = transaction.objectStore(PROFILES_STORE);
+      const getAllSettingsReq = settingsStore.getAll();
+      getAllSettingsReq.onsuccess = () => {
+        const oldSettingsArray = getAllSettingsReq.result;
+        if (oldSettingsArray.length > 0) {
+          console.log("[DB Migration] 既存の設定を検出しました。新しいプロファイル構造に移行します...");
+          const oldSettingsObject = {};
+          oldSettingsArray.forEach((item) => {
+            oldSettingsObject[item.key] = item.value;
+          });
+          const newProfileSettings = {};
+          PROFILE_SETTING_KEYS.forEach((key) => {
+            newProfileSettings[key] = oldSettingsObject[key] !== void 0 ? oldSettingsObject[key] : settingsDefaults[key];
+          });
+          const defaultProfile = {
+            name: "デフォルトプロファイル",
+            icon: null,
+            createdAt: Date.now(),
+            settings: newProfileSettings
+          };
+          const addProfileReq = profilesStore.add(defaultProfile);
+          addProfileReq.onsuccess = (addEvent) => {
+            const newProfileId = addEvent.target.result;
+            console.log(`[DB Migration] デフォルトプロファイルを生成しました (ID: ${newProfileId})`);
+            PROFILE_SETTING_KEYS.forEach((key) => {
+              settingsStore.delete(key);
+            });
+            settingsStore.put({ key: "activeProfileId", value: newProfileId });
+            console.log(`[DB Migration] SETTINGS_STOREを整理し、activeProfileIdを設定しました。`);
+          };
+        }
+      };
+    }
+    if (event.oldVersion < 11) {
+      console.log("[DB Migration] v11へのアップグレード: image_storeを作成します。");
+      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+        db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
+      }
+      transaction.oncomplete = () => {
+        console.log("[DB Migration] スキーマ更新完了。データ移行処理を開始します。");
+        migrateImageData();
+      };
+    }
+    if (event.oldVersion < 12) {
+      console.log("[DB Migration] v12へのアップグレード: memory_storeを作成します。");
+      if (!db.objectStoreNames.contains("memory_store")) {
+        db.createObjectStore("memory_store", { keyPath: "profileId" });
+      }
+    }
+    if (event.oldVersion < 13) {
+      console.log("[DB Migration] v13へのアップグレード: 安全なインポート用の一時ストアを作成します。");
+      const tempStores = [
+        { name: `${PROFILES_STORE}_temp`, options: { keyPath: "id" } },
+        { name: `${CHATS_STORE}_temp`, options: { keyPath: "id" } },
+        { name: `${SETTINGS_STORE}_temp`, options: { keyPath: "key" } },
+        { name: `${IMAGE_STORE}_temp`, options: { keyPath: "id" } },
+        { name: "image_assets_temp", options: { keyPath: "name" } },
+        { name: "memory_store_temp", options: { keyPath: "profileId" } }
+      ];
+      tempStores.forEach((storeInfo) => {
+        if (!db.objectStoreNames.contains(storeInfo.name)) {
+          db.createObjectStore(storeInfo.name, storeInfo.options);
+          console.log(`[DB Migration] Temporary store '${storeInfo.name}' created.`);
+        }
+      });
+    }
+    if (event.oldVersion < 15) {
+      console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
+      if (!db.objectStoreNames.contains("projects_temp")) {
+        db.createObjectStore("projects_temp", { keyPath: "id" });
+        console.log("[DB Migration] 'projects_temp' store created.");
+      }
+    }
+  }
+  __name(applyDbMigrations, "applyDbMigrations");
+
   // src/debug-logger.js
   var DebugLogger = {
     logs: [],
@@ -12196,153 +12357,10 @@ ${summaryText}` : summaryText;
           resolve(state.db);
         };
         request.onupgradeneeded = (event) => {
-          const db = event.target.result;
-          const transaction = event.target.transaction;
-          console.log(`[DB Migration] IndexedDBをバージョン ${event.oldVersion} から ${event.newVersion} へアップグレード中...`);
-          if (!db.objectStoreNames.contains(SETTINGS_STORE)) {
-            db.createObjectStore(SETTINGS_STORE, { keyPath: "key" });
-          }
-          if (!db.objectStoreNames.contains(CHATS_STORE)) {
-            const chatStore = db.createObjectStore(CHATS_STORE, { keyPath: "id", autoIncrement: true });
-            chatStore.createIndex(CHAT_UPDATEDAT_INDEX, "updatedAt", { unique: false });
-            chatStore.createIndex(CHAT_CREATEDAT_INDEX, "createdAt", { unique: false });
-          }
-          if (!db.objectStoreNames.contains(PROFILES_STORE)) {
-            const profilesStore = db.createObjectStore(PROFILES_STORE, { keyPath: "id", autoIncrement: true });
-          }
-          if (!db.objectStoreNames.contains("image_assets")) {
-            db.createObjectStore("image_assets", { keyPath: "name" });
-          }
-          if (!db.objectStoreNames.contains(PROJECTS_STORE)) {
-            db.createObjectStore(PROJECTS_STORE, { keyPath: "id", autoIncrement: true });
-          }
-          if (event.oldVersion < 10) {
-            console.log("[DB Migration] v10へのデータ移行処理を実行します。");
-            const settingsStore = transaction.objectStore(SETTINGS_STORE);
-            const profilesStore = transaction.objectStore(PROFILES_STORE);
-            const getAllSettingsReq = settingsStore.getAll();
-            getAllSettingsReq.onsuccess = () => {
-              const oldSettingsArray = getAllSettingsReq.result;
-              if (oldSettingsArray.length > 0) {
-                console.log("[DB Migration] 既存の設定を検出しました。新しいプロファイル構造に移行します...");
-                const oldSettingsObject = {};
-                oldSettingsArray.forEach((item) => {
-                  oldSettingsObject[item.key] = item.value;
-                });
-                const profileSettingKeys = [
-                  "apiProvider",
-                  "apiKey",
-                  "zaiApiKey",
-                  "bedrockAccessKey",
-                  "bedrockSecretKey",
-                  "bedrockRegion",
-                  "modelName",
-                  "systemPrompt",
-                  "temperature",
-                  "maxTokens",
-                  "topK",
-                  "topP",
-                  "presencePenalty",
-                  "frequencyPenalty",
-                  "thinkingBudget",
-                  "includeThoughts",
-                  "enableThoughtTranslation",
-                  "thoughtTranslationModel",
-                  "dummyUser",
-                  "applyDummyToProofread",
-                  "applyDummyToTranslate",
-                  "dummyModel",
-                  "reverseDummyOrder",
-                  "concatDummyModel",
-                  "additionalModels",
-                  "enterToSend",
-                  "historySortOrder",
-                  "darkMode",
-                  "fontFamily",
-                  "hideSystemPromptInChat",
-                  "enableSwipeNavigation",
-                  "enableAutoRetry",
-                  "maxRetries",
-                  "useFixedRetryDelay",
-                  "fixedRetryDelaySeconds",
-                  "maxBackoffDelaySeconds",
-                  "enableProofreading",
-                  "proofreadingModelName",
-                  "proofreadingSystemInstruction",
-                  "geminiEnableGrounding",
-                  "geminiEnableFunctionCalling",
-                  "googleSearchApiKey",
-                  "googleSearchEngineId",
-                  "messageOpacity",
-                  "overlayOpacity",
-                  "headerColor",
-                  "allowPromptUiChanges",
-                  "forceFunctionCalling",
-                  "anthropicEffort"
-                ];
-                const newProfileSettings = {};
-                profileSettingKeys.forEach((key) => {
-                  newProfileSettings[key] = oldSettingsObject[key] !== void 0 ? oldSettingsObject[key] : state.settings[key];
-                });
-                const defaultProfile = {
-                  name: "デフォルトプロファイル",
-                  icon: null,
-                  createdAt: Date.now(),
-                  settings: newProfileSettings
-                };
-                const addProfileReq = profilesStore.add(defaultProfile);
-                addProfileReq.onsuccess = (addEvent) => {
-                  const newProfileId = addEvent.target.result;
-                  console.log(`[DB Migration] デフォルトプロファイルを生成しました (ID: ${newProfileId})`);
-                  profileSettingKeys.forEach((key) => {
-                    settingsStore.delete(key);
-                  });
-                  settingsStore.put({ key: "activeProfileId", value: newProfileId });
-                  console.log(`[DB Migration] SETTINGS_STOREを整理し、activeProfileIdを設定しました。`);
-                };
-              }
-            };
-          }
-          if (event.oldVersion < 11) {
-            console.log("[DB Migration] v11へのアップグレード: image_storeを作成します。");
-            if (!db.objectStoreNames.contains(IMAGE_STORE)) {
-              db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
-            }
-            transaction.oncomplete = () => {
-              console.log("[DB Migration] スキーマ更新完了。データ移行処理を開始します。");
-              appLogic.migrateImageData();
-            };
-          }
-          if (event.oldVersion < 12) {
-            console.log("[DB Migration] v12へのアップグレード: memory_storeを作成します。");
-            if (!db.objectStoreNames.contains("memory_store")) {
-              db.createObjectStore("memory_store", { keyPath: "profileId" });
-            }
-          }
-          if (event.oldVersion < 13) {
-            console.log("[DB Migration] v13へのアップグレード: 安全なインポート用の一時ストアを作成します。");
-            const tempStores = [
-              { name: `${PROFILES_STORE}_temp`, options: { keyPath: "id" } },
-              { name: `${CHATS_STORE}_temp`, options: { keyPath: "id" } },
-              { name: `${SETTINGS_STORE}_temp`, options: { keyPath: "key" } },
-              { name: `${IMAGE_STORE}_temp`, options: { keyPath: "id" } },
-              { name: "image_assets_temp", options: { keyPath: "name" } },
-              { name: "memory_store_temp", options: { keyPath: "profileId" } }
-            ];
-            tempStores.forEach((storeInfo) => {
-              if (!db.objectStoreNames.contains(storeInfo.name)) {
-                db.createObjectStore(storeInfo.name, storeInfo.options);
-                console.log(`[DB Migration] Temporary store '${storeInfo.name}' created.`);
-              }
-            });
-          }
-          if (event.oldVersion < 15) {
-            console.log("[DB Migration] v15へのアップグレード: projects_tempストアを作成します。");
-            if (!db.objectStoreNames.contains("projects_temp")) {
-              db.createObjectStore("projects_temp", { keyPath: "id" });
-              console.log("[DB Migration] 'projects_temp' store created.");
-            }
-          }
+          applyDbMigrations(event.target.result, event.target.transaction, event, {
+            settingsDefaults: state.settings,
+            migrateImageData: /* @__PURE__ */ __name(() => appLogic.migrateImageData(), "migrateImageData")
+          });
         };
       });
     },
