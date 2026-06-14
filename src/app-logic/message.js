@@ -5,6 +5,7 @@ import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
+import { htmlUtils } from '../utils/html.js';
 import { interruptibleSleep, sleep } from '../utils/format.js';
 
 export const messageMethods = {
@@ -827,7 +828,7 @@ export const messageMethods = {
         const contentDiv = messageElement.querySelector('.message-content');
         if (contentDiv) {
             if (updatedMessage.role === 'model' && typeof marked !== 'undefined') {
-                contentDiv.innerHTML = marked.parse(newRawContent || '');
+                contentDiv.innerHTML = htmlUtils.renderMarkdownSafe(newRawContent);
             } else {
                 const pre = contentDiv.querySelector('pre') || document.createElement('pre');
                 pre.textContent = newRawContent;

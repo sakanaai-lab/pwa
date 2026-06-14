@@ -24,6 +24,23 @@ describe('htmlUtils.escapeAttr', () => {
     });
 });
 
+describe('htmlUtils.renderMarkdownSafe', () => {
+    it('null/undefined を空文字にする', () => {
+        expect(htmlUtils.renderMarkdownSafe(null)).toBe('');
+        expect(htmlUtils.renderMarkdownSafe(undefined)).toBe('');
+    });
+
+    // テスト環境では marked/DOMPurify 未ロードのため、安全側フォールバック
+    // （生 HTML を描画せずエスケープ）になることを検証する。
+    it('サニタイザ未ロード時は生HTMLを描画せずエスケープする', () => {
+        const out = htmlUtils.renderMarkdownSafe('<img src=x onerror="alert(1)">');
+        // 実行可能な生タグが残らない（< がエスケープされている）こと
+        expect(out).not.toContain('<img');
+        expect(out).toContain('&lt;img');
+        expect(out).not.toContain('onerror="alert(1)">');
+    });
+});
+
 describe('htmlUtils.escapeSelector', () => {
     it('null/undefined を空文字にする', () => {
         expect(htmlUtils.escapeSelector(null)).toBe('');

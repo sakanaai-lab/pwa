@@ -2455,6 +2455,25 @@ Reason: [NGの場合の理由]`,
     escapeSelector(text) {
       if (text === null || text === void 0) return "";
       return CSS.escape(String(text));
+    },
+    /**
+     * Markdown を HTML 化し、DOMPurify でサニタイズして返す。
+     * AI 応答・インポートされた履歴など信頼できない可能性のあるテキストを
+     * innerHTML へ流し込む際は必ずこれを通すこと（XSS 対策）。
+     *
+     * - marked 未ロード時: HTML 化せずエスケープ（安全側）。
+     * - DOMPurify 未ロード時: 生 HTML を描画せずエスケープ（安全側へフォールバック）。
+     */
+    renderMarkdownSafe(text) {
+      const src = text == null ? "" : String(text);
+      if (typeof marked === "undefined") {
+        return this.escapeHtml(src);
+      }
+      const rawHtml = marked.parse(src);
+      if (typeof DOMPurify === "undefined") {
+        return this.escapeHtml(src);
+      }
+      return DOMPurify.sanitize(rawHtml, { ADD_ATTR: ["target"] });
     }
   };
 
@@ -2592,7 +2611,7 @@ Reason: [NGの場合の理由]`,
           thoughtContentDiv.id = `streaming-thought-summary-${index}`;
         } else {
           try {
-            thoughtContentDiv.innerHTML = marked.parse(messageData.thoughtSummary || "");
+            thoughtContentDiv.innerHTML = htmlUtils.renderMarkdownSafe(messageData.thoughtSummary);
           } catch (e) {
             console.error("Thought Summary Markdownパースエラー:", e);
             thoughtContentDiv.textContent = messageData.thoughtSummary || "";
@@ -2697,7 +2716,7 @@ Reason: [NGの場合の理由]`,
         try {
           if (content && (role === "model" || role === "user")) {
             if (role === "model" && !isStreamingPlaceholder && typeof marked !== "undefined") {
-              contentDiv.innerHTML = marked.parse(content || "");
+              contentDiv.innerHTML = htmlUtils.renderMarkdownSafe(content);
             } else {
               const pre = document.createElement("pre");
               pre.textContent = content;
@@ -9756,7 +9775,7 @@ ${knowledgeText}`;
       const contentDiv = messageElement.querySelector(".message-content");
       if (contentDiv) {
         if (updatedMessage.role === "model" && typeof marked !== "undefined") {
-          contentDiv.innerHTML = marked.parse(newRawContent || "");
+          contentDiv.innerHTML = htmlUtils.renderMarkdownSafe(newRawContent);
         } else {
           const pre = contentDiv.querySelector("pre") || document.createElement("pre");
           pre.textContent = newRawContent;
