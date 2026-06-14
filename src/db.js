@@ -563,6 +563,27 @@ export const dbUtils = {
             request.onerror = (event) => reject(`全アセット取得エラー: ${event.target.error}`);
         });
     },
+
+    // image_assets ストアへアセット（{ name, blob, createdAt }）を保存/上書き。
+    async saveAsset(asset) {
+        await this.openDB();
+        return new Promise((resolve, reject) => {
+            const store = this._getStore('image_assets', 'readwrite');
+            const request = store.put(asset);
+            request.onsuccess = (event) => resolve(event.target.result);
+            request.onerror = (event) => reject(`アセット ${asset?.name} 保存エラー: ${event.target.error}`);
+        });
+    },
+
+    async deleteAsset(name) {
+        await this.openDB();
+        return new Promise((resolve, reject) => {
+            const store = this._getStore('image_assets', 'readwrite');
+            const request = store.delete(name);
+            request.onsuccess = () => resolve();
+            request.onerror = (event) => reject(`アセット ${name} 削除エラー: ${event.target.error}`);
+        });
+    },
     async getMemory(profileId) {
         if (!profileId) return null;
         await this.openDB();

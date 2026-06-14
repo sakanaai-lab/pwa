@@ -596,7 +596,7 @@ export const memoryMethods = {
 
             if (!summaryText) {
                 let errorMessage = "APIから有効な要約結果が得られませんでした。";
-                const finishReason = candidate?.finishReason;
+                const finishReason = responseData.candidates?.[0]?.finishReason;
                 const blockReason = responseData.promptFeedback?.blockReason;
 
                 if (finishReason === 'SAFETY' || blockReason) {
