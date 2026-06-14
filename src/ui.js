@@ -24,6 +24,50 @@ export const uiUtils = {
         console.log(`オーバーレイ透明度適用: ${opacityValue}`);
     },
 
+    // ===== 範囲画像保存モードの表示制御 =====
+    clearRangeImageHighlight() {
+        elements.messageContainer
+            ?.querySelectorAll('.message.range-selected')
+            .forEach((el) => el.classList.remove('range-selected'));
+    },
+
+    updateRangeImageSelectionUI() {
+        const sel = state.rangeImageSelect;
+        const bar = elements.rangeImageBar;
+        if (!sel || !sel.active) {
+            bar?.classList.add('hidden');
+            return;
+        }
+        bar?.classList.remove('hidden');
+        this.clearRangeImageHighlight();
+
+        let count = 0;
+        if (sel.startIndex !== null) {
+            const end = sel.endIndex === null ? sel.startIndex : sel.endIndex;
+            const a = Math.min(sel.startIndex, end);
+            const b = Math.max(sel.startIndex, end);
+            for (let i = a; i <= b; i++) {
+                const el = elements.messageContainer?.querySelector(`.message[data-index="${i}"]`);
+                if (el) {
+                    el.classList.add('range-selected');
+                    count++;
+                }
+            }
+        }
+
+        if (elements.rangeImageInfo) {
+            elements.rangeImageInfo.textContent =
+                sel.startIndex === null
+                    ? '開始メッセージをタップ'
+                    : sel.endIndex === null
+                      ? '終了メッセージをタップ（1件のみでも保存可）'
+                      : `${count}件を選択中`;
+        }
+        if (elements.rangeImageSaveConfirmBtn) {
+            elements.rangeImageSaveConfirmBtn.disabled = sel.startIndex === null;
+        }
+    },
+
     // 新しいメッセージ要素をコンテナの末尾に追加する（ちらつき防止用）
     appendMessage(role, content, index, isStreamingPlaceholder = false, cascadeInfo = null, attachments = null) {
         const messageElement = this.createMessageElement(role, content, index, isStreamingPlaceholder, cascadeInfo, attachments);
