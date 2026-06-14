@@ -10900,8 +10900,9 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     "message-cascade-controls",
     "message-edit-area"
   ]);
-  var MAX_CANVAS_SIDE = 4096;
   var MAX_CANVAS_AREA = 16777216;
+  var MAX_CANVAS_SIDE = 16384;
+  var MIN_FIT_SCALE = 0.3;
   function shouldExcludeFromCapture(element) {
     return [...CAPTURE_EXCLUDED_CLASSES].some(
       (className) => element.classList?.contains(className)
@@ -10949,6 +10950,9 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
         const style = clonedDocument.createElement("style");
         style.textContent = CAPTURE_OVERRIDE_CSS;
         clonedDocument.head.appendChild(style);
+        clonedDocument.querySelectorAll(".message, .message *").forEach((el) => {
+          if (el.style) el.style.setProperty("color", "#1a1a1a", "important");
+        });
       }, "onclone")
     });
   }
@@ -11019,12 +11023,24 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       throw new Error("表示されているメッセージがありません。");
     }
     const gap = Math.round(12 * scale);
+    const totalWidth = Math.max(...captures.map((i) => i.canvas.width));
+    const totalHeight = captures.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (captures.length - 1);
+    const fit = Math.min(
+      1,
+      MAX_CANVAS_SIDE / totalWidth,
+      MAX_CANVAS_SIDE / totalHeight,
+      Math.sqrt(MAX_CANVAS_AREA / (totalWidth * totalHeight))
+    );
+    if (fit >= MIN_FIT_SCALE) {
+      return [await canvasToPngBlob(combineCanvases(captures, backgroundColor, gap, fit))];
+    }
+    const maxChunkHeight = Math.min(MAX_CANVAS_SIDE, Math.floor(MAX_CANVAS_AREA / totalWidth));
     const chunks = [];
     let current = [];
     let currentHeight = 0;
     for (const item of captures) {
       const add = item.canvas.height + (current.length ? gap : 0);
-      if (current.length && currentHeight + add > MAX_CANVAS_SIDE) {
+      if (current.length && currentHeight + add > maxChunkHeight) {
         chunks.push(current);
         current = [];
         currentHeight = 0;
@@ -11035,32 +11051,37 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     if (current.length) chunks.push(current);
     const blobs = [];
     for (const chunk of chunks) {
-      blobs.push(await canvasToPngBlob(combineCanvases(chunk, backgroundColor, gap)));
+      blobs.push(await canvasToPngBlob(combineCanvases(chunk, backgroundColor, gap, 1)));
     }
     return blobs;
   }
   __name(messagesRangeToPngBlobs, "messagesRangeToPngBlobs");
-  function combineCanvases(items, backgroundColor, gap) {
-    let width = Math.max(...items.map((i) => i.canvas.width));
-    let height = items.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (items.length - 1);
-    width = Math.min(width, MAX_CANVAS_SIDE);
-    height = Math.min(height, MAX_CANVAS_SIDE);
-    if (width * height > MAX_CANVAS_AREA) {
-      const ratio = Math.sqrt(MAX_CANVAS_AREA / (width * height));
-      width = Math.floor(width * ratio);
-      height = Math.floor(height * ratio);
-    }
+  function combineCanvases(items, backgroundColor, gap, fit = 1) {
+    const logicalWidth = Math.max(...items.map((i) => i.canvas.width));
+    const logicalHeight = items.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (items.length - 1);
     const out = document.createElement("canvas");
-    out.width = width;
-    out.height = height;
+    out.width = Math.max(1, Math.floor(logicalWidth * fit));
+    out.height = Math.max(1, Math.floor(logicalHeight * fit));
     const ctx = out.getContext("2d");
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, out.width, out.height);
     let y = 0;
     for (const item of items) {
-      const x = item.isUser ? Math.max(0, width - item.canvas.width) : 0;
-      ctx.drawImage(item.canvas, x, y);
-      y += item.canvas.height + gap;
+      const cw = item.canvas.width;
+      const ch = item.canvas.height;
+      const x = item.isUser ? Math.max(0, logicalWidth - cw) : 0;
+      ctx.drawImage(
+        item.canvas,
+        0,
+        0,
+        cw,
+        ch,
+        Math.round(x * fit),
+        Math.round(y * fit),
+        Math.round(cw * fit),
+        Math.round(ch * fit)
+      );
+      y += ch + gap;
     }
     return out;
   }
