@@ -10916,6 +10916,10 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     .message-content a { color: #1565c0 !important; }
     .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
     .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
+    /* 閉じている details（思考プロセス等）の中身は描画しない。
+       html2canvas は折りたたみ状態を無視して中身を展開してしまい上部で重なるため。
+       ユーザーが開いている場合（[open]）はそのまま画像に含める。 */
+    details:not([open]) > *:not(summary) { display: none !important; }
     /* html2canvas が line-height を取りこぼして行が重なるのを防ぐため、明示的に行高を指定 */
     .message, .message-content, .message-content p, .message-content li,
     .message-content div, .message-content span, .message-content td, .message-content th {
