@@ -1,15 +1,14 @@
 // メッセージ要素を PNG 画像化するユーティリティ。
 //
-// 以前は「DOM → SVG <foreignObject> → <img> → canvas」方式だったが、WebKit（iOS の
-// 全ブラウザ）では foreignObject を描いた canvas が汚染され、toBlob() が
-// "The operation is insecure" (SecurityError) で失敗する。これを回避するため、
-// foreignObject を使わず DOM を直接描画する html2canvas を使用する。
-// さらに iOS の計算済みスタイルは color(srgb …)/color-mix を含むため、それらに対応した
-// html2canvas-pro を採用（グローバル名は html2canvas のまま。vendored: html2canvas-pro.min.js）。
-//
-// 範囲保存は「各メッセージを個別に html2canvas で撮影 → 縦に連結」する方式。
-// 親要素依存の CSS 崩れを避けられ、iOS の canvas サイズ上限を超える場合は
-// 複数枚へ自動分割できる。
+// 方式:
+//  - foreignObject は WebKit(iOS) で canvas を汚染するため使わず、DOM を直接描画する
+//    html2canvas-pro を使う（グローバル名は html2canvas / vendored: html2canvas-pro.min.js）。
+//  - テーマは color-mix()/CSS変数で配色しており html2canvas 上で文字が薄くなるため、
+//    撮影直前に「実DOM」へ一時的な高コントラストCSS（白背景＋黒文字）を適用してから
+//    撮影する。html2canvas は実DOMの計算済みスタイルを取り込むので確実に反映される。
+//    撮影後はクラスとstyleを即座に外すため、画面表示は元に戻る（撮影中だけ一瞬変化）。
+//  - 範囲保存は各メッセージを個別に撮影 → 縦に連結。長すぎる場合は縮小して1枚に収め、
+//    極端に長い場合のみ複数枚へ分割する。
 
 const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-actions',
@@ -17,12 +16,53 @@ const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-edit-area',
 ]);
 
-// canvas の上限。iOS では「総面積」が実質的な制約（約 4096^2）。幅は狭いので
-// 主に縦長の安全弁として 1 辺上限も持つ。範囲保存はまず1枚に収め、超える場合は
-// 縮小、それでも極端に長い場合のみ複数枚へ分割する。
-const MAX_CANVAS_AREA = 16777216; // iOS 安全圏（4096^2）
+// canvas の上限。iOS では「総面積」が実質的な制約（約 4096^2）。
+const MAX_CANVAS_AREA = 16777216;
 const MAX_CANVAS_SIDE = 16384;
 const MIN_FIT_SCALE = 0.3; // これ未満まで縮小が必要なほど長い場合のみ分割
+
+// 撮影対象に付与するクラスと、それに対する高コントラスト配色。
+const CAPTURE_CLASS = 'msg-capture-target';
+const CAPTURE_STYLE_ID = '__msg-capture-style';
+const CAPTURE_OVERRIDE_CSS = `
+    .${CAPTURE_CLASS}, .${CAPTURE_CLASS} * {
+        color: #1a1a1a !important;
+        -webkit-text-fill-color: #1a1a1a !important;
+        text-shadow: none !important;
+        line-height: 1.6 !important;
+    }
+    .${CAPTURE_CLASS} {
+        background: #ffffff !important;
+        box-shadow: none !important;
+        border: 1px solid #e0e0e0 !important;
+        opacity: 1 !important;
+    }
+    .${CAPTURE_CLASS}.user { background: #eaf2f5 !important; }
+    .${CAPTURE_CLASS} .message-content pre,
+    .${CAPTURE_CLASS} .message-content code {
+        background: #f3f3f3 !important;
+        color: #1a1a1a !important;
+        -webkit-text-fill-color: #1a1a1a !important;
+        border-color: #dddddd !important;
+    }
+    .${CAPTURE_CLASS} .message-content a {
+        color: #1565c0 !important;
+        -webkit-text-fill-color: #1565c0 !important;
+    }
+    .${CAPTURE_CLASS} .message-content blockquote {
+        color: #555555 !important;
+        -webkit-text-fill-color: #555555 !important;
+        border-left-color: #cccccc !important;
+    }
+    /* ターン番号/モデル名ラベル（::before）は薄いグレーに */
+    .${CAPTURE_CLASS}::before, .${CAPTURE_CLASS} *::before {
+        color: #888888 !important;
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
+    }
+    /* 閉じている思考プロセス(details)の中身は画像に含めない（開いていれば含める） */
+    .${CAPTURE_CLASS} details:not([open]) > *:not(summary) { display: none !important; }
+`;
 
 function shouldExcludeFromCapture(element) {
     return [...CAPTURE_EXCLUDED_CLASSES].some((className) =>
@@ -30,28 +70,34 @@ function shouldExcludeFromCapture(element) {
     );
 }
 
-// 撮影時のみクローン側へ適用する固定配色（白背景＋黒文字）。
-// テーマの color-mix() / CSS変数依存だと html2canvas 上で文字色が極端に薄くなり
-// 読めない画像になるため、確実に読める高コントラストへ上書きする。実画面には影響しない。
-// ターン番号ラベルは .message::before（content: "#" attr(data-turn) ...）が描画するので
-// 別途付与はしない。
-const CAPTURE_OVERRIDE_CSS = `
-    .message, .message * { color: #1a1a1a !important; }
-    .message { background: #ffffff !important; box-shadow: none !important; border: 1px solid #e0e0e0 !important; }
-    .message.user { background: #eaf2f5 !important; }
-    .message-content pre, .message-content code { background: #f3f3f3 !important; color: #1a1a1a !important; border-color: #dddddd !important; }
-    .message-content a { color: #1565c0 !important; }
-    .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
-    .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
-    /* html2canvas が line-height を取りこぼして行が重なるのを防ぐため、明示的に行高を指定 */
-    .message, .message-content, .message-content p, .message-content li,
-    .message-content div, .message-content span, .message-content td, .message-content th {
-        line-height: 1.6 !important;
-    }
-`;
+function nextFrame() {
+    return new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+    );
+}
 
-// フォント未ロード状態で撮影すると文字メトリクスがずれて行が重なることがあるため、
-// 読み込み完了を待つ。
+let captureStyleEl = null;
+// 撮影用の一時CSSを実DOMへ適用し、対象要素にクラスを付ける。
+function applyCaptureStyles(elements) {
+    if (!captureStyleEl) {
+        captureStyleEl = document.createElement('style');
+        captureStyleEl.id = CAPTURE_STYLE_ID;
+        captureStyleEl.textContent = CAPTURE_OVERRIDE_CSS;
+    }
+    if (!captureStyleEl.isConnected) document.head.appendChild(captureStyleEl);
+    for (const el of elements) el.classList.add(CAPTURE_CLASS);
+}
+function removeCaptureStyles(elements) {
+    for (const el of elements) el.classList.remove(CAPTURE_CLASS);
+    if (captureStyleEl?.isConnected) captureStyleEl.remove();
+}
+
+function captureParams() {
+    const backgroundColor = '#ffffff';
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    return { backgroundColor, scale };
+}
+
 async function ensureFontsReady() {
     try {
         if (document.fonts?.ready) await document.fonts.ready;
@@ -60,43 +106,12 @@ async function ensureFontsReady() {
     }
 }
 
-function captureParams() {
-    // 撮影は固定の白背景にする（テーマ依存の薄文字問題を避けるため）。
-    const backgroundColor = '#ffffff';
-    // 高解像度でも巨大になりすぎないよう 2x までに制限。
-    const scale = Math.min(window.devicePixelRatio || 1, 2);
-    return { backgroundColor, scale };
-}
-
-// 1つのメッセージ要素を html2canvas で canvas 化する。
-// 操作ボタンは除外し、クローン側に高コントラストの撮影用配色を適用する。
 async function captureElementToCanvas(messageElement, { backgroundColor, scale }) {
     return await html2canvas(messageElement, {
         backgroundColor,
         scale,
         useCORS: true,
         ignoreElements: (element) => shouldExcludeFromCapture(element),
-        onclone: (clonedDocument) => {
-            const style = clonedDocument.createElement('style');
-            style.textContent = CAPTURE_OVERRIDE_CSS;
-            clonedDocument.head.appendChild(style);
-            // スタイルシートの !important だけでは html2canvas 上で文字色を
-            // 上書きしきれない（テーマの color()/color-mix が残る）ことがあるため、
-            // 各要素へインライン !important で黒文字を直接強制する（最優先で確実）。
-            clonedDocument.querySelectorAll('.message, .message *').forEach((el) => {
-                if (el.style) el.style.setProperty('color', '#1a1a1a', 'important');
-            });
-            // 閉じている details（思考プロセス等）の中身だけをプログラムで非表示にする。
-            // CSS の details:not([open]) を html2canvas が誤解釈して本文まで消すことが
-            // あるため、確実に「閉じた details の子要素のみ」を対象にする。
-            clonedDocument.querySelectorAll('details:not([open])').forEach((details) => {
-                details.querySelectorAll(':scope > *').forEach((child) => {
-                    if (child.tagName !== 'SUMMARY' && child.style) {
-                        child.style.setProperty('display', 'none', 'important');
-                    }
-                });
-            });
-        },
     });
 }
 
@@ -107,17 +122,6 @@ function canvasToPngBlob(canvas) {
             'image/png'
         );
     });
-}
-
-export function createMessageImageFilename(messageElement, date = new Date()) {
-    const role = messageElement.classList.contains('user') ? 'user' : 'assistant';
-    const turn = messageElement.dataset.turn || 'message';
-    return `Aquarium_Chat_${turn}_${role}_${formatTimestamp(date)}.png`;
-}
-
-export function createRangeImageFilename(date = new Date(), part = 0, total = 1) {
-    const suffix = total > 1 ? `_${part}of${total}` : '';
-    return `Aquarium_Chat_range_${formatTimestamp(date)}${suffix}.png`;
 }
 
 function formatTimestamp(date) {
@@ -132,6 +136,17 @@ function formatTimestamp(date) {
     ].join('');
 }
 
+export function createMessageImageFilename(messageElement, date = new Date()) {
+    const role = messageElement.classList.contains('user') ? 'user' : 'assistant';
+    const turn = messageElement.dataset.turn || 'message';
+    return `Aquarium_Chat_${turn}_${role}_${formatTimestamp(date)}.png`;
+}
+
+export function createRangeImageFilename(date = new Date(), part = 0, total = 1) {
+    const suffix = total > 1 ? `_${part}of${total}` : '';
+    return `Aquarium_Chat_range_${formatTimestamp(date)}${suffix}.png`;
+}
+
 export async function messageElementToPngBlob(messageElement) {
     if (!(messageElement instanceof HTMLElement)) {
         throw new TypeError('保存対象のメッセージが見つかりません。');
@@ -144,29 +159,44 @@ export async function messageElementToPngBlob(messageElement) {
         throw new Error('表示されていないメッセージは画像にできません。');
     }
     await ensureFontsReady();
-    const canvas = await captureElementToCanvas(messageElement, captureParams());
-    return canvasToPngBlob(canvas);
+
+    applyCaptureStyles([messageElement]);
+    try {
+        await nextFrame();
+        const canvas = await captureElementToCanvas(messageElement, captureParams());
+        return await canvasToPngBlob(canvas);
+    } finally {
+        removeCaptureStyles([messageElement]);
+    }
 }
 
-// 複数メッセージを縦に連結し、上限を超える場合は複数 PNG に分割して返す。
-// 戻り値: Blob[]（通常1枚、長い範囲では複数枚）。
+// 複数メッセージを縦に連結して PNG 化する。通常は1枚、極端に長い範囲のみ複数枚。
 export async function messagesRangeToPngBlobs(messageElements) {
     if (typeof html2canvas === 'undefined') {
         throw new Error('画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。');
     }
+    const targets = [...messageElements].filter((el) => {
+        if (!(el instanceof HTMLElement)) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    });
+    if (targets.length === 0) {
+        throw new Error('表示されているメッセージがありません。');
+    }
+
     const { backgroundColor, scale } = captureParams();
     await ensureFontsReady();
 
     const captures = [];
-    for (const element of messageElements) {
-        if (!(element instanceof HTMLElement)) continue;
-        const rect = element.getBoundingClientRect();
-        if (rect.width <= 0 || rect.height <= 0) continue;
-        const canvas = await captureElementToCanvas(element, { backgroundColor, scale });
-        captures.push({ canvas, isUser: element.classList.contains('user') });
-    }
-    if (captures.length === 0) {
-        throw new Error('表示されているメッセージがありません。');
+    applyCaptureStyles(targets);
+    try {
+        await nextFrame();
+        for (const element of targets) {
+            const canvas = await captureElementToCanvas(element, { backgroundColor, scale });
+            captures.push({ canvas, isUser: element.classList.contains('user') });
+        }
+    } finally {
+        removeCaptureStyles(targets);
     }
 
     const gap = Math.round(12 * scale);
@@ -183,7 +213,6 @@ export async function messagesRangeToPngBlobs(messageElements) {
     );
 
     if (fit >= MIN_FIT_SCALE) {
-        // 1枚にまとめる（必要なら縮小）。user/assistant が分断されない。
         return [await canvasToPngBlob(combineCanvases(captures, backgroundColor, gap, fit))];
     }
 
