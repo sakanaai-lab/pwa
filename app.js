@@ -1760,6 +1760,11 @@ ${relationship_context}`;
       scrollToTopBtn: document.getElementById("scroll-to-top-btn"),
       scrollToBottomBtn: document.getElementById("scroll-to-bottom-btn"),
       scrollBottomFab: document.getElementById("scroll-bottom-fab"),
+      rangeImageSaveBtn: document.getElementById("range-image-save-btn"),
+      rangeImageBar: document.getElementById("range-image-bar"),
+      rangeImageInfo: document.getElementById("range-image-info"),
+      rangeImageSaveConfirmBtn: document.getElementById("range-image-save-confirm-btn"),
+      rangeImageCancelBtn: document.getElementById("range-image-cancel-btn"),
       floatingPanelBehaviorSelect: document.getElementById("floating-panel-behavior"),
       characterProfileBtn: document.getElementById("character-profile-btn"),
       characterProfileDialog: document.getElementById("characterProfileDialog"),
@@ -2156,6 +2161,8 @@ Reason: [NGの場合の理由]`,
     currentStyleProfiles: {},
     isMemoryEnabledForChat: true,
     characterProfileVisibleCharacter: null,
+    rangeImageSelect: { active: false, startIndex: null, endIndex: null },
+    // 範囲画像保存モードの選択状態
     sync: {
       isDirty: false,
       // ローカルに変更があったか
@@ -2498,6 +2505,39 @@ Reason: [NGの場合の理由]`,
       const opacityValue = state.settings.overlayOpacity ?? 0.75;
       document.documentElement.style.setProperty("--overlay-opacity-value", opacityValue);
       console.log(`オーバーレイ透明度適用: ${opacityValue}`);
+    },
+    // ===== 範囲画像保存モードの表示制御 =====
+    clearRangeImageHighlight() {
+      elements.messageContainer?.querySelectorAll(".message.range-selected").forEach((el) => el.classList.remove("range-selected"));
+    },
+    updateRangeImageSelectionUI() {
+      const sel = state.rangeImageSelect;
+      const bar = elements.rangeImageBar;
+      if (!sel || !sel.active) {
+        bar?.classList.add("hidden");
+        return;
+      }
+      bar?.classList.remove("hidden");
+      this.clearRangeImageHighlight();
+      let count = 0;
+      if (sel.startIndex !== null) {
+        const end = sel.endIndex === null ? sel.startIndex : sel.endIndex;
+        const a = Math.min(sel.startIndex, end);
+        const b = Math.max(sel.startIndex, end);
+        for (let i = a; i <= b; i++) {
+          const el = elements.messageContainer?.querySelector(`.message[data-index="${i}"]`);
+          if (el) {
+            el.classList.add("range-selected");
+            count++;
+          }
+        }
+      }
+      if (elements.rangeImageInfo) {
+        elements.rangeImageInfo.textContent = sel.startIndex === null ? "開始メッセージをタップ" : sel.endIndex === null ? "終了メッセージをタップ（タップで範囲を伸縮）" : `${count}件を選択中（タップで範囲変更）`;
+      }
+      if (elements.rangeImageSaveConfirmBtn) {
+        elements.rangeImageSaveConfirmBtn.disabled = sel.startIndex === null;
+      }
     },
     // 新しいメッセージ要素をコンテナの末尾に追加する（ちらつき防止用）
     appendMessage(role, content, index, isStreamingPlaceholder = false, cascadeInfo = null, attachments = null) {
@@ -5530,6 +5570,31 @@ Reason: [NGの場合の理由]`,
       elements.scrollToBottomBtn.addEventListener("click", () => this.scrollToBottom(true));
       if (elements.scrollBottomFab) {
         elements.scrollBottomFab.addEventListener("click", () => this.scrollToBottom(true));
+      }
+      if (elements.rangeImageSaveBtn) {
+        elements.rangeImageSaveBtn.addEventListener("click", () => this.enterRangeImageMode());
+      }
+      if (elements.rangeImageCancelBtn) {
+        elements.rangeImageCancelBtn.addEventListener("click", () => this.exitRangeImageMode());
+      }
+      if (elements.rangeImageSaveConfirmBtn) {
+        elements.rangeImageSaveConfirmBtn.addEventListener("click", () => this.confirmRangeImageSave());
+      }
+      if (elements.messageContainer) {
+        elements.messageContainer.addEventListener(
+          "click",
+          (event) => {
+            if (!state.rangeImageSelect?.active) return;
+            const messageEl = event.target.closest?.(".message[data-index]");
+            if (!messageEl || !elements.messageContainer.contains(messageEl)) return;
+            event.preventDefault();
+            event.stopPropagation();
+            const index = parseInt(messageEl.dataset.index, 10);
+            if (!Number.isNaN(index)) this.handleRangeMessageSelect(index);
+          },
+          true
+          // capture: 内部の編集/削除ボタン等より先に処理する
+        );
       }
       let headerHideTimer = null;
       window.addEventListener("online", () => {
@@ -10835,32 +10900,111 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     "message-cascade-controls",
     "message-edit-area"
   ]);
+  var MAX_CANVAS_AREA = 16777216;
+  var MAX_CANVAS_SIDE = 16384;
+  var MIN_FIT_SCALE = 0.3;
+  var CAPTURE_CLASS = "msg-capture-target";
+  var CAPTURE_STYLE_ID = "__msg-capture-style";
+  var CAPTURE_OVERRIDE_CSS = `
+    .${CAPTURE_CLASS}, .${CAPTURE_CLASS} * {
+        color: #1a1a1a !important;
+        -webkit-text-fill-color: #1a1a1a !important;
+        text-shadow: none !important;
+        line-height: 1.6 !important;
+    }
+    .${CAPTURE_CLASS} {
+        background: #ffffff !important;
+        box-shadow: none !important;
+        border: 1px solid #e0e0e0 !important;
+        opacity: 1 !important;
+    }
+    .${CAPTURE_CLASS}.user { background: #eaf2f5 !important; }
+    .${CAPTURE_CLASS} .message-content pre,
+    .${CAPTURE_CLASS} .message-content code {
+        background: #f3f3f3 !important;
+        color: #1a1a1a !important;
+        -webkit-text-fill-color: #1a1a1a !important;
+        border-color: #dddddd !important;
+    }
+    .${CAPTURE_CLASS} .message-content a {
+        color: #1565c0 !important;
+        -webkit-text-fill-color: #1565c0 !important;
+    }
+    .${CAPTURE_CLASS} .message-content blockquote {
+        color: #555555 !important;
+        -webkit-text-fill-color: #555555 !important;
+        border-left-color: #cccccc !important;
+    }
+    /* ターン番号/モデル名ラベル（::before）は薄いグレーに */
+    .${CAPTURE_CLASS}::before, .${CAPTURE_CLASS} *::before {
+        color: #888888 !important;
+        -webkit-text-fill-color: #888888 !important;
+        opacity: 1 !important;
+    }
+    /* 閉じている思考プロセス(details)の中身は画像に含めない（開いていれば含める） */
+    .${CAPTURE_CLASS} details:not([open]) > *:not(summary) { display: none !important; }
+`;
   function shouldExcludeFromCapture(element) {
     return [...CAPTURE_EXCLUDED_CLASSES].some(
       (className) => element.classList?.contains(className)
     );
   }
   __name(shouldExcludeFromCapture, "shouldExcludeFromCapture");
-  function addMessageLabel(messageElement, clone) {
-    const turn = messageElement.dataset.turn;
-    if (!turn) return;
-    const label = clone.ownerDocument.createElement("div");
-    label.textContent = `#${turn}${messageElement.dataset.model ? `  ${messageElement.dataset.model}` : ""}`;
-    label.style.cssText = [
-      "display:block",
-      "font-size:10px",
-      "line-height:1",
-      "opacity:0.7",
-      "margin-bottom:2px",
-      `text-align:${messageElement.classList.contains("user") ? "right" : "left"}`
-    ].join(";");
-    clone.prepend(label);
+  function nextFrame() {
+    return new Promise(
+      (resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))
+    );
   }
-  __name(addMessageLabel, "addMessageLabel");
-  function createMessageImageFilename(messageElement, date = /* @__PURE__ */ new Date()) {
-    const role = messageElement.classList.contains("user") ? "user" : "assistant";
-    const turn = messageElement.dataset.turn || "message";
-    const timestamp = [
+  __name(nextFrame, "nextFrame");
+  var captureStyleEl = null;
+  function applyCaptureStyles(elements2) {
+    if (!captureStyleEl) {
+      captureStyleEl = document.createElement("style");
+      captureStyleEl.id = CAPTURE_STYLE_ID;
+      captureStyleEl.textContent = CAPTURE_OVERRIDE_CSS;
+    }
+    if (!captureStyleEl.isConnected) document.head.appendChild(captureStyleEl);
+    for (const el of elements2) el.classList.add(CAPTURE_CLASS);
+  }
+  __name(applyCaptureStyles, "applyCaptureStyles");
+  function removeCaptureStyles(elements2) {
+    for (const el of elements2) el.classList.remove(CAPTURE_CLASS);
+    if (captureStyleEl?.isConnected) captureStyleEl.remove();
+  }
+  __name(removeCaptureStyles, "removeCaptureStyles");
+  function captureParams() {
+    const backgroundColor = "#ffffff";
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
+    return { backgroundColor, scale };
+  }
+  __name(captureParams, "captureParams");
+  async function ensureFontsReady() {
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+    } catch {
+    }
+  }
+  __name(ensureFontsReady, "ensureFontsReady");
+  async function captureElementToCanvas(messageElement, { backgroundColor, scale }) {
+    return await html2canvas(messageElement, {
+      backgroundColor,
+      scale,
+      useCORS: true,
+      ignoreElements: /* @__PURE__ */ __name((element) => shouldExcludeFromCapture(element), "ignoreElements")
+    });
+  }
+  __name(captureElementToCanvas, "captureElementToCanvas");
+  function canvasToPngBlob(canvas) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => blob ? resolve(blob) : reject(new Error("PNGへの変換に失敗しました。")),
+        "image/png"
+      );
+    });
+  }
+  __name(canvasToPngBlob, "canvasToPngBlob");
+  function formatTimestamp(date) {
+    return [
       date.getFullYear(),
       String(date.getMonth() + 1).padStart(2, "0"),
       String(date.getDate()).padStart(2, "0"),
@@ -10869,9 +11013,19 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       String(date.getMinutes()).padStart(2, "0"),
       String(date.getSeconds()).padStart(2, "0")
     ].join("");
-    return `Aquarium_Chat_${turn}_${role}_${timestamp}.png`;
+  }
+  __name(formatTimestamp, "formatTimestamp");
+  function createMessageImageFilename(messageElement, date = /* @__PURE__ */ new Date()) {
+    const role = messageElement.classList.contains("user") ? "user" : "assistant";
+    const turn = messageElement.dataset.turn || "message";
+    return `Aquarium_Chat_${turn}_${role}_${formatTimestamp(date)}.png`;
   }
   __name(createMessageImageFilename, "createMessageImageFilename");
+  function createRangeImageFilename(date = /* @__PURE__ */ new Date(), part = 0, total = 1) {
+    const suffix = total > 1 ? `_${part}of${total}` : "";
+    return `Aquarium_Chat_range_${formatTimestamp(date)}${suffix}.png`;
+  }
+  __name(createRangeImageFilename, "createRangeImageFilename");
   async function messageElementToPngBlob(messageElement) {
     if (!(messageElement instanceof HTMLElement)) {
       throw new TypeError("保存対象のメッセージが見つかりません。");
@@ -10883,49 +11037,203 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     if (rect.width <= 0 || rect.height <= 0) {
       throw new Error("表示されていないメッセージは画像にできません。");
     }
-    const backgroundColor = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
-    const scale = Math.min(window.devicePixelRatio || 1, 2);
-    const canvas = await html2canvas(messageElement, {
-      backgroundColor,
-      scale,
-      useCORS: true,
-      // 操作ボタン等は画像に含めない
-      ignoreElements: /* @__PURE__ */ __name((element) => shouldExcludeFromCapture(element), "ignoreElements"),
-      // クローン側にターン番号ラベルを付与（元のDOMは変更しない）
-      onclone: /* @__PURE__ */ __name((clonedDocument) => {
-        const index = messageElement.dataset.index;
-        const clonedElement = index != null ? clonedDocument.querySelector(`.message[data-index="${index}"]`) : null;
-        if (clonedElement) addMessageLabel(messageElement, clonedElement);
-      }, "onclone")
-    });
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob(
-        (blob) => blob ? resolve(blob) : reject(new Error("PNGへの変換に失敗しました。")),
-        "image/png"
-      );
-    });
+    await ensureFontsReady();
+    applyCaptureStyles([messageElement]);
+    try {
+      await nextFrame();
+      const canvas = await captureElementToCanvas(messageElement, captureParams());
+      return await canvasToPngBlob(canvas);
+    } finally {
+      removeCaptureStyles([messageElement]);
+    }
   }
   __name(messageElementToPngBlob, "messageElementToPngBlob");
+  async function messagesRangeToPngBlobs(messageElements) {
+    if (typeof html2canvas === "undefined") {
+      throw new Error("画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。");
+    }
+    const targets = [...messageElements].filter((el) => {
+      if (!(el instanceof HTMLElement)) return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    });
+    if (targets.length === 0) {
+      throw new Error("表示されているメッセージがありません。");
+    }
+    const { backgroundColor, scale } = captureParams();
+    await ensureFontsReady();
+    const captures = [];
+    applyCaptureStyles(targets);
+    try {
+      await nextFrame();
+      for (const element of targets) {
+        const canvas = await captureElementToCanvas(element, { backgroundColor, scale });
+        captures.push({ canvas, isUser: element.classList.contains("user") });
+      }
+    } finally {
+      removeCaptureStyles(targets);
+    }
+    const gap = Math.round(12 * scale);
+    const totalWidth = Math.max(...captures.map((i) => i.canvas.width));
+    const totalHeight = captures.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (captures.length - 1);
+    const fit = Math.min(
+      1,
+      MAX_CANVAS_SIDE / totalWidth,
+      MAX_CANVAS_SIDE / totalHeight,
+      Math.sqrt(MAX_CANVAS_AREA / (totalWidth * totalHeight))
+    );
+    if (fit >= MIN_FIT_SCALE) {
+      return [await canvasToPngBlob(combineCanvases(captures, backgroundColor, gap, fit))];
+    }
+    const maxChunkHeight = Math.min(MAX_CANVAS_SIDE, Math.floor(MAX_CANVAS_AREA / totalWidth));
+    const chunks = [];
+    let current = [];
+    let currentHeight = 0;
+    for (const item of captures) {
+      const add = item.canvas.height + (current.length ? gap : 0);
+      if (current.length && currentHeight + add > maxChunkHeight) {
+        chunks.push(current);
+        current = [];
+        currentHeight = 0;
+      }
+      current.push(item);
+      currentHeight += item.canvas.height + (current.length > 1 ? gap : 0);
+    }
+    if (current.length) chunks.push(current);
+    const blobs = [];
+    for (const chunk of chunks) {
+      blobs.push(await canvasToPngBlob(combineCanvases(chunk, backgroundColor, gap, 1)));
+    }
+    return blobs;
+  }
+  __name(messagesRangeToPngBlobs, "messagesRangeToPngBlobs");
+  function combineCanvases(items, backgroundColor, gap, fit = 1) {
+    const logicalWidth = Math.max(...items.map((i) => i.canvas.width));
+    const logicalHeight = items.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (items.length - 1);
+    const out = document.createElement("canvas");
+    out.width = Math.max(1, Math.floor(logicalWidth * fit));
+    out.height = Math.max(1, Math.floor(logicalHeight * fit));
+    const ctx = out.getContext("2d");
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, out.width, out.height);
+    let y = 0;
+    for (const item of items) {
+      const cw = item.canvas.width;
+      const ch = item.canvas.height;
+      const x = item.isUser ? Math.max(0, logicalWidth - cw) : 0;
+      ctx.drawImage(
+        item.canvas,
+        0,
+        0,
+        cw,
+        ch,
+        Math.round(x * fit),
+        Math.round(y * fit),
+        Math.round(cw * fit),
+        Math.round(ch * fit)
+      );
+      y += ch + gap;
+    }
+    return out;
+  }
+  __name(combineCanvases, "combineCanvases");
 
   // src/app-logic/media.js
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  }
+  __name(triggerDownload, "triggerDownload");
   var mediaMethods = {
     async saveMessageAsImage(messageElement) {
       try {
         const blob = await messageElementToPngBlob(messageElement);
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = createMessageImageFilename(messageElement);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1e3);
+        triggerDownload(blob, createMessageImageFilename(messageElement));
       } catch (error) {
         console.error("メッセージ画像の保存に失敗:", error);
         await uiUtils.showCustomAlert(`メッセージ画像の保存に失敗しました。
 ${error.message}`);
         throw error;
       }
+    },
+    // ===== 範囲画像保存（複数メッセージをまとめて画像化） =====
+    // フローティングパネルの「範囲を画像保存」から呼ばれ、選択モードに入る。
+    enterRangeImageMode() {
+      state.rangeImageSelect = { active: true, startIndex: null, endIndex: null };
+      elements.messageContainer?.classList.add("range-select-mode");
+      uiUtils.updateRangeImageSelectionUI();
+    },
+    exitRangeImageMode() {
+      state.rangeImageSelect = { active: false, startIndex: null, endIndex: null };
+      elements.messageContainer?.classList.remove("range-select-mode");
+      uiUtils.clearRangeImageHighlight();
+      uiUtils.updateRangeImageSelectionUI();
+    },
+    // 選択モード中にメッセージがタップされたときの処理。
+    // 1タップ目=始点。2タップ目以降は終点を更新し、範囲を伸縮できる
+    // （始点を変えたい場合はキャンセルしてやり直す）。表示上の前後関係は
+    // 描画時に min/max で正規化する。
+    handleRangeMessageSelect(index) {
+      const sel = state.rangeImageSelect;
+      if (!sel.active) return;
+      if (sel.startIndex === null) {
+        sel.startIndex = index;
+        sel.endIndex = null;
+      } else {
+        sel.endIndex = index;
+      }
+      uiUtils.updateRangeImageSelectionUI();
+    },
+    // 確認バーの「保存」から呼ばれる。
+    async confirmRangeImageSave() {
+      const sel = state.rangeImageSelect;
+      if (!sel.active || sel.startIndex === null) return;
+      const start = sel.startIndex;
+      const end = sel.endIndex === null ? sel.startIndex : sel.endIndex;
+      try {
+        await this.saveMessagesRangeAsImage(start, end);
+        this.exitRangeImageMode();
+      } catch (error) {
+        console.error("範囲画像の保存に失敗:", error);
+        await uiUtils.showCustomAlert(`範囲画像の保存に失敗しました。
+${error.message}`);
+      }
+    },
+    // start..end のメッセージ要素をまとめて画像化して保存する。
+    // 複数枚に分割された場合は JSZip でまとめて1ファイル（zip）としてダウンロード。
+    async saveMessagesRangeAsImage(startIndex, endIndex) {
+      const [a, b] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+      const container = elements.messageContainer;
+      const elementsInRange = [];
+      for (let i = a; i <= b; i++) {
+        const el = container?.querySelector(`.message[data-index="${i}"]`);
+        if (el) elementsInRange.push(el);
+      }
+      if (elementsInRange.length === 0) {
+        throw new Error("保存対象のメッセージが見つかりません。");
+      }
+      const blobs = await messagesRangeToPngBlobs(elementsInRange);
+      const now = /* @__PURE__ */ new Date();
+      if (blobs.length === 1) {
+        triggerDownload(blobs[0], createRangeImageFilename(now));
+        return;
+      }
+      if (typeof JSZip === "undefined") {
+        blobs.forEach((blob, idx) => triggerDownload(blob, createRangeImageFilename(now, idx + 1, blobs.length)));
+        return;
+      }
+      const zip = new JSZip();
+      blobs.forEach((blob, idx) => {
+        zip.file(createRangeImageFilename(now, idx + 1, blobs.length), blob);
+      });
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      triggerDownload(zipBlob, `Aquarium_Chat_range_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}.zip`);
     },
     /**
      * 画像Blobを受け取り、WebPに変換してimage_storeに保存し、新しいIDを返す

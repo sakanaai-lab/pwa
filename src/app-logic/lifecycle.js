@@ -1484,6 +1484,33 @@ export const lifecycleMethods = {
             elements.scrollBottomFab.addEventListener('click', () => this.scrollToBottom(true));
         }
 
+        // --- 範囲画像保存モード ---
+        if (elements.rangeImageSaveBtn) {
+            elements.rangeImageSaveBtn.addEventListener('click', () => this.enterRangeImageMode());
+        }
+        if (elements.rangeImageCancelBtn) {
+            elements.rangeImageCancelBtn.addEventListener('click', () => this.exitRangeImageMode());
+        }
+        if (elements.rangeImageSaveConfirmBtn) {
+            elements.rangeImageSaveConfirmBtn.addEventListener('click', () => this.confirmRangeImageSave());
+        }
+        // 選択モード中はメッセージのタップを範囲選択に使う（内部ボタンは発火させない）。
+        if (elements.messageContainer) {
+            elements.messageContainer.addEventListener(
+                'click',
+                (event) => {
+                    if (!state.rangeImageSelect?.active) return;
+                    const messageEl = event.target.closest?.('.message[data-index]');
+                    if (!messageEl || !elements.messageContainer.contains(messageEl)) return;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const index = parseInt(messageEl.dataset.index, 10);
+                    if (!Number.isNaN(index)) this.handleRangeMessageSelect(index);
+                },
+                true // capture: 内部の編集/削除ボタン等より先に処理する
+            );
+        }
+
         // --- Header Auto-Hide Event Listeners ---
         let headerHideTimer = null;
 

@@ -3019,3 +3019,62 @@ details.settings-group > summary:hover {
 @media screen and (max-width: 800px) {
     html, body { font-size: 15px; }
 }
+
+/* ===== 範囲画像保存モード ===== */
+.range-select-mode .message {
+    cursor: pointer;
+}
+/* 選択モード中は各メッセージ内のアクション/カスケード操作を無効化（タップを範囲選択に使う） */
+.range-select-mode .message-actions,
+.range-select-mode .message-cascade-controls {
+    pointer-events: none;
+}
+.message.range-selected {
+    outline: 2px solid var(--primary-color, #2196a8);
+    outline-offset: 2px;
+    border-radius: var(--border-radius-md, 8px);
+    background-color: rgba(33, 150, 168, 0.10);
+}
+.range-image-bar {
+    position: fixed;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface-color, #1f2a30);
+    color: var(--text-light, #ffffff);
+    border-radius: 24px;
+    box-shadow: var(--shadow-2, 0 3px 6px rgba(0, 0, 0, 0.3));
+    max-width: calc(100% - 24px);
+}
+.range-image-bar.hidden {
+    display: none;
+}
+.range-image-info {
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.range-image-bar-btn {
+    border: none;
+    border-radius: 16px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.15);
+    color: inherit;
+    white-space: nowrap;
+}
+.range-image-bar-btn.primary {
+    background: var(--primary-color, #2196a8);
+    color: #ffffff;
+}
+.range-image-bar-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

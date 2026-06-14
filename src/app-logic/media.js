@@ -5,25 +5,112 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
-import { createMessageImageFilename, messageElementToPngBlob } from '../utils/message-image.js';
+import { createMessageImageFilename, createRangeImageFilename, messageElementToPngBlob, messagesRangeToPngBlobs } from '../utils/message-image.js';
+
+function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 export const mediaMethods = {
     async saveMessageAsImage(messageElement) {
         try {
             const blob = await messageElementToPngBlob(messageElement);
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = createMessageImageFilename(messageElement);
-            document.body.appendChild(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            triggerDownload(blob, createMessageImageFilename(messageElement));
         } catch (error) {
             console.error('メッセージ画像の保存に失敗:', error);
             await uiUtils.showCustomAlert(`メッセージ画像の保存に失敗しました。\n${error.message}`);
             throw error;
         }
+    },
+
+    // ===== 範囲画像保存（複数メッセージをまとめて画像化） =====
+
+    // フローティングパネルの「範囲を画像保存」から呼ばれ、選択モードに入る。
+    enterRangeImageMode() {
+        state.rangeImageSelect = { active: true, startIndex: null, endIndex: null };
+        elements.messageContainer?.classList.add('range-select-mode');
+        uiUtils.updateRangeImageSelectionUI();
+    },
+
+    exitRangeImageMode() {
+        state.rangeImageSelect = { active: false, startIndex: null, endIndex: null };
+        elements.messageContainer?.classList.remove('range-select-mode');
+        uiUtils.clearRangeImageHighlight();
+        uiUtils.updateRangeImageSelectionUI();
+    },
+
+    // 選択モード中にメッセージがタップされたときの処理。
+    // 1タップ目=始点。2タップ目以降は終点を更新し、範囲を伸縮できる
+    // （始点を変えたい場合はキャンセルしてやり直す）。表示上の前後関係は
+    // 描画時に min/max で正規化する。
+    handleRangeMessageSelect(index) {
+        const sel = state.rangeImageSelect;
+        if (!sel.active) return;
+        if (sel.startIndex === null) {
+            sel.startIndex = index;
+            sel.endIndex = null;
+        } else {
+            sel.endIndex = index;
+        }
+        uiUtils.updateRangeImageSelectionUI();
+    },
+
+    // 確認バーの「保存」から呼ばれる。
+    async confirmRangeImageSave() {
+        const sel = state.rangeImageSelect;
+        if (!sel.active || sel.startIndex === null) return;
+        const start = sel.startIndex;
+        const end = sel.endIndex === null ? sel.startIndex : sel.endIndex;
+        try {
+            await this.saveMessagesRangeAsImage(start, end);
+            this.exitRangeImageMode();
+        } catch (error) {
+            console.error('範囲画像の保存に失敗:', error);
+            await uiUtils.showCustomAlert(`範囲画像の保存に失敗しました。\n${error.message}`);
+        }
+    },
+
+    // start..end のメッセージ要素をまとめて画像化して保存する。
+    // 複数枚に分割された場合は JSZip でまとめて1ファイル（zip）としてダウンロード。
+    async saveMessagesRangeAsImage(startIndex, endIndex) {
+        const [a, b] = startIndex <= endIndex ? [startIndex, endIndex] : [endIndex, startIndex];
+        const container = elements.messageContainer;
+        const elementsInRange = [];
+        for (let i = a; i <= b; i++) {
+            const el = container?.querySelector(`.message[data-index="${i}"]`);
+            if (el) elementsInRange.push(el);
+        }
+        if (elementsInRange.length === 0) {
+            throw new Error('保存対象のメッセージが見つかりません。');
+        }
+
+        const blobs = await messagesRangeToPngBlobs(elementsInRange);
+        const now = new Date();
+
+        if (blobs.length === 1) {
+            triggerDownload(blobs[0], createRangeImageFilename(now));
+            return;
+        }
+
+        // 複数枚: iOS では複数ダウンロードが不安定なため zip にまとめる。
+        if (typeof JSZip === 'undefined') {
+            // フォールバック: zip が使えない場合は1枚ずつ（PC想定）。
+            blobs.forEach((blob, idx) => triggerDownload(blob, createRangeImageFilename(now, idx + 1, blobs.length)));
+            return;
+        }
+        const zip = new JSZip();
+        blobs.forEach((blob, idx) => {
+            zip.file(createRangeImageFilename(now, idx + 1, blobs.length), blob);
+        });
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        triggerDownload(zipBlob, `Aquarium_Chat_range_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}.zip`);
     },
 
 
