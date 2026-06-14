@@ -26,4 +26,27 @@ export const htmlUtils = {
         // CSS.escapeを使用（全ブラウザでサポート済み）
         return CSS.escape(String(text));
     },
+
+    /**
+     * Markdown を HTML 化し、DOMPurify でサニタイズして返す。
+     * AI 応答・インポートされた履歴など信頼できない可能性のあるテキストを
+     * innerHTML へ流し込む際は必ずこれを通すこと（XSS 対策）。
+     *
+     * - marked 未ロード時: HTML 化せずエスケープ（安全側）。
+     * - DOMPurify 未ロード時: 生 HTML を描画せずエスケープ（安全側へフォールバック）。
+     */
+    renderMarkdownSafe(text) {
+        const src = text == null ? '' : String(text);
+        if (typeof marked === 'undefined') {
+            return this.escapeHtml(src);
+        }
+        const rawHtml = marked.parse(src);
+        if (typeof DOMPurify === 'undefined') {
+            // サニタイザが無い環境では生 HTML を描画しない（テキスト扱い）。
+            return this.escapeHtml(src);
+        }
+        // 既存レンダラが付与する target="_blank"（新規タブ表示）を維持するため ADD_ATTR で許可。
+        // DOMPurify は既定で target を除去するため、これが無いとリンク挙動が退行する。
+        return DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target'] });
+    },
 };

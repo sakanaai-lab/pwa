@@ -168,7 +168,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             thoughtContentDiv.id = `streaming-thought-summary-${index}`;
         } else {
             try {
-                thoughtContentDiv.innerHTML = marked.parse(messageData.thoughtSummary || '');
+                thoughtContentDiv.innerHTML = htmlUtils.renderMarkdownSafe(messageData.thoughtSummary);
             } catch (e) {
                 console.error("Thought Summary Markdownパースエラー:", e);
                 thoughtContentDiv.textContent = messageData.thoughtSummary || '';
@@ -296,7 +296,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         try {
             if (content && (role === 'model' || role === 'user')) {
                  if (role === 'model' && !isStreamingPlaceholder && typeof marked !== 'undefined') {
-                    contentDiv.innerHTML = marked.parse(content || '');
+                    contentDiv.innerHTML = htmlUtils.renderMarkdownSafe(content);
                 } else {
                     const pre = document.createElement('pre'); pre.textContent = content; contentDiv.appendChild(pre);
                 }

@@ -35,6 +35,7 @@ export default [
                 ...globals.browser,
                 // 外部ライブラリ（index.html で読み込む / CDN から動的 import）
                 marked: 'readonly',
+                DOMPurify: 'readonly',
                 Prism: 'readonly',
                 JSZip: 'readonly',
                 GoogleGenAI: 'readonly',
