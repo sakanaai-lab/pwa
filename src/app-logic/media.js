@@ -5,8 +5,23 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
+import {
+    createMessageImageFilename,
+    messageElementToPngBlob,
+    shareOrDownloadImage
+} from '../utils/message-image.js';
 
 export const mediaMethods = {
+    async saveMessageAsImage(messageElement) {
+        try {
+            const blob = await messageElementToPngBlob(messageElement);
+            return await shareOrDownloadImage(blob, createMessageImageFilename(messageElement));
+        } catch (error) {
+            console.error('メッセージ画像の保存に失敗:', error);
+            await uiUtils.showCustomAlert(`メッセージ画像の保存に失敗しました。\n${error.message}`);
+            throw error;
+        }
+    },
 
 
 
