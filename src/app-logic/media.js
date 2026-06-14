@@ -47,20 +47,17 @@ export const mediaMethods = {
     },
 
     // 選択モード中にメッセージがタップされたときの処理。
-    // 1タップ目=始点、2タップ目=終点。3タップ目以降は始点を取り直す。
+    // 1タップ目=始点。2タップ目以降は終点を更新し、範囲を伸縮できる
+    // （始点を変えたい場合はキャンセルしてやり直す）。表示上の前後関係は
+    // 描画時に min/max で正規化する。
     handleRangeMessageSelect(index) {
         const sel = state.rangeImageSelect;
         if (!sel.active) return;
-        if (sel.startIndex === null || sel.endIndex !== null) {
-            // 新規選択（始点のみ）
+        if (sel.startIndex === null) {
             sel.startIndex = index;
             sel.endIndex = null;
         } else {
-            // 終点確定（始点>終点なら入れ替え）
             sel.endIndex = index;
-            if (sel.startIndex > sel.endIndex) {
-                [sel.startIndex, sel.endIndex] = [sel.endIndex, sel.startIndex];
-            }
         }
         uiUtils.updateRangeImageSelectionUI();
     },

@@ -60,8 +60,8 @@ export const uiUtils = {
                 sel.startIndex === null
                     ? '開始メッセージをタップ'
                     : sel.endIndex === null
-                      ? '終了メッセージをタップ（1件のみでも保存可）'
-                      : `${count}件を選択中`;
+                      ? '終了メッセージをタップ（タップで範囲を伸縮）'
+                      : `${count}件を選択中（タップで範囲変更）`;
         }
         if (elements.rangeImageSaveConfirmBtn) {
             elements.rangeImageSaveConfirmBtn.disabled = sel.startIndex === null;
