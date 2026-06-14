@@ -5,8 +5,26 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
+import { createMessageImageFilename, messageElementToPngBlob } from '../utils/message-image.js';
 
 export const mediaMethods = {
+    async saveMessageAsImage(messageElement) {
+        try {
+            const blob = await messageElementToPngBlob(messageElement);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = createMessageImageFilename(messageElement);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } catch (error) {
+            console.error('メッセージ画像の保存に失敗:', error);
+            await uiUtils.showCustomAlert(`メッセージ画像の保存に失敗しました。\n${error.message}`);
+            throw error;
+        }
+    },
 
 
 
