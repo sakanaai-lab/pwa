@@ -1,13 +1,13 @@
 // sw.js
 
-const CACHE_NAME = 'gemini-pwa-cache-v1.25.10'; // 更新後はここも変更
+const CACHE_NAME = 'gemini-pwa-cache-v1.25.11'; // 更新後はここも変更
 const urlsToCache = [
   './',
   './index.html',
   './manifest.json',
   './marked.js',
   './purify.min.js',
-  './html2canvas.min.js',
+  './html2canvas-pro.min.js',
   // アイコンファイルもキャッシュする場合 (manifest.json で指定したもの)
   './icon-192x192.png',
 ];
