@@ -36,6 +36,7 @@ export default [
                 // 外部ライブラリ（index.html で読み込む / CDN から動的 import）
                 marked: 'readonly',
                 DOMPurify: 'readonly',
+                html2canvas: 'readonly',
                 Prism: 'readonly',
                 JSZip: 'readonly',
                 GoogleGenAI: 'readonly',

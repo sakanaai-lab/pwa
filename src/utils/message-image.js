@@ -1,3 +1,11 @@
+// メッセージ要素を PNG 画像化するユーティリティ。
+//
+// 以前は「DOM → SVG <foreignObject> → <img> → canvas」方式だったが、WebKit（iOS の
+// 全ブラウザ）では foreignObject を描いた canvas が汚染され、toBlob() が
+// "The operation is insecure" (SecurityError) で失敗する。これを回避するため、
+// foreignObject を使わず DOM を直接描画する html2canvas を使用する。
+// html2canvas は index.html で読み込むグローバル（vendored: html2canvas.min.js）。
+
 const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-actions',
     'message-cascade-controls',
@@ -10,58 +18,11 @@ function shouldExcludeFromCapture(element) {
     );
 }
 
-function copyComputedStyles(source, target) {
-    const computedStyle = window.getComputedStyle(source);
-    for (const property of computedStyle) {
-        target.style.setProperty(
-            property,
-            computedStyle.getPropertyValue(property),
-            computedStyle.getPropertyPriority(property)
-        );
-    }
-}
-
-function inlineElementStyles(source, target) {
-    if (shouldExcludeFromCapture(source)) {
-        target.remove();
-        return;
-    }
-
-    copyComputedStyles(source, target);
-    const sourceChildren = [...source.children];
-    const targetChildren = [...target.children];
-    sourceChildren.forEach((sourceChild, index) => {
-        const targetChild = targetChildren[index];
-        if (targetChild) inlineElementStyles(sourceChild, targetChild);
-    });
-}
-
-function blobToDataUrl(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(reader.error || new Error('画像の読み込みに失敗しました。'));
-        reader.readAsDataURL(blob);
-    });
-}
-
-async function inlineImages(element) {
-    const images = [...element.querySelectorAll('img')];
-    await Promise.all(
-        images.map(async (image) => {
-            if (!image.src || image.src.startsWith('data:')) return;
-            const response = await fetch(image.src);
-            if (!response.ok) throw new Error(`画像を取得できませんでした (${response.status})`);
-            image.src = await blobToDataUrl(await response.blob());
-        })
-    );
-}
-
 function addMessageLabel(messageElement, clone) {
     const turn = messageElement.dataset.turn;
     if (!turn) return;
 
-    const label = document.createElement('div');
+    const label = clone.ownerDocument.createElement('div');
     label.textContent = `#${turn}${messageElement.dataset.model ? `  ${messageElement.dataset.model}` : ''}`;
     label.style.cssText = [
         'display:block',
@@ -72,15 +33,6 @@ function addMessageLabel(messageElement, clone) {
         `text-align:${messageElement.classList.contains('user') ? 'right' : 'left'}`,
     ].join(';');
     clone.prepend(label);
-}
-
-function loadSvgImage(svgUrl) {
-    return new Promise((resolve, reject) => {
-        const image = new Image();
-        image.onload = () => resolve(image);
-        image.onerror = () => reject(new Error('メッセージ画像の生成に失敗しました。'));
-        image.src = svgUrl;
-    });
 }
 
 export function createMessageImageFilename(messageElement, date = new Date()) {
@@ -102,53 +54,41 @@ export async function messageElementToPngBlob(messageElement) {
     if (!(messageElement instanceof HTMLElement)) {
         throw new TypeError('保存対象のメッセージが見つかりません。');
     }
+    if (typeof html2canvas === 'undefined') {
+        throw new Error('画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。');
+    }
 
     const rect = messageElement.getBoundingClientRect();
-    const width = Math.ceil(Math.max(rect.width, messageElement.scrollWidth));
-    const height = Math.ceil(Math.max(rect.height, messageElement.scrollHeight));
-    if (width <= 0 || height <= 0) {
+    if (rect.width <= 0 || rect.height <= 0) {
         throw new Error('表示されていないメッセージは画像にできません。');
     }
 
-    const clone = messageElement.cloneNode(true);
-    inlineElementStyles(messageElement, clone);
-    clone.style.margin = '0';
-    clone.style.maxWidth = 'none';
-    clone.style.width = `${width}px`;
-    clone.style.height = 'auto';
-    clone.style.boxSizing = 'border-box';
-    addMessageLabel(messageElement, clone);
-    await inlineImages(clone);
+    const backgroundColor =
+        window.getComputedStyle(document.body).backgroundColor || '#ffffff';
+    // iOS の高解像度でも巨大になりすぎないよう 2x までに制限。
+    const scale = Math.min(window.devicePixelRatio || 1, 2);
 
-    const wrapper = document.createElement('div');
-    wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-    wrapper.style.cssText = `display:inline-block;padding:16px;background:${window.getComputedStyle(document.body).backgroundColor || '#ffffff'};`;
-    wrapper.appendChild(clone);
+    const canvas = await html2canvas(messageElement, {
+        backgroundColor,
+        scale,
+        useCORS: true,
+        // 操作ボタン等は画像に含めない
+        ignoreElements: (element) => shouldExcludeFromCapture(element),
+        // クローン側にターン番号ラベルを付与（元のDOMは変更しない）
+        onclone: (clonedDocument) => {
+            const index = messageElement.dataset.index;
+            const clonedElement =
+                index != null
+                    ? clonedDocument.querySelector(`.message[data-index="${index}"]`)
+                    : null;
+            if (clonedElement) addMessageLabel(messageElement, clonedElement);
+        },
+    });
 
-    const outputWidth = width + 32;
-    const outputHeight = Math.ceil(height + 32);
-    const serialized = new XMLSerializer().serializeToString(wrapper);
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${outputWidth}" height="${outputHeight}" viewBox="0 0 ${outputWidth} ${outputHeight}"><foreignObject width="100%" height="100%">${serialized}</foreignObject></svg>`;
-    const svgUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }));
-
-    try {
-        const image = await loadSvgImage(svgUrl);
-        const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.ceil(outputWidth * pixelRatio);
-        canvas.height = Math.ceil(outputHeight * pixelRatio);
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('画像生成用Canvasを初期化できませんでした。');
-        context.scale(pixelRatio, pixelRatio);
-        context.drawImage(image, 0, 0, outputWidth, outputHeight);
-
-        return await new Promise((resolve, reject) => {
-            canvas.toBlob(
-                (blob) => (blob ? resolve(blob) : reject(new Error('PNGへの変換に失敗しました。'))),
-                'image/png'
-            );
-        });
-    } finally {
-        URL.revokeObjectURL(svgUrl);
-    }
+    return await new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => (blob ? resolve(blob) : reject(new Error('PNGへの変換に失敗しました。'))),
+            'image/png'
+        );
+    });
 }
