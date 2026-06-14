@@ -17,9 +17,12 @@ const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-edit-area',
 ]);
 
-// iOS Safari でも安全な canvas の上限（1辺・総面積）。超える場合は分割する。
-const MAX_CANVAS_SIDE = 4096;
-const MAX_CANVAS_AREA = 16777216; // 4096 * 4096
+// canvas の上限。iOS では「総面積」が実質的な制約（約 4096^2）。幅は狭いので
+// 主に縦長の安全弁として 1 辺上限も持つ。範囲保存はまず1枚に収め、超える場合は
+// 縮小、それでも極端に長い場合のみ複数枚へ分割する。
+const MAX_CANVAS_AREA = 16777216; // iOS 安全圏（4096^2）
+const MAX_CANVAS_SIDE = 16384;
+const MIN_FIT_SCALE = 0.3; // これ未満まで縮小が必要なほど長い場合のみ分割
 
 function shouldExcludeFromCapture(element) {
     return [...CAPTURE_EXCLUDED_CLASSES].some((className) =>
@@ -81,6 +84,12 @@ async function captureElementToCanvas(messageElement, { backgroundColor, scale }
             const style = clonedDocument.createElement('style');
             style.textContent = CAPTURE_OVERRIDE_CSS;
             clonedDocument.head.appendChild(style);
+            // スタイルシートの !important だけでは html2canvas 上で文字色を
+            // 上書きしきれない（テーマの color()/color-mix が残る）ことがあるため、
+            // 各要素へインライン !important で黒文字を直接強制する（最優先で確実）。
+            clonedDocument.querySelectorAll('.message, .message *').forEach((el) => {
+                if (el.style) el.style.setProperty('color', '#1a1a1a', 'important');
+            });
         },
     });
 }
@@ -156,13 +165,30 @@ export async function messagesRangeToPngBlobs(messageElements) {
 
     const gap = Math.round(12 * scale);
 
-    // 連結後の高さが上限を超えないように分割（1メッセージが上限超なら単独で1枚）。
+    // まず「1枚」に収めることを優先。上限を超える場合は縮小して1枚に収める。
+    const totalWidth = Math.max(...captures.map((i) => i.canvas.width));
+    const totalHeight =
+        captures.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (captures.length - 1);
+    const fit = Math.min(
+        1,
+        MAX_CANVAS_SIDE / totalWidth,
+        MAX_CANVAS_SIDE / totalHeight,
+        Math.sqrt(MAX_CANVAS_AREA / (totalWidth * totalHeight))
+    );
+
+    if (fit >= MIN_FIT_SCALE) {
+        // 1枚にまとめる（必要なら縮小）。user/assistant が分断されない。
+        return [await canvasToPngBlob(combineCanvases(captures, backgroundColor, gap, fit))];
+    }
+
+    // 縮小しても読めないほど極端に長い場合のみ、等倍で上限に収まるよう複数枚へ分割。
+    const maxChunkHeight = Math.min(MAX_CANVAS_SIDE, Math.floor(MAX_CANVAS_AREA / totalWidth));
     const chunks = [];
     let current = [];
     let currentHeight = 0;
     for (const item of captures) {
         const add = item.canvas.height + (current.length ? gap : 0);
-        if (current.length && currentHeight + add > MAX_CANVAS_SIDE) {
+        if (current.length && currentHeight + add > maxChunkHeight) {
             chunks.push(current);
             current = [];
             currentHeight = 0;
@@ -174,37 +200,35 @@ export async function messagesRangeToPngBlobs(messageElements) {
 
     const blobs = [];
     for (const chunk of chunks) {
-        blobs.push(await canvasToPngBlob(combineCanvases(chunk, backgroundColor, gap)));
+        blobs.push(await canvasToPngBlob(combineCanvases(chunk, backgroundColor, gap, 1)));
     }
     return blobs;
 }
 
-function combineCanvases(items, backgroundColor, gap) {
-    let width = Math.max(...items.map((i) => i.canvas.width));
-    let height = items.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (items.length - 1);
-
-    // 念のため上限でクランプ（通常は分割済みで超えない）。
-    width = Math.min(width, MAX_CANVAS_SIDE);
-    height = Math.min(height, MAX_CANVAS_SIDE);
-    if (width * height > MAX_CANVAS_AREA) {
-        const ratio = Math.sqrt(MAX_CANVAS_AREA / (width * height));
-        width = Math.floor(width * ratio);
-        height = Math.floor(height * ratio);
-    }
+function combineCanvases(items, backgroundColor, gap, fit = 1) {
+    const logicalWidth = Math.max(...items.map((i) => i.canvas.width));
+    const logicalHeight =
+        items.reduce((sum, i) => sum + i.canvas.height, 0) + gap * (items.length - 1);
 
     const out = document.createElement('canvas');
-    out.width = width;
-    out.height = height;
+    out.width = Math.max(1, Math.floor(logicalWidth * fit));
+    out.height = Math.max(1, Math.floor(logicalHeight * fit));
     const ctx = out.getContext('2d');
     ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, width, height);
+    ctx.fillRect(0, 0, out.width, out.height);
 
     let y = 0;
     for (const item of items) {
+        const cw = item.canvas.width;
+        const ch = item.canvas.height;
         // user は右寄せ・それ以外は左寄せで連結（チャットの見た目に合わせる）。
-        const x = item.isUser ? Math.max(0, width - item.canvas.width) : 0;
-        ctx.drawImage(item.canvas, x, y);
-        y += item.canvas.height + gap;
+        const x = item.isUser ? Math.max(0, logicalWidth - cw) : 0;
+        ctx.drawImage(
+            item.canvas,
+            0, 0, cw, ch,
+            Math.round(x * fit), Math.round(y * fit), Math.round(cw * fit), Math.round(ch * fit)
+        );
+        y += ch + gap;
     }
     return out;
 }
