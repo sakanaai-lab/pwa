@@ -17,8 +17,10 @@
     <script src="marked.js" defer></script>
     <!-- DOMPurify: AI出力/インポート由来HTMLのサニタイズ（XSS対策）。marked の後に読み込む -->
     <script src="purify.min.js" defer></script>
-    <!-- html2canvas: メッセージの画像保存（iOS Safari は foreignObject 方式が使えないため） -->
-    <script src="html2canvas.min.js" defer></script>
+    <!-- html2canvas-pro: メッセージの画像保存。iOS Safari は foreignObject 方式が使えず、
+         また計算済みスタイルが color(srgb …)/color-mix を含むため、それらに対応した pro 版を使う。
+         グローバル名は html2canvas のまま（ドロップイン）。 -->
+    <script src="html2canvas-pro.min.js" defer></script>
     <!-- function-calling.js / dropbox.js は app.js バンドルに統合済み（src/ から生成） -->
     <!-- AWS SDK for Bedrock Runtime (ESM形式で読み込み) -->
     <script type="module">
@@ -92,6 +94,9 @@
                 <button id="character-profile-btn" class="floating-action-button" title="キャラクタープロファイル">
                     <span class="material-symbols-outlined">group</span>
                 </button>
+                <button id="range-image-save-btn" class="floating-action-button" title="範囲を選んで画像保存">
+                    <span class="material-symbols-outlined">photo_library</span>
+                </button>
                 <button id="scroll-to-top-btn" class="floating-action-button" title="最上部へ">
                     <span class="material-symbols-outlined">arrow_upward</span>
                 </button>
@@ -103,6 +108,13 @@
             <button id="scroll-bottom-fab" class="scroll-bottom-fab hidden" title="最下部へ" aria-label="最下部へスクロール">
                 <span class="material-symbols-outlined">keyboard_arrow_down</span>
             </button>
+
+            <!-- 範囲画像保存モードの確認バー -->
+            <div id="range-image-bar" class="range-image-bar hidden">
+                <span id="range-image-info" class="range-image-info">開始メッセージをタップ</span>
+                <button id="range-image-cancel-btn" class="range-image-bar-btn">キャンセル</button>
+                <button id="range-image-save-confirm-btn" class="range-image-bar-btn primary" disabled>保存</button>
+            </div>
 
             <footer class="chat-input-area">
                 <div id="profile-card-header-wrapper" class="profile-card-wrapper">

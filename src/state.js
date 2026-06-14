@@ -142,6 +142,7 @@ Reason: [NGの場合の理由]`,
     currentStyleProfiles: {},
     isMemoryEnabledForChat: true,
     characterProfileVisibleCharacter: null,
+    rangeImageSelect: { active: false, startIndex: null, endIndex: null }, // 範囲画像保存モードの選択状態
     sync: {
         isDirty: false, // ローカルに変更があったか
         lastSyncId: null, // 最後に同期したクラウドのID
