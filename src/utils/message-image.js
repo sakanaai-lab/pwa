@@ -4,7 +4,8 @@
 // 全ブラウザ）では foreignObject を描いた canvas が汚染され、toBlob() が
 // "The operation is insecure" (SecurityError) で失敗する。これを回避するため、
 // foreignObject を使わず DOM を直接描画する html2canvas を使用する。
-// html2canvas は index.html で読み込むグローバル（vendored: html2canvas.min.js）。
+// さらに iOS の計算済みスタイルは color(srgb …)/color-mix を含むため、それらに対応した
+// html2canvas-pro を採用（グローバル名は html2canvas のまま。vendored: html2canvas-pro.min.js）。
 //
 // 範囲保存は「各メッセージを個別に html2canvas で撮影 → 縦に連結」する方式。
 // 親要素依存の CSS 崩れを避けられ、iOS の canvas サイズ上限を超える場合は
