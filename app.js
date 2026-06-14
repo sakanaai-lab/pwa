@@ -10916,7 +10916,19 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     .message-content a { color: #1565c0 !important; }
     .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
     .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
+    /* html2canvas が line-height を取りこぼして行が重なるのを防ぐため、明示的に行高を指定 */
+    .message, .message-content, .message-content p, .message-content li,
+    .message-content div, .message-content span, .message-content td, .message-content th {
+        line-height: 1.6 !important;
+    }
 `;
+  async function ensureFontsReady() {
+    try {
+      if (document.fonts?.ready) await document.fonts.ready;
+    } catch {
+    }
+  }
+  __name(ensureFontsReady, "ensureFontsReady");
   function captureParams() {
     const backgroundColor = "#ffffff";
     const scale = Math.min(window.devicePixelRatio || 1, 2);
@@ -10980,6 +10992,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     if (rect.width <= 0 || rect.height <= 0) {
       throw new Error("表示されていないメッセージは画像にできません。");
     }
+    await ensureFontsReady();
     const canvas = await captureElementToCanvas(messageElement, captureParams());
     return canvasToPngBlob(canvas);
   }
@@ -10989,6 +11002,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       throw new Error("画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。");
     }
     const { backgroundColor, scale } = captureParams();
+    await ensureFontsReady();
     const captures = [];
     for (const element of messageElements) {
       if (!(element instanceof HTMLElement)) continue;
