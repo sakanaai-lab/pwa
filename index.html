@@ -17,6 +17,8 @@
     <script src="marked.js" defer></script>
     <!-- DOMPurify: AI出力/インポート由来HTMLのサニタイズ（XSS対策）。marked の後に読み込む -->
     <script src="purify.min.js" defer></script>
+    <!-- html2canvas: メッセージの画像保存（iOS Safari は foreignObject 方式が使えないため） -->
+    <script src="html2canvas.min.js" defer></script>
     <!-- function-calling.js / dropbox.js は app.js バンドルに統合済み（src/ から生成） -->
     <!-- AWS SDK for Bedrock Runtime (ESM形式で読み込み) -->
     <script type="module">
