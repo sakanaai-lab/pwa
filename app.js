@@ -2533,7 +2533,7 @@ Reason: [NGの場合の理由]`,
         }
       }
       if (elements.rangeImageInfo) {
-        elements.rangeImageInfo.textContent = sel.startIndex === null ? "開始メッセージをタップ" : sel.endIndex === null ? "終了メッセージをタップ（1件のみでも保存可）" : `${count}件を選択中`;
+        elements.rangeImageInfo.textContent = sel.startIndex === null ? "開始メッセージをタップ" : sel.endIndex === null ? "終了メッセージをタップ（タップで範囲を伸縮）" : `${count}件を選択中（タップで範囲変更）`;
       }
       if (elements.rangeImageSaveConfirmBtn) {
         elements.rangeImageSaveConfirmBtn.disabled = sel.startIndex === null;
@@ -10917,10 +10917,6 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     .message-content a { color: #1565c0 !important; }
     .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
     .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
-    /* 閉じている details（思考プロセス等）の中身は描画しない。
-       html2canvas は折りたたみ状態を無視して中身を展開してしまい上部で重なるため。
-       ユーザーが開いている場合（[open]）はそのまま画像に含める。 */
-    details:not([open]) > *:not(summary) { display: none !important; }
     /* html2canvas が line-height を取りこぼして行が重なるのを防ぐため、明示的に行高を指定 */
     .message, .message-content, .message-content p, .message-content li,
     .message-content div, .message-content span, .message-content td, .message-content th {
@@ -10952,6 +10948,13 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
         clonedDocument.head.appendChild(style);
         clonedDocument.querySelectorAll(".message, .message *").forEach((el) => {
           if (el.style) el.style.setProperty("color", "#1a1a1a", "important");
+        });
+        clonedDocument.querySelectorAll("details:not([open])").forEach((details) => {
+          details.querySelectorAll(":scope > *").forEach((child) => {
+            if (child.tagName !== "SUMMARY" && child.style) {
+              child.style.setProperty("display", "none", "important");
+            }
+          });
         });
       }, "onclone")
     });
@@ -11125,18 +11128,17 @@ ${error.message}`);
       uiUtils.updateRangeImageSelectionUI();
     },
     // 選択モード中にメッセージがタップされたときの処理。
-    // 1タップ目=始点、2タップ目=終点。3タップ目以降は始点を取り直す。
+    // 1タップ目=始点。2タップ目以降は終点を更新し、範囲を伸縮できる
+    // （始点を変えたい場合はキャンセルしてやり直す）。表示上の前後関係は
+    // 描画時に min/max で正規化する。
     handleRangeMessageSelect(index) {
       const sel = state.rangeImageSelect;
       if (!sel.active) return;
-      if (sel.startIndex === null || sel.endIndex !== null) {
+      if (sel.startIndex === null) {
         sel.startIndex = index;
         sel.endIndex = null;
       } else {
         sel.endIndex = index;
-        if (sel.startIndex > sel.endIndex) {
-          [sel.startIndex, sel.endIndex] = [sel.endIndex, sel.startIndex];
-        }
       }
       uiUtils.updateRangeImageSelectionUI();
     },
