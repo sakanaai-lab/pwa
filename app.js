@@ -10908,24 +10908,17 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     );
   }
   __name(shouldExcludeFromCapture, "shouldExcludeFromCapture");
-  function addMessageLabel(messageElement, clone) {
-    const turn = messageElement.dataset.turn;
-    if (!turn) return;
-    const label = clone.ownerDocument.createElement("div");
-    label.textContent = `#${turn}${messageElement.dataset.model ? `  ${messageElement.dataset.model}` : ""}`;
-    label.style.cssText = [
-      "display:block",
-      "font-size:10px",
-      "line-height:1",
-      "opacity:0.7",
-      "margin-bottom:2px",
-      `text-align:${messageElement.classList.contains("user") ? "right" : "left"}`
-    ].join(";");
-    clone.prepend(label);
-  }
-  __name(addMessageLabel, "addMessageLabel");
+  var CAPTURE_OVERRIDE_CSS = `
+    .message, .message * { color: #1a1a1a !important; }
+    .message { background: #ffffff !important; box-shadow: none !important; border: 1px solid #e0e0e0 !important; }
+    .message.user { background: #eaf2f5 !important; }
+    .message-content pre, .message-content code { background: #f3f3f3 !important; color: #1a1a1a !important; border-color: #dddddd !important; }
+    .message-content a { color: #1565c0 !important; }
+    .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
+    .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
+`;
   function captureParams() {
-    const backgroundColor = window.getComputedStyle(document.body).backgroundColor || "#ffffff";
+    const backgroundColor = "#ffffff";
     const scale = Math.min(window.devicePixelRatio || 1, 2);
     return { backgroundColor, scale };
   }
@@ -10937,9 +10930,9 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       useCORS: true,
       ignoreElements: /* @__PURE__ */ __name((element) => shouldExcludeFromCapture(element), "ignoreElements"),
       onclone: /* @__PURE__ */ __name((clonedDocument) => {
-        const index = messageElement.dataset.index;
-        const clonedElement = index != null ? clonedDocument.querySelector(`.message[data-index="${index}"]`) : null;
-        if (clonedElement) addMessageLabel(messageElement, clonedElement);
+        const style = clonedDocument.createElement("style");
+        style.textContent = CAPTURE_OVERRIDE_CSS;
+        clonedDocument.head.appendChild(style);
       }, "onclone")
     });
   }

@@ -27,32 +27,31 @@ function shouldExcludeFromCapture(element) {
     );
 }
 
-function addMessageLabel(messageElement, clone) {
-    const turn = messageElement.dataset.turn;
-    if (!turn) return;
-
-    const label = clone.ownerDocument.createElement('div');
-    label.textContent = `#${turn}${messageElement.dataset.model ? `  ${messageElement.dataset.model}` : ''}`;
-    label.style.cssText = [
-        'display:block',
-        'font-size:10px',
-        'line-height:1',
-        'opacity:0.7',
-        'margin-bottom:2px',
-        `text-align:${messageElement.classList.contains('user') ? 'right' : 'left'}`,
-    ].join(';');
-    clone.prepend(label);
-}
+// 撮影時のみクローン側へ適用する固定配色（白背景＋黒文字）。
+// テーマの color-mix() / CSS変数依存だと html2canvas 上で文字色が極端に薄くなり
+// 読めない画像になるため、確実に読める高コントラストへ上書きする。実画面には影響しない。
+// ターン番号ラベルは .message::before（content: "#" attr(data-turn) ...）が描画するので
+// 別途付与はしない。
+const CAPTURE_OVERRIDE_CSS = `
+    .message, .message * { color: #1a1a1a !important; }
+    .message { background: #ffffff !important; box-shadow: none !important; border: 1px solid #e0e0e0 !important; }
+    .message.user { background: #eaf2f5 !important; }
+    .message-content pre, .message-content code { background: #f3f3f3 !important; color: #1a1a1a !important; border-color: #dddddd !important; }
+    .message-content a { color: #1565c0 !important; }
+    .message-content blockquote { color: #555555 !important; border-left-color: #cccccc !important; }
+    .message::before, .message *::before { color: #888888 !important; opacity: 1 !important; }
+`;
 
 function captureParams() {
-    const backgroundColor =
-        window.getComputedStyle(document.body).backgroundColor || '#ffffff';
+    // 撮影は固定の白背景にする（テーマ依存の薄文字問題を避けるため）。
+    const backgroundColor = '#ffffff';
     // 高解像度でも巨大になりすぎないよう 2x までに制限。
     const scale = Math.min(window.devicePixelRatio || 1, 2);
     return { backgroundColor, scale };
 }
 
-// 1つのメッセージ要素を html2canvas で canvas 化する（操作ボタン除外・ターン番号付与）。
+// 1つのメッセージ要素を html2canvas で canvas 化する。
+// 操作ボタンは除外し、クローン側に高コントラストの撮影用配色を適用する。
 async function captureElementToCanvas(messageElement, { backgroundColor, scale }) {
     return await html2canvas(messageElement, {
         backgroundColor,
@@ -60,12 +59,9 @@ async function captureElementToCanvas(messageElement, { backgroundColor, scale }
         useCORS: true,
         ignoreElements: (element) => shouldExcludeFromCapture(element),
         onclone: (clonedDocument) => {
-            const index = messageElement.dataset.index;
-            const clonedElement =
-                index != null
-                    ? clonedDocument.querySelector(`.message[data-index="${index}"]`)
-                    : null;
-            if (clonedElement) addMessageLabel(messageElement, clonedElement);
+            const style = clonedDocument.createElement('style');
+            style.textContent = CAPTURE_OVERRIDE_CSS;
+            clonedDocument.head.appendChild(style);
         },
     });
 }
