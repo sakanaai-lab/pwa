@@ -10,6 +10,160 @@ function shouldExcludeFromCapture(element) {
     );
 }
 
+function isWebKitBrowser() {
+    const userAgent = navigator.userAgent || '';
+    return /AppleWebKit/i.test(userAgent) && !/Edg|OPR/i.test(userAgent);
+}
+
+function createCaptureCanvas(width, height) {
+    const requestedPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+    const maxCanvasSide = 4096;
+    const pixelRatio = Math.min(requestedPixelRatio, maxCanvasSide / width, maxCanvasSide / height);
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.ceil(width * pixelRatio));
+    canvas.height = Math.max(1, Math.ceil(height * pixelRatio));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('画像生成用Canvasを初期化できませんでした。');
+    context.scale(pixelRatio, pixelRatio);
+    return { canvas, context };
+}
+
+function canvasToPngBlob(canvas) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            (blob) => (blob ? resolve(blob) : reject(new Error('PNGへの変換に失敗しました。'))),
+            'image/png'
+        );
+    });
+}
+
+function drawRoundedRect(context, x, y, width, height, radius) {
+    const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+    context.beginPath();
+    context.moveTo(x + safeRadius, y);
+    context.lineTo(x + width - safeRadius, y);
+    context.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    context.lineTo(x + width, y + height - safeRadius);
+    context.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+    context.lineTo(x + safeRadius, y + height);
+    context.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+    context.lineTo(x, y + safeRadius);
+    context.quadraticCurveTo(x, y, x + safeRadius, y);
+    context.closePath();
+}
+
+function drawElementBox(context, element, captureRect, padding) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0)
+        return;
+
+    const x = rect.left - captureRect.left + padding;
+    const y = rect.top - captureRect.top + padding;
+    const radius = parseFloat(style.borderTopLeftRadius) || 0;
+    if (style.backgroundColor && style.backgroundColor !== 'rgba(0, 0, 0, 0)') {
+        drawRoundedRect(context, x, y, rect.width, rect.height, radius);
+        context.fillStyle = style.backgroundColor;
+        context.fill();
+    }
+
+    const borderWidth = parseFloat(style.borderTopWidth) || 0;
+    if (borderWidth > 0 && style.borderTopStyle !== 'none') {
+        drawRoundedRect(context, x, y, rect.width, rect.height, radius);
+        context.lineWidth = borderWidth;
+        context.strokeStyle = style.borderTopColor;
+        context.stroke();
+    }
+}
+
+function drawTextNode(context, textNode, captureRect, padding) {
+    const text = textNode.nodeValue || '';
+    if (!text) return;
+
+    const parent = textNode.parentElement;
+    if (!parent) return;
+    const style = window.getComputedStyle(parent);
+    if (style.display === 'none' || style.visibility === 'hidden') return;
+
+    context.fillStyle = style.color;
+    context.font = [
+        style.fontStyle,
+        style.fontVariant,
+        style.fontWeight,
+        style.fontSize,
+        style.fontFamily,
+    ].join(' ');
+    context.textBaseline = 'alphabetic';
+
+    const range = document.createRange();
+    for (let index = 0; index < text.length; index++) {
+        const character = text[index];
+        if (character === '\n' || character === '\r') continue;
+        range.setStart(textNode, index);
+        range.setEnd(textNode, index + 1);
+        const rect = range.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        context.fillText(
+            character,
+            rect.left - captureRect.left + padding,
+            rect.bottom - captureRect.top + padding - Math.max(1, parseFloat(style.fontSize) * 0.15)
+        );
+    }
+    range.detach();
+}
+
+function canDrawImageWithoutTaint(image) {
+    if (!image.currentSrc && !image.src) return false;
+    const source = image.currentSrc || image.src;
+    if (source.startsWith('data:') || source.startsWith('blob:')) return true;
+    try {
+        return new URL(source, location.href).origin === location.origin;
+    } catch {
+        return false;
+    }
+}
+
+async function drawDomNode(context, node, captureRect, padding) {
+    if (node.nodeType === Node.TEXT_NODE) {
+        drawTextNode(context, node, captureRect, padding);
+        return;
+    }
+    if (!(node instanceof HTMLElement) || shouldExcludeFromCapture(node)) return;
+
+    drawElementBox(context, node, captureRect, padding);
+    if (node instanceof HTMLImageElement) {
+        const rect = node.getBoundingClientRect();
+        if (node.complete && node.naturalWidth > 0 && canDrawImageWithoutTaint(node)) {
+            context.drawImage(
+                node,
+                rect.left - captureRect.left + padding,
+                rect.top - captureRect.top + padding,
+                rect.width,
+                rect.height
+            );
+        }
+        return;
+    }
+
+    for (const child of node.childNodes) {
+        await drawDomNode(context, child, captureRect, padding);
+    }
+}
+
+async function messageElementToCanvasBlob(messageElement) {
+    const rect = messageElement.getBoundingClientRect();
+    const padding = 16;
+    const outputWidth = Math.ceil(rect.width) + padding * 2;
+    const outputHeight = Math.ceil(rect.height) + padding * 2;
+    const { canvas, context } = createCaptureCanvas(outputWidth, outputHeight);
+    context.fillStyle = window.getComputedStyle(document.body).backgroundColor || '#ffffff';
+    context.fillRect(0, 0, outputWidth, outputHeight);
+    await drawDomNode(context, messageElement, rect, padding);
+    return canvasToPngBlob(canvas);
+}
+
 function copyComputedStyles(source, target) {
     const computedStyle = window.getComputedStyle(source);
     // CSSStyleDeclaration is not iterable on some iOS/Safari versions.
@@ -101,13 +255,21 @@ export async function shareOrDownloadImage(blob, filename) {
     const file =
         typeof File === 'function' ? new File([blob], filename, { type: 'image/png' }) : null;
     const shareData = file ? { files: [file], title: filename } : null;
+    let canShareFile = false;
 
     if (
         shareData &&
         typeof navigator.share === 'function' &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare(shareData)
+        typeof navigator.canShare === 'function'
     ) {
+        try {
+            canShareFile = navigator.canShare(shareData);
+        } catch (error) {
+            console.warn('このブラウザでは画像ファイル共有を利用できません。', error);
+        }
+    }
+
+    if (canShareFile) {
         try {
             await navigator.share(shareData);
             return 'shared';
@@ -148,6 +310,11 @@ export async function messageElementToPngBlob(messageElement) {
         throw new Error('表示されていないメッセージは画像にできません。');
     }
 
+    // Safari/WebKitはforeignObjectを含むSVGをCanvasへ描画するとSecurityErrorになる。
+    if (isWebKitBrowser()) {
+        return messageElementToCanvasBlob(messageElement);
+    }
+
     const clone = messageElement.cloneNode(true);
     inlineElementStyles(messageElement, clone);
     clone.style.margin = '0';
@@ -170,25 +337,7 @@ export async function messageElementToPngBlob(messageElement) {
     // Blob URLでSVGを読み込むとiOS/SafariでforeignObjectの描画に失敗するためData URLを使う。
     const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     const image = await loadSvgImage(svgDataUrl);
-    const requestedPixelRatio = Math.min(window.devicePixelRatio || 1, 2);
-    const maxCanvasSide = 4096;
-    const pixelRatio = Math.min(
-        requestedPixelRatio,
-        maxCanvasSide / outputWidth,
-        maxCanvasSide / outputHeight
-    );
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.ceil(outputWidth * pixelRatio));
-    canvas.height = Math.max(1, Math.ceil(outputHeight * pixelRatio));
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('画像生成用Canvasを初期化できませんでした。');
-    context.scale(pixelRatio, pixelRatio);
+    const { canvas, context } = createCaptureCanvas(outputWidth, outputHeight);
     context.drawImage(image, 0, 0, outputWidth, outputHeight);
-
-    return await new Promise((resolve, reject) => {
-        canvas.toBlob(
-            (blob) => (blob ? resolve(blob) : reject(new Error('PNGへの変換に失敗しました。'))),
-            'image/png'
-        );
-    });
+    return canvasToPngBlob(canvas);
 }
