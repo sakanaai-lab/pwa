@@ -1009,7 +1009,7 @@ export const lifecycleMethods = {
                                 value = parseFloat(element.value) / 100;
                                 break;
                             case 'number':
-                            case 'select-one':
+                            case 'select-one': {
                                 const rawValue = element.value;
                                 value = parseFloat(rawValue);
                                 if (isNaN(value)) {
@@ -1017,6 +1017,7 @@ export const lifecycleMethods = {
                                     value = rawValue === '' ? null : rawValue;
                                 }
                                 break;
+                            }
                             default:
                                 value = element.value;
                                 break;

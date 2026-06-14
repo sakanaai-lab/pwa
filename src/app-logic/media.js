@@ -341,7 +341,7 @@ export const mediaMethods = {
                 const blob = await item.file.async("blob");
                 const webpBlob = await this.convertBlobToWebP(blob);
                 
-                await assetDB.save({ name: assetName, blob: webpBlob, createdAt: new Date() });
+                await dbUtils.saveAsset({ name: assetName, blob: webpBlob, createdAt: new Date() });
                 console.log(`[Import] アセット「${assetName}」をDBに保存しました。`);
                 importedCount++;
             }
@@ -713,7 +713,7 @@ export const mediaMethods = {
         const confirmed = await uiUtils.showCustomConfirm(`アセット「${assetName}」を削除しますか？\nこの操作は元に戻せません。`);
         if (confirmed) {
             try {
-                await assetDB.delete(assetName);
+                await dbUtils.deleteAsset(assetName);
                 console.log(`アセット「${assetName}」を削除しました。`);
                 
                 // UIを再描画
@@ -916,52 +916,6 @@ export const mediaMethods = {
         
         console.log("[SD Prompt Improver] 改善されたプロンプト:", improvedPrompt);
         return improvedPrompt;
-    },
-
-
-    runQualityChecker: async function(imageBlob, prompt, responseText = '') {
-        const qcModel = state.settings.sdQcModel;
-        const qcSystemPrompt = state.settings.sdQcPrompt
-            .replace('{prompt}', prompt || '(プロンプトなし)')
-            .replace('{response_text}', responseText || '(応答文なし)');
-        
-        const imageBase64 = await this.fileToBase64(imageBlob);
-
-        const requestBody = {
-            contents: [{
-                parts: [
-                    { text: qcSystemPrompt },
-                    { inlineData: { mimeType: 'image/png', data: imageBase64 } }
-                ]
-            }],
-            generationConfig: { temperature: 0.1 }
-        };
-
-        const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
-        const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-goog-api-key': state.settings.apiKey },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            throw new Error(`品質チェックAPIエラー (${response.status})`);
-        }
-
-        const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-        if (text.includes('Result: OK')) {
-            const result = { result: 'OK', reason: '' };
-            console.log("[Quality Checker] 判定: OK");
-            return result;
-        } else {
-            const reasonMatch = text.match(/Reason:\s*(.*)/);
-            const reason = reasonMatch ? reasonMatch[1].trim() : '理由不明';
-            const result = { result: 'NG', reason: reason };
-            console.log(`[Quality Checker] 判定: NG。理由: ${reason}`);
-            return result;
-        }
     },
 
 

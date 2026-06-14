@@ -255,7 +255,7 @@ export const apiUtils = {
             try {
                 const normalized = trimmed
                     // 値がクォートされていないケースを検出してクォートを付与
-                    .replace(/:\s*([^"{\[\],}]+)(?=\s*[},])/g, (_match, value) => {
+                    .replace(/:\s*([^"{[\],}]+)(?=\s*[},])/g, (_match, value) => {
                         const v = value.trim();
                         if (!v) return ': ""';
                         const lower = v.toLowerCase();

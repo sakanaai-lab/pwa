@@ -58,10 +58,11 @@
             resultData = { success: false, message: `キー「${key}」は見つかりませんでした。` };
           }
           break;
-        case "list":
+        case "list": {
           const keys = Object.keys(memory);
           resultData = { success: true, count: keys.length, keys };
           break;
+        }
         default:
           return { error: `無効なアクションです: ${action}` };
       }
@@ -232,12 +233,13 @@
       const currentQuantity = characterInventory[item_name] || 0;
       let message;
       switch (action) {
-        case "add":
+        case "add": {
           const newQuantityAdd = currentQuantity + quantity;
           characterInventory[item_name] = newQuantityAdd;
           message = `${character_name}は「${item_name}」を${quantity}個手に入れた。(所持数: ${newQuantityAdd})`;
           break;
-        case "remove":
+        }
+        case "remove": {
           const removedAmount = Math.min(currentQuantity, quantity);
           if (removedAmount === 0) {
             message = `${character_name}は「${item_name}」を持っていないため使えなかった。`;
@@ -251,6 +253,7 @@
           }
           message = removedAmount < quantity ? `${character_name}は「${item_name}」を${removedAmount}個しか持っていなかったため、全て使った。(残り: 0)` : `${character_name}は「${item_name}」を${removedAmount}個使った。(残り: ${newQuantityRemove})`;
           break;
+        }
         default:
           return { error: `無効なアクションです: ${action}` };
       }
@@ -280,17 +283,19 @@
           });
           message = `シーン情報を更新しました。現在の場所: ${currentScene.location || "未設定"}`;
           break;
-        case "push":
+        case "push": {
           const newScene = { ...currentScene, ...scene_details };
           scene_stack.push(newScene);
           message = `新しいシーン「${newScene.location || "新しい場所"}」に移行しました。`;
           break;
-        case "pop":
+        }
+        case "pop": {
           if (scene_stack.length <= 1) return { error: "これ以上前のシーンに戻ることはできません。" };
           const poppedScene = scene_stack.pop();
           currentScene = scene_stack[scene_stack.length - 1];
           message = `シーン「${poppedScene.location || "前の場所"}」から「${currentScene.location || "現在の場所"}」に戻りました。`;
           break;
+        }
         default:
           return { error: `無効なアクションです: ${action}` };
       }
@@ -5108,13 +5113,14 @@ Reason: [NGの場合の理由]`,
                   value = parseFloat(element.value) / 100;
                   break;
                 case "number":
-                case "select-one":
+                case "select-one": {
                   const rawValue = element.value;
                   value = parseFloat(rawValue);
                   if (isNaN(value)) {
                     value = rawValue === "" ? null : rawValue;
                   }
                   break;
+                }
                 default:
                   value = element.value;
                   break;
@@ -6352,8 +6358,6 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
             await window.dropboxApi.deleteLockFile();
             await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
             return;
-            if (isManual) uiUtils.showProgressDialog("同期を再開しています...");
-            console.log("[Sync Push] ユーザーが上書きを承認しました。Push処理を続行します。");
           }
         }
         await window.dropboxApi.ensureAssetsFolderExists();
@@ -7968,7 +7972,7 @@ AI: ${firstModelContent}`;
         return JSON.parse(trimmed);
       } catch (firstError) {
         try {
-          const normalized = trimmed.replace(/:\s*([^"{\[\],}]+)(?=\s*[},])/g, (_match, value) => {
+          const normalized = trimmed.replace(/:\s*([^"{[\],}]+)(?=\s*[},])/g, (_match, value) => {
             const v = value.trim();
             if (!v) return ': ""';
             const lower = v.toLowerCase();
@@ -10272,21 +10276,21 @@ ${knowledgeText}`;
             }, timeoutMs);
           }
           const response = await apiUtils.callApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, attemptController.signal);
-          const getFinishReasonError = /* @__PURE__ */ __name((candidate3) => {
-            const reason = candidate3?.finishReason;
+          const getFinishReasonError = /* @__PURE__ */ __name((candidate2) => {
+            const reason = candidate2?.finishReason;
             if (reason && reason !== "STOP" && reason !== "MAX_TOKENS") {
               const error = new Error(`モデルが応答をブロックしました (理由: ${reason})`);
-              error.candidate = candidate3;
+              error.candidate = candidate2;
               return error;
             }
             return null;
           }, "getFinishReasonError");
-          const checkForSafetyRejection = /* @__PURE__ */ __name((candidate3, content, toolCalls, images) => {
+          const checkForSafetyRejection = /* @__PURE__ */ __name((candidate2, content, toolCalls, images) => {
             if (content || toolCalls && toolCalls.length > 0 || images && images.length > 0) {
               return null;
             }
-            const isNormalFinish = candidate3?.finishReason === "STOP" || candidate3?.finishReason === "MAX_TOKENS";
-            const safetyRatings = candidate3?.safetyRatings;
+            const isNormalFinish = candidate2?.finishReason === "STOP" || candidate2?.finishReason === "MAX_TOKENS";
+            const safetyRatings = candidate2?.safetyRatings;
             const hasHighRiskRating = safetyRatings && safetyRatings.some((r) => r.probability === "HIGH" || r.probability === "MEDIUM");
             if (isNormalFinish && hasHighRiskRating) {
               const highRiskCategories = safetyRatings.filter((r) => r.probability === "HIGH" || r.probability === "MEDIUM").map((r) => r.category.replace("HARM_CATEGORY_", "")).join(", ");
@@ -10308,15 +10312,15 @@ ${knowledgeText}`;
           if (!responseData.candidates || responseData.candidates.length === 0) {
             throw new Error("API応答に有効な候補(candidates)が含まれていません。プロンプトがブロックされた可能性があります。");
           }
-          const candidate2 = responseData.candidates[0];
-          const finishReasonError = getFinishReasonError(candidate2);
+          const candidate = responseData.candidates[0];
+          const finishReasonError = getFinishReasonError(candidate);
           if (finishReasonError) throw finishReasonError;
-          const parts = candidate2.content?.parts || [];
+          const parts = candidate.content?.parts || [];
           let finalContent = "";
           let finalThoughtSummary = "";
           let finalToolCalls = [];
           let finalThoughtParts = [];
-          console.log("[Thinking Debug] candidate keys:", Object.keys(candidate2));
+          console.log("[Thinking Debug] candidate keys:", Object.keys(candidate));
           console.log("[Thinking Debug] parts count:", parts.length);
           parts.forEach((part, i) => {
             console.log(`[Thinking Debug] part[${i}] keys:`, Object.keys(part), "| thought:", part.thought, "| hasThoughtSig:", !!part.thoughtSignature, "| hasText:", !!part.text);
@@ -10337,14 +10341,14 @@ ${knowledgeText}`;
               finalToolCalls.push({ functionCall: part.functionCall });
             }
           });
-          if (candidate2.thoughts?.parts) {
-            candidate2.thoughts.parts.forEach((part) => {
+          if (candidate.thoughts?.parts) {
+            candidate.thoughts.parts.forEach((part) => {
               if (part.text) {
                 finalThoughtSummary += part.text;
               }
             });
           }
-          const safetyError = checkForSafetyRejection(candidate2, finalContent, finalToolCalls, []);
+          const safetyError = checkForSafetyRejection(candidate, finalContent, finalToolCalls, []);
           if (safetyError) throw safetyError;
           if (!finalContent && finalToolCalls.length === 0) {
             throw new Error("APIから空の応答が返されました。");
@@ -10355,8 +10359,8 @@ ${knowledgeText}`;
             toolCalls: finalToolCalls.length > 0 ? finalToolCalls : null,
             thoughtParts: finalThoughtParts.length > 0 ? finalThoughtParts : null,
             // 追加
-            finishReason: candidate2.finishReason,
-            safetyRatings: candidate2.safetyRatings,
+            finishReason: candidate.finishReason,
+            safetyRatings: candidate.safetyRatings,
             usageMetadata: responseData.usageMetadata,
             retryCount: attempt
           };
@@ -11088,7 +11092,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
           }
           const blob = await item.file.async("blob");
           const webpBlob = await this.convertBlobToWebP(blob);
-          await assetDB.save({ name: assetName, blob: webpBlob, createdAt: /* @__PURE__ */ new Date() });
+          await dbUtils.saveAsset({ name: assetName, blob: webpBlob, createdAt: /* @__PURE__ */ new Date() });
           console.log(`[Import] アセット「${assetName}」をDBに保存しました。`);
           importedCount++;
         }
@@ -11373,7 +11377,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
 この操作は元に戻せません。`);
       if (confirmed) {
         try {
-          await assetDB.delete(assetName);
+          await dbUtils.deleteAsset(assetName);
           console.log(`アセット「${assetName}」を削除しました。`);
           this.openAssetManagementDialog();
           this.updateAssetCount();
@@ -11532,42 +11536,6 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
       console.log("[SD Prompt Improver] 改善されたプロンプト:", improvedPrompt);
       return improvedPrompt;
     },
-    runQualityChecker: /* @__PURE__ */ __name(async function(imageBlob, prompt, responseText = "") {
-      const qcModel = state.settings.sdQcModel;
-      const qcSystemPrompt = state.settings.sdQcPrompt.replace("{prompt}", prompt || "(プロンプトなし)").replace("{response_text}", responseText || "(応答文なし)");
-      const imageBase64 = await this.fileToBase64(imageBlob);
-      const requestBody = {
-        contents: [{
-          parts: [
-            { text: qcSystemPrompt },
-            { inlineData: { mimeType: "image/png", data: imageBase64 } }
-          ]
-        }],
-        generationConfig: { temperature: 0.1 }
-      };
-      const endpoint = `${GEMINI_API_BASE_URL}${qcModel}:generateContent`;
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        throw new Error(`品質チェックAPIエラー (${response.status})`);
-      }
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      if (text.includes("Result: OK")) {
-        const result = { result: "OK", reason: "" };
-        console.log("[Quality Checker] 判定: OK");
-        return result;
-      } else {
-        const reasonMatch = text.match(/Reason:\s*(.*)/);
-        const reason = reasonMatch ? reasonMatch[1].trim() : "理由不明";
-        const result = { result: "NG", reason };
-        console.log(`[Quality Checker] 判定: NG。理由: ${reason}`);
-        return result;
-      }
-    }, "runQualityChecker"),
     callStableDiffusionApi: /* @__PURE__ */ __name(async function(args) {
       const apiUrl = state.settings.sdApiUrl.trim().replace(/\/$/, "");
       const endpoint = `${apiUrl}/sdapi/v1/txt2img`;
@@ -12256,7 +12224,7 @@ ${originalText}`;
         const summaryText = isSummaryDeepSeek ? responseData.choices?.[0]?.message?.content : responseData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!summaryText) {
           let errorMessage = "APIから有効な要約結果が得られませんでした。";
-          const finishReason = candidate?.finishReason;
+          const finishReason = responseData.candidates?.[0]?.finishReason;
           const blockReason = responseData.promptFeedback?.blockReason;
           if (finishReason === "SAFETY" || blockReason) {
             const reason = finishReason === "SAFETY" ? "SAFETY" : blockReason;
@@ -12828,6 +12796,25 @@ ${summaryText}` : summaryText;
         const request = store.getAll();
         request.onsuccess = (event) => resolve(event.target.result);
         request.onerror = (event) => reject(`全アセット取得エラー: ${event.target.error}`);
+      });
+    },
+    // image_assets ストアへアセット（{ name, blob, createdAt }）を保存/上書き。
+    async saveAsset(asset) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("image_assets", "readwrite");
+        const request = store.put(asset);
+        request.onsuccess = (event) => resolve(event.target.result);
+        request.onerror = (event) => reject(`アセット ${asset?.name} 保存エラー: ${event.target.error}`);
+      });
+    },
+    async deleteAsset(name) {
+      await this.openDB();
+      return new Promise((resolve, reject) => {
+        const store = this._getStore("image_assets", "readwrite");
+        const request = store.delete(name);
+        request.onsuccess = () => resolve();
+        request.onerror = (event) => reject(`アセット ${name} 削除エラー: ${event.target.error}`);
       });
     },
     async getMemory(profileId) {
