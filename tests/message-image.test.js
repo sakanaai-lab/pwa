@@ -58,4 +58,26 @@ describe('shareOrDownloadImage', () => {
 
         expect(result).toBe('cancelled');
     });
+
+    it('falls back to download when Safari rejects canShare', async () => {
+        const securityError = new Error('The operation is insecure.');
+        securityError.name = 'SecurityError';
+        vi.stubGlobal('navigator', {
+            canShare: vi.fn(() => {
+                throw securityError;
+            }),
+            share: vi.fn(),
+        });
+        URL.createObjectURL = vi.fn(() => 'blob:test-image');
+        URL.revokeObjectURL = vi.fn();
+        const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+        const result = await shareOrDownloadImage(
+            new Blob(['png'], { type: 'image/png' }),
+            'chat.png'
+        );
+
+        expect(result).toBe('downloaded');
+        expect(click).toHaveBeenCalledOnce();
+    });
 });
