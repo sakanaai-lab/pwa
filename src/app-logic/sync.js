@@ -339,8 +339,6 @@ export const syncMethods = {
                     await window.dropboxApi.deleteLockFile();
                     await this._mergeAndSyncWithCloud(cloudMetadataString, isManual);
                     return;
-                    if (isManual) uiUtils.showProgressDialog('同期を再開しています...');
-                    console.log("[Sync Push] ユーザーが上書きを承認しました。Push処理を続行します。");
                 }
             }
 

@@ -46,10 +46,11 @@ window.normalizeCharacterName = normalizeCharacterName;
                   resultData = { success: false, message: `キー「${key}」は見つかりませんでした。` };
               }
               break;
-          case "list":
+          case "list": {
               const keys = Object.keys(memory);
               resultData = { success: true, count: keys.length, keys: keys };
               break;
+          }
           default:
               return { error: `無効なアクションです: ${action}` };
       }
@@ -275,12 +276,13 @@ async function manage_inventory({ character_name, action, item_name, quantity = 
       const currentQuantity = characterInventory[item_name] || 0;
       let message;
       switch (action) {
-          case "add":
+          case "add": {
               const newQuantityAdd = currentQuantity + quantity;
               characterInventory[item_name] = newQuantityAdd;
               message = `${character_name}は「${item_name}」を${quantity}個手に入れた。(所持数: ${newQuantityAdd})`;
               break;
-          case "remove":
+          }
+          case "remove": {
               const removedAmount = Math.min(currentQuantity, quantity);
               if (removedAmount === 0) {
                   message = `${character_name}は「${item_name}」を持っていないため使えなかった。`;
@@ -296,6 +298,7 @@ async function manage_inventory({ character_name, action, item_name, quantity = 
                   ? `${character_name}は「${item_name}」を${removedAmount}個しか持っていなかったため、全て使った。(残り: 0)`
                   : `${character_name}は「${item_name}」を${removedAmount}個使った。(残り: ${newQuantityRemove})`;
               break;
+          }
           default:
               return { error: `無効なアクションです: ${action}` };
       }
@@ -337,17 +340,19 @@ async function manage_scene(args, chat) { // chat引数を追加
               });
               message = `シーン情報を更新しました。現在の場所: ${currentScene.location || '未設定'}`;
               break;
-          case "push":
+          case "push": {
               const newScene = { ...currentScene, ...scene_details };
               scene_stack.push(newScene);
               message = `新しいシーン「${newScene.location || '新しい場所'}」に移行しました。`;
               break;
-          case "pop":
+          }
+          case "pop": {
               if (scene_stack.length <= 1) return { error: "これ以上前のシーンに戻ることはできません。" };
               const poppedScene = scene_stack.pop();
               currentScene = scene_stack[scene_stack.length - 1];
               message = `シーン「${poppedScene.location || '前の場所'}」から「${currentScene.location || '現在の場所'}」に戻りました。`;
               break;
+          }
           default:
               return { error: `無効なアクションです: ${action}` };
       }
