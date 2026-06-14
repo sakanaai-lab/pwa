@@ -612,6 +612,30 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         const actionsDiv = document.createElement('div');
         actionsDiv.classList.add('message-actions');
 
+        const imageSaveButton = document.createElement('button');
+        imageSaveButton.innerHTML = '<span class="material-symbols-outlined">image</span> 画像保存';
+        imageSaveButton.title = 'このメッセージをPNG画像として保存';
+        imageSaveButton.classList.add('js-image-save-btn');
+        imageSaveButton.onclick = async () => {
+            if (imageSaveButton.disabled) return;
+            imageSaveButton.disabled = true;
+            imageSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 作成中';
+            try {
+                const result = await appLogic.saveMessageAsImage(messageDiv);
+                imageSaveButton.innerHTML = result === 'cancelled'
+                    ? '<span class="material-symbols-outlined">close</span> キャンセル'
+                    : '<span class="material-symbols-outlined">check</span> 保存済';
+            } catch {
+                imageSaveButton.innerHTML = '<span class="material-symbols-outlined">error</span> 失敗';
+            } finally {
+                setTimeout(() => {
+                    imageSaveButton.disabled = false;
+                    imageSaveButton.innerHTML = '<span class="material-symbols-outlined">image</span> 画像保存';
+                }, 1500);
+            }
+        };
+        actionsDiv.appendChild(imageSaveButton);
+
         if (!isSummarized) {
             const editButton = document.createElement('button');
             editButton.innerHTML = '<span class="material-symbols-outlined">edit</span> 編集'; 
