@@ -1225,7 +1225,10 @@ export const apiUtils = {
 
         const effort = state.settings.anthropicEffort || null;
         const useAdaptive = !!effort;
-        const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
+        // Anthropic の思考は「思考の深さ(effort)」のみで制御する。
+        // 「OFF（思考なし）」を選んだら、Gemini 用の thinkingBudget が残っていても
+        // 思考（推論）は行わない。
+        const useManualThinking = false;
         const useThinking = useAdaptive || useManualThinking;
         const maxTokens = useAdaptive
             ? Math.max(config.maxOutputTokens ?? 16000, 16000)
