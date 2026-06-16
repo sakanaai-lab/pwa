@@ -8855,7 +8855,7 @@ AI: ${firstModelContent}`;
       }
       const effort = state.settings.anthropicEffort || null;
       const useAdaptive = !!effort;
-      const useManualThinking = !useAdaptive && state.settings.thinkingBudget > 0;
+      const useManualThinking = false;
       const useThinking = useAdaptive || useManualThinking;
       const maxTokens = useAdaptive ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
       const cacheTTL = state.settings.anthropicCacheTTL || "5m";
