@@ -198,6 +198,11 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (role === 'model' && messageData.modelName) {
             messageDiv.dataset.model = messageData.modelName;
         }
+        // 送信時刻を HH:MM でラベル表示用に付与（UI表示のみ。APIには送られずキャッシュに影響しない）
+        if (messageData.timestamp) {
+            const t = new Date(messageData.timestamp);
+            messageDiv.dataset.time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+        }
     }
     
     if (role === 'model' && messageData && messageData.thoughtSummary) {
@@ -655,28 +660,6 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
     if (role !== 'error') {
         const actionsDiv = document.createElement('div');
         actionsDiv.classList.add('message-actions');
-
-        const imageSaveButton = document.createElement('button');
-        imageSaveButton.innerHTML = '<span class="material-symbols-outlined">image</span> 画像保存';
-        imageSaveButton.title = 'このメッセージをPNG画像として保存';
-        imageSaveButton.classList.add('js-image-save-btn');
-        imageSaveButton.onclick = async () => {
-            if (imageSaveButton.disabled) return;
-            imageSaveButton.disabled = true;
-            imageSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 作成中';
-            try {
-                await appLogic.saveMessageAsImage(messageDiv);
-                imageSaveButton.innerHTML = '<span class="material-symbols-outlined">check</span> 保存済';
-            } catch {
-                imageSaveButton.innerHTML = '<span class="material-symbols-outlined">error</span> 失敗';
-            } finally {
-                setTimeout(() => {
-                    imageSaveButton.disabled = false;
-                    imageSaveButton.innerHTML = '<span class="material-symbols-outlined">image</span> 画像保存';
-                }, 1500);
-            }
-        };
-        actionsDiv.appendChild(imageSaveButton);
 
         if (!isSummarized) {
             const editButton = document.createElement('button');
