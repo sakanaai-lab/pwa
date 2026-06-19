@@ -1214,7 +1214,7 @@ ${relationship_context}`;
      * @param {number} retryCount - リトライ回数
      * @returns {Promise<any>} APIからのレスポンス
      */
-    async _request(domain, endpoint, options = {}, retryCount = 0) {
+    async _request(domain, endpoint, options = {}, retryCount = 0, transientRetries = 0) {
       let tokens = await this._getTokens();
       if (!tokens || !tokens.access_token) {
         throw new Error("Dropbox is not connected.");
@@ -1231,13 +1231,22 @@ ${relationship_context}`;
         "Authorization": `Bearer ${tokens.access_token}`,
         ...options.headers
       };
+      const TRANSIENT_STATUS = /* @__PURE__ */ new Set([429, 500, 502, 503, 504]);
+      const MAX_TRANSIENT_RETRIES = 3;
       try {
         const response = await fetch(url, { ...options, headers });
         if (!response.ok) {
           if (response.status === 401 && retryCount === 0) {
             console.log("[Dropbox API] Received 401, forcing token refresh and retrying...");
             tokens = await this._refreshAccessToken(tokens.refresh_token);
-            return this._request(domain, endpoint, options, 1);
+            return this._request(domain, endpoint, options, 1, transientRetries);
+          }
+          if (TRANSIENT_STATUS.has(response.status) && transientRetries < MAX_TRANSIENT_RETRIES) {
+            const retryAfter = parseInt(response.headers.get("Retry-After"), 10);
+            const delay = Number.isFinite(retryAfter) ? Math.min(retryAfter * 1e3, 3e4) : Math.min(1e3 * 2 ** transientRetries, 8e3);
+            console.warn(`[Dropbox API] ${response.status} 受信。${delay}ms後に自動リトライします (${transientRetries + 1}/${MAX_TRANSIENT_RETRIES})`);
+            await new Promise((resolve) => setTimeout(resolve, delay));
+            return this._request(domain, endpoint, options, retryCount, transientRetries + 1);
           }
           let errorText = `Dropbox API Error (${response.status}): ${response.statusText}`;
           try {
