@@ -7880,11 +7880,22 @@ AI: ${firstModelContent}`;
             if (part.text) {
               contentParts.push({ type: "text", text: part.text });
             } else if (part.inlineData) {
-              const imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-              contentParts.push({
-                type: "image_url",
-                image_url: { url: imageUrl }
-              });
+              const mimeType = part.inlineData.mimeType || "";
+              const rawData = (part.inlineData.data || "").replace(/^data:[^;]+;base64,/, "");
+              if (mimeType.startsWith("image/")) {
+                contentParts.push({
+                  type: "image_url",
+                  image_url: { url: `data:${mimeType};base64,${rawData}` }
+                });
+              } else {
+                let decoded;
+                try {
+                  decoded = decodeURIComponent(escape(atob(rawData)));
+                } catch {
+                  decoded = "[添付ファイルを読み込めませんでした]";
+                }
+                contentParts.push({ type: "text", text: decoded });
+              }
             } else if (part.functionCall) {
               const toolCallId = part.functionCall._toolCallId || `call_${Date.now()}_${Math.random()}`;
               toolCalls.push({

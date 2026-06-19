@@ -46,12 +46,26 @@ export const apiUtils = {
                     if (part.text) {
                         contentParts.push({ type: 'text', text: part.text });
                     } else if (part.inlineData) {
-                        // 画像データの変換
-                        const imageUrl = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-                        contentParts.push({
-                            type: 'image_url',
-                            image_url: { url: imageUrl }
-                        });
+                        const mimeType = part.inlineData.mimeType || '';
+                        // data URL プレフィックスが付いていれば除去して純粋な base64 にする
+                        const rawData = (part.inlineData.data || '').replace(/^data:[^;]+;base64,/, '');
+                        if (mimeType.startsWith('image/')) {
+                            // 画像は image_url として送る（画像対応モデル向け）
+                            contentParts.push({
+                                type: 'image_url',
+                                image_url: { url: `data:${mimeType};base64,${rawData}` }
+                            });
+                        } else {
+                            // テキスト等の非画像ファイルはデコードしてテキストとして送る。
+                            // （DeepSeek 等のテキスト専用モデルは image_url を受け付けないため）
+                            let decoded;
+                            try {
+                                decoded = decodeURIComponent(escape(atob(rawData)));
+                            } catch {
+                                decoded = '[添付ファイルを読み込めませんでした]';
+                            }
+                            contentParts.push({ type: 'text', text: decoded });
+                        }
                     } else if (part.functionCall) {
                         // Function Callingの変換
                         // OpenAI互換APIの場合、保存されたtool_call_idを使用
