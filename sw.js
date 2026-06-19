@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'gemini-pwa-cache-v1.25.19'; // 更新後はここも変更
+const CACHE_NAME = 'gemini-pwa-cache-v1.25.20'; // 更新後はここも変更
 const urlsToCache = [
   './',
   './index.html',
@@ -33,8 +33,8 @@ self.addEventListener('install', (event) => {
 self.addEventListener('fetch', (event) => {
   const requestUrl = new URL(event.request.url);
 
-  // AIプロバイダーAPIリクエストはService Workerの処理から完全に除外する
-  const aiApiHosts = [
+  // 外部API（AIプロバイダー / Dropbox）へのPOSTはService Workerの処理から完全に除外する
+  const externalApiHosts = [
     'generativelanguage.googleapis.com',
     'api.anthropic.com',
     'openrouter.ai',
@@ -43,14 +43,16 @@ self.addEventListener('fetch', (event) => {
     'api.deepseek.com',
     'api.x.ai',
     'api.mistral.ai',
+    'api.dropboxapi.com',
+    'content.dropboxapi.com',
   ];
-  const isAiApiPost = aiApiHosts.some(h => requestUrl.hostname === h || requestUrl.hostname.endsWith('.' + h)) && event.request.method === 'POST';
+  const isExternalApiPost = externalApiHosts.some(h => requestUrl.hostname === h || requestUrl.hostname.endsWith('.' + h)) && event.request.method === 'POST';
   // ポート番号(ローカル接続)またはトンネルサービス経由のホスト名でSD APIへのリクエストかを判定
   const tunnelDomains = ['ngrok-free.dev', 'trycloudflare.com'];
   const isTunnelService = tunnelDomains.some(domain => requestUrl.hostname.endsWith(domain));
   const isStableDiffusionApi = (requestUrl.port === '7860' || isTunnelService) && event.request.method === 'POST';
 
-  if (isAiApiPost || isStableDiffusionApi) {
+  if (isExternalApiPost || isStableDiffusionApi) {
     // console.log('[SW] Ignoring API request:', event.request.url);
     return;
   }
