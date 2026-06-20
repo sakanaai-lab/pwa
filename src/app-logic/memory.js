@@ -403,10 +403,11 @@ export const memoryMethods = {
             'claude-haiku':    { in: 0.80, out: 4,   cw5m: 1.00,  cw1h: 1.60, cr: 0.08 },
             // DeepSeek（標準料金。in=キャッシュミス入力, cr=キャッシュヒット入力）。
             // ※ deepseek-v4-pro の価格は要確認（変動しやすいので必要なら数値を更新）。
-            'deepseek-reasoner': { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
-            'deepseek-chat':     { in: 0.27, out: 1.10, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
-            'deepseek-v4-pro':   { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 0.11 }, // cr(ヒット)は推定値
-            'deepseek-':         { in: 0.27, out: 1.10, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
+            'deepseek-reasoner': { in: 0.55,  out: 2.19, cw5m: 0.55,  cw1h: 0.55,  cr: 0.14 },
+            'deepseek-chat':     { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
+            'deepseek-v4-pro':   { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 0.003625 },
+            'deepseek-v4-flash': { in: 0.14,  out: 0.28, cw5m: 0.14,  cw1h: 0.14,  cr: 0.0028 },
+            'deepseek-':         { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
         };
         const getPricing = (modelName) => {
             if (!modelName) return null;
