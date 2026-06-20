@@ -12497,7 +12497,8 @@ ${flagContent}`);
         // ※ deepseek-v4-pro の価格は要確認（変動しやすいので必要なら数値を更新）。
         "deepseek-reasoner": { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
         "deepseek-chat": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
-        "deepseek-v4-pro": { in: 0.28, out: 0.42, cw5m: 0.28, cw1h: 0.28, cr: 0.028 },
+        "deepseek-v4-pro": { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 0.11 },
+        // cr(ヒット)は推定値
         "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 }
       };
       const getPricing = /* @__PURE__ */ __name((modelName) => {
