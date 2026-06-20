@@ -385,7 +385,8 @@ export const memoryMethods = {
 
 
     showChatStats() {
-        const ANTHROPIC_PRICING = {
+        // 料金テーブル（USD / 100万トークン）。in=入力, out=出力, cw=キャッシュ書込, cr=キャッシュ読込(ヒット)。
+        const MODEL_PRICING = {
             // Claude 4系 (claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
             'claude-opus-4-8': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
             'claude-opus-4-7': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
@@ -400,11 +401,17 @@ export const memoryMethods = {
             'claude-opus':     { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
             'claude-sonnet':   { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
             'claude-haiku':    { in: 0.80, out: 4,   cw5m: 1.00,  cw1h: 1.60, cr: 0.08 },
+            // DeepSeek（標準料金。in=キャッシュミス入力, cr=キャッシュヒット入力）。
+            // ※ deepseek-v4-pro の価格は要確認（変動しやすいので必要なら数値を更新）。
+            'deepseek-reasoner': { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
+            'deepseek-chat':     { in: 0.27, out: 1.10, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
+            'deepseek-v4-pro':   { in: 0.28, out: 0.42, cw5m: 0.28, cw1h: 0.28, cr: 0.028 },
+            'deepseek-':         { in: 0.27, out: 1.10, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
         };
         const getPricing = (modelName) => {
             if (!modelName) return null;
             const m = modelName.toLowerCase();
-            for (const [key, price] of Object.entries(ANTHROPIC_PRICING)) {
+            for (const [key, price] of Object.entries(MODEL_PRICING)) {
                 if (m.startsWith(key)) return price;
             }
             return null;
