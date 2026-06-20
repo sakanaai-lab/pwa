@@ -214,7 +214,11 @@ export const apiUtils = {
         const usageMetadata = openAIResponse.usage ? {
             promptTokenCount: openAIResponse.usage.prompt_tokens,
             candidatesTokenCount: openAIResponse.usage.completion_tokens,
-            totalTokenCount: openAIResponse.usage.total_tokens
+            totalTokenCount: openAIResponse.usage.total_tokens,
+            // DeepSeek はキャッシュヒット入力トークンを返すので、コスト計算の精度向上に取り込む
+            ...(openAIResponse.usage.prompt_cache_hit_tokens != null
+                ? { cacheReadInputTokens: openAIResponse.usage.prompt_cache_hit_tokens }
+                : {})
         } : undefined;
         
         return {

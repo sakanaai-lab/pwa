@@ -8017,7 +8017,9 @@ AI: ${firstModelContent}`;
       const usageMetadata = openAIResponse.usage ? {
         promptTokenCount: openAIResponse.usage.prompt_tokens,
         candidatesTokenCount: openAIResponse.usage.completion_tokens,
-        totalTokenCount: openAIResponse.usage.total_tokens
+        totalTokenCount: openAIResponse.usage.total_tokens,
+        // DeepSeek はキャッシュヒット入力トークンを返すので、コスト計算の精度向上に取り込む
+        ...openAIResponse.usage.prompt_cache_hit_tokens != null ? { cacheReadInputTokens: openAIResponse.usage.prompt_cache_hit_tokens } : {}
       } : void 0;
       return {
         candidates,
@@ -12476,7 +12478,7 @@ ${flagContent}`);
       elements.summarizeHistoryBtn.disabled = messageCount < 5;
     },
     showChatStats() {
-      const ANTHROPIC_PRICING = {
+      const MODEL_PRICING = {
         // Claude 4系 (claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
         "claude-opus-4-8": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
         "claude-opus-4-7": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
@@ -12490,12 +12492,18 @@ ${flagContent}`);
         "claude-opus-3": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
         "claude-opus": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
         "claude-sonnet": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
-        "claude-haiku": { in: 0.8, out: 4, cw5m: 1, cw1h: 1.6, cr: 0.08 }
+        "claude-haiku": { in: 0.8, out: 4, cw5m: 1, cw1h: 1.6, cr: 0.08 },
+        // DeepSeek（標準料金。in=キャッシュミス入力, cr=キャッシュヒット入力）。
+        // ※ deepseek-v4-pro の価格は要確認（変動しやすいので必要なら数値を更新）。
+        "deepseek-reasoner": { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
+        "deepseek-chat": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
+        "deepseek-v4-pro": { in: 0.28, out: 0.42, cw5m: 0.28, cw1h: 0.28, cr: 0.028 },
+        "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 }
       };
       const getPricing = /* @__PURE__ */ __name((modelName) => {
         if (!modelName) return null;
         const m = modelName.toLowerCase();
-        for (const [key, price] of Object.entries(ANTHROPIC_PRICING)) {
+        for (const [key, price] of Object.entries(MODEL_PRICING)) {
           if (m.startsWith(key)) return price;
         }
         return null;
