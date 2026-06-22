@@ -940,7 +940,7 @@ window.dbUtils = dbUtils;
         if(apiProvSelect) {
             const updateKeyVisibility = () => {
                 const p = apiProvSelect.value;
-                ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'].forEach(prov => {
+                ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana'].forEach(prov => {
                     document.getElementById(`${prov}-api-key-container`)?.classList.toggle('hidden', p !== prov);
                 });
             };
@@ -948,7 +948,7 @@ window.dbUtils = dbUtils;
             setTimeout(updateKeyVisibility, 500);
         }
 
-        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral'];
+        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana'];
         const defaultModelLists = {
             gemini: 'gemini-2.0-flash, gemini-2.0-flash-lite-preview-02-05, gemini-2.0-pro-exp-02-05, gemini-1.5-pro, gemini-1.5-flash',
             openai: 'gpt-4o, gpt-4o-mini, o1, o1-mini, o3-mini',
@@ -959,7 +959,8 @@ window.dbUtils = dbUtils;
             mistral: 'mistral-large-latest, mistral-small-latest, open-mistral-nemo',
             zai: 'deepseek-v3, deepseek-r1',
             openrouter: 'deepseek/deepseek-chat, deepseek/deepseek-r1, google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet',
-            bedrock: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0, us.anthropic.claude-3-5-haiku-20241022-v1:0'
+            bedrock: 'us.anthropic.claude-3-5-sonnet-20241022-v2:0, us.anthropic.claude-3-5-haiku-20241022-v1:0',
+            sakana: 'fugu, fugu-ultra'
         };
 
         state.settings.customModelsText = state.settings.customModelsText || {};
