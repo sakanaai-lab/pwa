@@ -33,6 +33,7 @@ export const state = {
         deepseekApiKey: '',
         xaiApiKey: '',
         mistralApiKey: '',
+        sakanaApiKey: '',
         modelName: DEFAULT_MODEL,
         systemPrompt: '',
         temperature: null,
