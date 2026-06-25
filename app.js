@@ -5582,6 +5582,10 @@ Reason: [NGの場合の理由]`,
       if (elements.scrollBottomFab) {
         elements.scrollBottomFab.addEventListener("click", () => this.scrollToBottom(true));
       }
+      if (elements.userInput) {
+        elements.userInput.addEventListener("focus", () => document.body.classList.add("input-focused"));
+        elements.userInput.addEventListener("blur", () => document.body.classList.remove("input-focused"));
+      }
       if (elements.rangeImageSaveBtn) {
         elements.rangeImageSaveBtn.addEventListener("click", () => this.enterRangeImageMode());
       }
