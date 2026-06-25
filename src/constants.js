@@ -25,6 +25,7 @@ export const GROQ_API_BASE_URL = 'https://api.groq.com/openai/v1/chat/completion
 export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com/chat/completions';
 export const XAI_API_BASE_URL = 'https://api.x.ai/v1/chat/completions';
 export const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1/chat/completions';
+export const SAKANA_API_BASE_URL = 'https://api.sakana.ai/v1/chat/completions';
 export const DUPLICATE_SUFFIX = ' (コピー)';
 export const IMPORT_PREFIX = '(取込) ';
 export const LIGHT_THEME_COLOR = '#4a90e2';
@@ -141,6 +142,13 @@ export const MISTRAL_MODELS = [
     { value: 'open-mistral-nemo', label: 'Mistral Nemo' },
 ];
 export const DEFAULT_MISTRAL_MODEL = 'mistral-large-latest';
+
+// Sakana AI（fugu）。OpenAI Chat Completions 互換。
+export const SAKANA_MODELS = [
+    { value: 'fugu', label: 'Fugu' },
+    { value: 'fugu-ultra', label: 'Fugu Ultra' },
+];
+export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
     1.25: [

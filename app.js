@@ -1605,6 +1605,8 @@ ${relationship_context}`;
       groqApiKeyContainer: document.getElementById("groq-api-key-container"),
       deepseekApiKeyInput: document.getElementById("deepseek-api-key"),
       deepseekApiKeyContainer: document.getElementById("deepseek-api-key-container"),
+      sakanaApiKeyInput: document.getElementById("sakana-api-key"),
+      sakanaApiKeyContainer: document.getElementById("sakana-api-key-container"),
       xaiApiKeyInput: document.getElementById("xai-api-key"),
       xaiApiKeyContainer: document.getElementById("xai-api-key-container"),
       mistralApiKeyInput: document.getElementById("mistral-api-key"),
@@ -1855,6 +1857,7 @@ ${relationship_context}`;
   var DEEPSEEK_API_BASE_URL = "https://api.deepseek.com/chat/completions";
   var XAI_API_BASE_URL = "https://api.x.ai/v1/chat/completions";
   var MISTRAL_API_BASE_URL = "https://api.mistral.ai/v1/chat/completions";
+  var SAKANA_API_BASE_URL = "https://api.sakana.ai/v1/chat/completions";
   var DUPLICATE_SUFFIX = " (コピー)";
   var IMPORT_PREFIX = "(取込) ";
   var LIGHT_THEME_COLOR = "#4a90e2";
@@ -1960,6 +1963,11 @@ ${relationship_context}`;
     { value: "open-mistral-nemo", label: "Mistral Nemo" }
   ];
   var DEFAULT_MISTRAL_MODEL = "mistral-large-latest";
+  var SAKANA_MODELS = [
+    { value: "fugu", label: "Fugu" },
+    { value: "fugu-ultra", label: "Fugu Ultra" }
+  ];
+  var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     1.25: [
       "テキストアーティファクト機能：AIの応答内のコードブロック（```で囲まれた部分）を、コピーボタン付きのカードとして表示。プロンプトや長文をワンタップでコピーできます。"
@@ -2060,6 +2068,7 @@ ${relationship_context}`;
       deepseekApiKey: "",
       xaiApiKey: "",
       mistralApiKey: "",
+      sakanaApiKey: "",
       modelName: DEFAULT_MODEL,
       systemPrompt: "",
       temperature: null,
@@ -3437,6 +3446,9 @@ Reason: [NGの場合の理由]`,
       if (elements.xaiApiKeyInput) {
         elements.xaiApiKeyInput.value = state.settings.xaiApiKey || "";
       }
+      if (elements.sakanaApiKeyInput) {
+        elements.sakanaApiKeyInput.value = state.settings.sakanaApiKey || "";
+      }
       if (elements.mistralApiKeyInput) {
         elements.mistralApiKeyInput.value = state.settings.mistralApiKey || "";
       }
@@ -4236,7 +4248,7 @@ Reason: [NGの場合の理由]`,
     },
     getCurrentUiSettings() {
       const settings = {};
-      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
+      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "sakanaApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
       const numberKeys = ["temperature", "maxTokens", "topK", "topP", "thinkingBudget", "maxRetries", "maxBackoffDelaySeconds", "overlayOpacity", "messageOpacity"];
       const booleanKeys = ["enterToSend", "darkMode", "geminiEnableGrounding", "geminiEnableFunctionCalling", "enableSwipeNavigation", "enableProofreading", "enableAutoRetry", "useFixedRetryDelay", "reverseDummyOrder", "concatDummyModel", "dummyEnabled", "includeThoughts", "enableThoughtTranslation", "applyDummyToProofread", "applyDummyToTranslate", "forceFunctionCalling", "autoScroll", "enableWideMode", "enableSummaryButton"];
       settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
@@ -4540,6 +4552,7 @@ Reason: [NGの場合の理由]`,
       const isDeepSeek = provider === "deepseek";
       const isXAI = provider === "xai";
       const isMistral = provider === "mistral";
+      const isSakana = provider === "sakana";
       const containers = [
         [elements.geminiApiKeyContainer, isGemini],
         [elements.zaiApiKeyContainer, isZai],
@@ -4550,7 +4563,8 @@ Reason: [NGの場合の理由]`,
         [elements.groqApiKeyContainer, isGroq],
         [elements.deepseekApiKeyContainer, isDeepSeek],
         [elements.xaiApiKeyContainer, isXAI],
-        [elements.mistralApiKeyContainer, isMistral]
+        [elements.mistralApiKeyContainer, isMistral],
+        [elements.sakanaApiKeyContainer, isSakana]
       ];
       containers.forEach(([el, show]) => {
         if (el) el.classList.toggle("hidden", !show);
@@ -4605,6 +4619,8 @@ Reason: [NGの場合の理由]`,
         models = XAI_MODELS;
       } else if (provider === "mistral") {
         models = MISTRAL_MODELS;
+      } else if (provider === "sakana") {
+        models = SAKANA_MODELS;
       } else {
         models = GEMINI_MODELS;
       }
@@ -4689,6 +4705,8 @@ Reason: [NGの場合の理由]`,
           defaultModel = DEFAULT_XAI_MODEL;
         } else if (provider === "mistral") {
           defaultModel = DEFAULT_MISTRAL_MODEL;
+        } else if (provider === "sakana") {
+          defaultModel = DEFAULT_SAKANA_MODEL;
         } else {
           defaultModel = DEFAULT_MODEL;
         }
@@ -5216,6 +5234,7 @@ Reason: [NGの場合の理由]`,
         deepseekApiKey: { element: elements.deepseekApiKeyInput, event: "input" },
         xaiApiKey: { element: elements.xaiApiKeyInput, event: "input" },
         mistralApiKey: { element: elements.mistralApiKeyInput, event: "input" },
+        sakanaApiKey: { element: elements.sakanaApiKeyInput, event: "input" },
         modelName: {
           element: elements.modelNameSelect,
           event: "change",
@@ -7801,7 +7820,8 @@ AI: ${firstModelContent}`;
             xai: state.settings.xaiApiKey,
             mistral: state.settings.mistralApiKey,
             openrouter: state.settings.openrouterApiKey,
-            zai: state.settings.zaiApiKey || state.settings.apiKey
+            zai: state.settings.zaiApiKey || state.settings.apiKey,
+            sakana: state.settings.sakanaApiKey
           };
           const baseUrlMap = {
             openai: "https://api.openai.com/v1/chat/completions",
@@ -7810,7 +7830,8 @@ AI: ${firstModelContent}`;
             xai: XAI_API_BASE_URL,
             mistral: MISTRAL_API_BASE_URL,
             openrouter: OPENROUTER_API_BASE_URL,
-            zai: ZAI_API_BASE_URL
+            zai: ZAI_API_BASE_URL,
+            sakana: SAKANA_API_BASE_URL
           };
           const apiKey = apiKeyMap[provider];
           const baseUrl = baseUrlMap[provider];
@@ -9196,6 +9217,16 @@ ${knowledgeText}`;
           return await this.callOpenAICompatibleApi(state.settings.xaiApiKey, XAI_API_BASE_URL, "xAI", messagesForApi, generationConfig, systemInstruction, signal);
         case "mistral":
           return await this.callOpenAICompatibleApi(state.settings.mistralApiKey, MISTRAL_API_BASE_URL, "Mistral", messagesForApi, generationConfig, systemInstruction, signal);
+        case "sakana":
+          return await this._callOpenAICompatibleWithTools({
+            label: "Sakana",
+            baseUrl: SAKANA_API_BASE_URL,
+            defaultModel: DEFAULT_SAKANA_MODEL,
+            getApiKey: /* @__PURE__ */ __name(() => state.settings.sakanaApiKey, "getApiKey"),
+            missingKeyMessage: "Sakana APIキーが設定されていません。",
+            extraHeaders: /* @__PURE__ */ __name(() => ({}), "extraHeaders"),
+            verboseError: false
+          }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
         default:
           return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal);
       }
@@ -14227,14 +14258,14 @@ ${pageText}
       if (apiProvSelect) {
         const updateKeyVisibility = /* @__PURE__ */ __name(() => {
           const p = apiProvSelect.value;
-          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral"].forEach((prov) => {
+          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana"].forEach((prov) => {
             document.getElementById(`${prov}-api-key-container`)?.classList.toggle("hidden", p !== prov);
           });
         }, "updateKeyVisibility");
         apiProvSelect.addEventListener("change", updateKeyVisibility);
         setTimeout(updateKeyVisibility, 500);
       }
-      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral"];
+      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana"];
       const defaultModelLists = {
         gemini: "gemini-2.0-flash, gemini-2.0-flash-lite-preview-02-05, gemini-2.0-pro-exp-02-05, gemini-1.5-pro, gemini-1.5-flash",
         openai: "gpt-4o, gpt-4o-mini, o1, o1-mini, o3-mini",
@@ -14245,7 +14276,8 @@ ${pageText}
         mistral: "mistral-large-latest, mistral-small-latest, open-mistral-nemo",
         zai: "deepseek-v3, deepseek-r1",
         openrouter: "deepseek/deepseek-chat, deepseek/deepseek-r1, google/gemini-2.0-flash-001, anthropic/claude-3.5-sonnet",
-        bedrock: "us.anthropic.claude-3-5-sonnet-20241022-v2:0, us.anthropic.claude-3-5-haiku-20241022-v1:0"
+        bedrock: "us.anthropic.claude-3-5-sonnet-20241022-v2:0, us.anthropic.claude-3-5-haiku-20241022-v1:0",
+        sakana: "fugu, fugu-ultra"
       };
       state.settings.customModelsText = state.settings.customModelsText || {};
       state.settings.fetchedModels = state.settings.fetchedModels || {};
