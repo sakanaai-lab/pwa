@@ -1491,6 +1491,12 @@ export const lifecycleMethods = {
             elements.scrollBottomFab.addEventListener('click', () => this.scrollToBottom(true));
         }
 
+        // 入力欄にフォーカス中は「最下部へ」ボタンを隠す（入力欄への被り防止）
+        if (elements.userInput) {
+            elements.userInput.addEventListener('focus', () => document.body.classList.add('input-focused'));
+            elements.userInput.addEventListener('blur', () => document.body.classList.remove('input-focused'));
+        }
+
         // --- 範囲画像保存モード ---
         if (elements.rangeImageSaveBtn) {
             elements.rangeImageSaveBtn.addEventListener('click', () => this.enterRangeImageMode());
