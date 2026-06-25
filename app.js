@@ -1262,6 +1262,12 @@ ${relationship_context}`;
         const responseText = await response.text();
         return responseText ? JSON.parse(responseText) : {};
       } catch (error) {
+        if (error instanceof TypeError && transientRetries < MAX_TRANSIENT_RETRIES) {
+          const delay = Math.min(1e3 * 2 ** transientRetries, 8e3);
+          console.warn(`[Dropbox API] ネットワークエラー。${delay}ms後に自動リトライします (${transientRetries + 1}/${MAX_TRANSIENT_RETRIES})`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return this._request(domain, endpoint, options, retryCount, transientRetries + 1);
+        }
         if (!error.message.includes("not_found")) {
           console.error(`[Dropbox API] Request error for ${endpoint}:`, error);
         }
