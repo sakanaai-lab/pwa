@@ -1994,6 +1994,11 @@ body.dark-mode .floating-action-panel .floating-action-button.active {
     pointer-events: none;
 }
 
+/* 入力欄にフォーカス中（＝文字入力中）は、最下部へボタンが入力欄に被らないよう隠す */
+body.input-focused .scroll-bottom-fab {
+    display: none;
+}
+
 .scroll-bottom-fab:hover {
     background-color: var(--bg-button-action-hover, var(--bg-button-action));
     box-shadow: var(--shadow-3);
