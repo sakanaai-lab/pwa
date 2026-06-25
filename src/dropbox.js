@@ -130,6 +130,14 @@
             return responseText ? JSON.parse(responseText) : {};
 
         } catch (error) {
+            // ネットワーク瞬断など fetch 自体の失敗（TypeError）も指数バックオフでリトライ。
+            // ユーザー中断(AbortError)やアプリが投げたエラーは対象外。
+            if (error instanceof TypeError && transientRetries < MAX_TRANSIENT_RETRIES) {
+                const delay = Math.min(1000 * 2 ** transientRetries, 8000);
+                console.warn(`[Dropbox API] ネットワークエラー。${delay}ms後に自動リトライします (${transientRetries + 1}/${MAX_TRANSIENT_RETRIES})`);
+                await new Promise((resolve) => setTimeout(resolve, delay));
+                return this._request(domain, endpoint, options, retryCount, transientRetries + 1);
+            }
             // "not found"エラーは呼び出し元で正常ケースとして処理するため、コンソールへのエラー出力を抑制する
             if (!error.message.includes('not_found')) {
                 console.error(`[Dropbox API] Request error for ${endpoint}:`, error);
