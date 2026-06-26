@@ -446,13 +446,13 @@ body.dark-mode #chat-overlay {
 }
 /* 送信時刻をターン番号/モデル名の横に表示（data-time は UI 表示のみ・API送信なし） */
 .message[data-turn][data-time]::before {
-    content: "#" attr(data-turn) "  " attr(data-time);
+    content: "#" attr(data-turn) " / " attr(data-time);
 }
 .message.model[data-turn][data-model]::before {
     content: "#" attr(data-turn) "  " attr(data-model);
 }
 .message.model[data-turn][data-model][data-time]::before {
-    content: "#" attr(data-turn) "  " attr(data-model) "  " attr(data-time);
+    content: "#" attr(data-turn) "  " attr(data-model) " / " attr(data-time);
 }
 .message.user[data-turn]::before { text-align: right; }
 .message.error {
