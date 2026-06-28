@@ -3585,6 +3585,9 @@ Reason: [NGの場合の理由]`,
         }
       ];
       targetGroups.forEach(({ groupId, selectElement, currentValue }) => {
+        // メインの追加モデルは per-provider の renderCustomModels が単独管理する。
+        // ここで触るとChromeで実行順の関係でグレーアウトするためスキップ。
+        if (groupId === "user-defined-models-group") return;
         const group = document.getElementById(groupId);
         if (!group) return;
         group.innerHTML = "";
@@ -14319,6 +14322,7 @@ ${pageText}
       }
       const renderCustomModels = /* @__PURE__ */ __name(() => {
         if (customGroup) customGroup.innerHTML = "";
+        let addedCount = 0;
         providers.forEach((prov) => {
           const text = state.settings.customModelsText[prov] || "";
           const ids = text.split(",").map((s) => s.trim()).filter(Boolean);
@@ -14330,9 +14334,11 @@ ${pageText}
               opt.dataset.provider = prov;
               opt.dataset.userDefined = "true";
               customGroup.appendChild(opt);
+              addedCount++;
             }
           });
         });
+        if (customGroup) customGroup.disabled = addedCount === 0;
       }, "renderCustomModels");
       providers.forEach((prov) => {
         const textarea = document.getElementById(`${prov}-custom-models`);
