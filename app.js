@@ -1950,6 +1950,7 @@ ${relationship_context}`;
   var DEFAULT_GROQ_MODEL = "moonshotai/kimi-k2-instruct";
   var DEEPSEEK_MODELS = [
     { value: "deepseek-v4-pro", label: "DeepSeek V4 Pro" },
+    { value: "deepseek-v4-flash", label: "DeepSeek V4 Flash" },
     { value: "deepseek-chat", label: "DeepSeek Chat (V3)" },
     { value: "deepseek-reasoner", label: "DeepSeek Reasoner (R1)" }
   ];
