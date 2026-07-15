@@ -14221,7 +14221,7 @@ ${pageText}
               "https://api.openai.com/v1/models",
               state.settings.openaiApiKey,
               "openai",
-              (id) => /^(gpt|o\d|chatgpt)/i.test(id)
+              (id) => /^(gpt-\d|o\d|chatgpt)/i.test(id) && !/(audio|realtime|image|tts|transcribe)/i.test(id)
             );
           }
           const compatList = [
