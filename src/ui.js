@@ -1,7 +1,7 @@
 // uiUtils（Phase 1 で app.js から抽出）。挙動は不変。
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT } from './constants.js';
 import { appLogic } from './app-logic.js';
-import { base64ToBlob, formatFileSize } from './utils/format.js';
+import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -681,7 +681,11 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             copyButton.onclick = () => {
                 const msg = state.currentMessages[index];
                 if (!msg) return;
-                navigator.clipboard.writeText(msg.content || '').then(() => {
+                let textToCopy = msg.content || '';
+                if (state.settings.enableNameMask) {
+                    textToCopy = applyNameMask(textToCopy, parseNameMaskRules(state.settings.nameMaskText));
+                }
+                navigator.clipboard.writeText(textToCopy).then(() => {
                     copyButton.innerHTML = '<span class="material-symbols-outlined">check</span> コピー済';
                     setTimeout(() => {
                         copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
@@ -1083,6 +1087,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.reverseDummyOrderCheckbox.checked = state.settings.reverseDummyOrder;
         elements.concatDummyModelCheckbox.checked = state.settings.concatDummyModel;
         elements.additionalModelsTextarea.value = state.settings.additionalModels || '';
+        if (elements.nameMaskToggle) elements.nameMaskToggle.checked = state.settings.enableNameMask === true;
+        if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || '';
         elements.enterToSendCheckbox.checked = state.settings.enterToSend;
         elements.historySortOrderSelect.value = state.settings.historySortOrder || 'updatedAt';
         elements.darkModeToggle.checked = state.settings.darkMode;

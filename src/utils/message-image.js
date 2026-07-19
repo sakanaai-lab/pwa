@@ -10,11 +10,26 @@
 //  - 範囲保存は各メッセージを個別に撮影 → 縦に連結。長すぎる場合は縮小して1枚に収め、
 //    極端に長い場合のみ複数枚へ分割する。
 
+import { applyNameMask } from './format.js';
+
 const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-actions',
     'message-cascade-controls',
     'message-edit-area',
 ]);
+
+// クローンされたDOMのテキストノードにだけ名前マスキングを適用する（実DOMには触れない）。
+function maskTextNodesInElement(rootEl, rules) {
+    if (!rootEl || !Array.isArray(rules) || rules.length === 0) return;
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    for (const textNode of nodes) {
+        const masked = applyNameMask(textNode.nodeValue, rules);
+        if (masked !== textNode.nodeValue) textNode.nodeValue = masked;
+    }
+}
 
 // canvas の上限。iOS では「総面積」が実質的な制約（約 4096^2）。
 const MAX_CANVAS_AREA = 16777216;
@@ -106,12 +121,17 @@ async function ensureFontsReady() {
     }
 }
 
-async function captureElementToCanvas(messageElement, { backgroundColor, scale }) {
+async function captureElementToCanvas(messageElement, { backgroundColor, scale, maskRules }) {
     return await html2canvas(messageElement, {
         backgroundColor,
         scale,
         useCORS: true,
         ignoreElements: (element) => shouldExcludeFromCapture(element),
+        onclone: (clonedDoc, clonedElement) => {
+            if (maskRules && maskRules.length) {
+                maskTextNodesInElement(clonedElement || clonedDoc.body, maskRules);
+            }
+        },
     });
 }
 
@@ -147,7 +167,7 @@ export function createRangeImageFilename(date = new Date(), part = 0, total = 1)
     return `Aquarium_Chat_range_${formatTimestamp(date)}${suffix}.png`;
 }
 
-export async function messageElementToPngBlob(messageElement) {
+export async function messageElementToPngBlob(messageElement, maskRules = []) {
     if (!(messageElement instanceof HTMLElement)) {
         throw new TypeError('保存対象のメッセージが見つかりません。');
     }
@@ -163,7 +183,7 @@ export async function messageElementToPngBlob(messageElement) {
     applyCaptureStyles([messageElement]);
     try {
         await nextFrame();
-        const canvas = await captureElementToCanvas(messageElement, captureParams());
+        const canvas = await captureElementToCanvas(messageElement, { ...captureParams(), maskRules });
         return await canvasToPngBlob(canvas);
     } finally {
         removeCaptureStyles([messageElement]);
@@ -171,7 +191,7 @@ export async function messageElementToPngBlob(messageElement) {
 }
 
 // 複数メッセージを縦に連結して PNG 化する。通常は1枚、極端に長い範囲のみ複数枚。
-export async function messagesRangeToPngBlobs(messageElements) {
+export async function messagesRangeToPngBlobs(messageElements, maskRules = []) {
     if (typeof html2canvas === 'undefined') {
         throw new Error('画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。');
     }
@@ -192,7 +212,7 @@ export async function messagesRangeToPngBlobs(messageElements) {
     try {
         await nextFrame();
         for (const element of targets) {
-            const canvas = await captureElementToCanvas(element, { backgroundColor, scale });
+            const canvas = await captureElementToCanvas(element, { backgroundColor, scale, maskRules });
             captures.push({ canvas, isUser: element.classList.contains('user') });
         }
     } finally {
