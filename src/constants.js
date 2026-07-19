@@ -152,6 +152,9 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    1.28: [
+        '名前マスキング（画像保存用）を追加。設定で「本名,別名」を登録しておくと、会話を画像保存・コピーするときだけ名前を別名に置き換えます。画面表示・API送信・保存データは元のまま。SNS共有前に本名を伏せたいときに便利です。',
+    ],
     1.27: [
         '会話統計(ⓘ)ダイアログの下部に「API使用量・料金の確認」リンクを追加。OpenAI / Claude / Gemini / OpenRouter / DeepSeek の各使用量ページへワンタップで移動できます（推定コストの実額確認用）。',
     ],

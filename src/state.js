@@ -83,6 +83,8 @@ export const state = {
         enableWideMode: true,
         enableMemory: false,
         memoryAutoSaveInterval: 30,
+        enableNameMask: false, // 画像保存・コピー時の名前マスキング
+        nameMaskText: '',      // 置換リスト（1行に「本名,別名」）
         headerAutoHide: false,
         summaryModelName: '', // 空の場合はmodelNameを使用
         summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。
