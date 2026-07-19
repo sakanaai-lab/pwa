@@ -1749,6 +1749,8 @@ ${relationship_context}`;
       memoryOptionsContainer: document.getElementById("memory-options-container"),
       memoryAutoSaveIntervalSelect: document.getElementById("memory-auto-save-interval"),
       manageMemoryBtn: document.getElementById("manage-memory-btn"),
+      nameMaskToggle: document.getElementById("name-mask-toggle"),
+      nameMaskTextarea: document.getElementById("name-mask-text"),
       memoryManagementDialog: document.getElementById("memoryManagementDialog"),
       memoryListContainer: document.getElementById("memory-list-container"),
       newMemoryInput: document.getElementById("new-memory-input"),
@@ -1976,6 +1978,9 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    1.28: [
+      "名前マスキング（画像保存用）を追加。設定で「本名,別名」を登録しておくと、会話を画像保存・コピーするときだけ名前を別名に置き換えます。画面表示・API送信・保存データは元のまま。SNS共有前に本名を伏せたいときに便利です。"
+    ],
     1.27: [
       "会話統計(ⓘ)ダイアログの下部に「API使用量・料金の確認」リンクを追加。OpenAI / Claude / Gemini / OpenRouter / DeepSeek の各使用量ページへワンタップで移動できます（推定コストの実額確認用）。"
     ],
@@ -2131,6 +2136,10 @@ ${relationship_context}`;
       enableWideMode: true,
       enableMemory: false,
       memoryAutoSaveInterval: 30,
+      enableNameMask: false,
+      // 画像保存・コピー時の名前マスキング
+      nameMaskText: "",
+      // 置換リスト（1行に「本名,別名」）
       headerAutoHide: false,
       summaryModelName: "",
       // 空の場合はmodelNameを使用
@@ -2445,6 +2454,33 @@ Reason: [NGの場合の理由]`,
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
+  function parseNameMaskRules(text) {
+    if (!text || typeof text !== "string") return [];
+    const rules = [];
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const m = trimmed.match(/^(.*?)\s*(?:,|、|→|->|=>)\s*(.*)$/);
+      if (!m) continue;
+      const from = m[1].trim();
+      const to = m[2].trim();
+      if (!from) continue;
+      rules.push({ from, to });
+    }
+    rules.sort((a, b) => b.from.length - a.from.length);
+    return rules;
+  }
+  __name(parseNameMaskRules, "parseNameMaskRules");
+  function applyNameMask(text, rules) {
+    if (!text || !Array.isArray(rules) || rules.length === 0) return text;
+    let result = text;
+    for (const { from, to } of rules) {
+      if (!from) continue;
+      result = result.split(from).join(to);
+    }
+    return result;
+  }
+  __name(applyNameMask, "applyNameMask");
   function interruptibleSleep(ms, signal) {
     return new Promise((resolve, reject) => {
       if (signal.aborted) {
@@ -3121,7 +3157,11 @@ Reason: [NGの場合の理由]`,
           copyButton.onclick = () => {
             const msg = state.currentMessages[index];
             if (!msg) return;
-            navigator.clipboard.writeText(msg.content || "").then(() => {
+            let textToCopy = msg.content || "";
+            if (state.settings.enableNameMask) {
+              textToCopy = applyNameMask(textToCopy, parseNameMaskRules(state.settings.nameMaskText));
+            }
+            navigator.clipboard.writeText(textToCopy).then(() => {
               copyButton.innerHTML = '<span class="material-symbols-outlined">check</span> コピー済';
               setTimeout(() => {
                 copyButton.innerHTML = '<span class="material-symbols-outlined">content_copy</span> コピー';
@@ -3484,6 +3524,8 @@ Reason: [NGの場合の理由]`,
       elements.reverseDummyOrderCheckbox.checked = state.settings.reverseDummyOrder;
       elements.concatDummyModelCheckbox.checked = state.settings.concatDummyModel;
       elements.additionalModelsTextarea.value = state.settings.additionalModels || "";
+      if (elements.nameMaskToggle) elements.nameMaskToggle.checked = state.settings.enableNameMask === true;
+      if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || "";
       elements.enterToSendCheckbox.checked = state.settings.enterToSend;
       elements.historySortOrderSelect.value = state.settings.historySortOrder || "updatedAt";
       elements.darkModeToggle.checked = state.settings.darkMode;
@@ -5229,6 +5271,8 @@ Reason: [NGの場合の理由]`,
           }, "onUpdate")
         },
         apiKey: { element: elements.apiKeyInput, event: "input" },
+        enableNameMask: { element: elements.nameMaskToggle, event: "change" },
+        nameMaskText: { element: elements.nameMaskTextarea, event: "input" },
         zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
         openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
         bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
@@ -10950,6 +10994,18 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     "message-cascade-controls",
     "message-edit-area"
   ]);
+  function maskTextNodesInElement(rootEl, rules) {
+    if (!rootEl || !Array.isArray(rules) || rules.length === 0) return;
+    const walker = document.createTreeWalker(rootEl, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let node;
+    while (node = walker.nextNode()) nodes.push(node);
+    for (const textNode of nodes) {
+      const masked = applyNameMask(textNode.nodeValue, rules);
+      if (masked !== textNode.nodeValue) textNode.nodeValue = masked;
+    }
+  }
+  __name(maskTextNodesInElement, "maskTextNodesInElement");
   var MAX_CANVAS_AREA = 16777216;
   var MAX_CANVAS_SIDE = 16384;
   var MIN_FIT_SCALE = 0.3;
@@ -11035,12 +11091,17 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     }
   }
   __name(ensureFontsReady, "ensureFontsReady");
-  async function captureElementToCanvas(messageElement, { backgroundColor, scale }) {
+  async function captureElementToCanvas(messageElement, { backgroundColor, scale, maskRules }) {
     return await html2canvas(messageElement, {
       backgroundColor,
       scale,
       useCORS: true,
-      ignoreElements: /* @__PURE__ */ __name((element) => shouldExcludeFromCapture(element), "ignoreElements")
+      ignoreElements: /* @__PURE__ */ __name((element) => shouldExcludeFromCapture(element), "ignoreElements"),
+      onclone: /* @__PURE__ */ __name((clonedDoc, clonedElement) => {
+        if (maskRules && maskRules.length) {
+          maskTextNodesInElement(clonedElement || clonedDoc.body, maskRules);
+        }
+      }, "onclone")
     });
   }
   __name(captureElementToCanvas, "captureElementToCanvas");
@@ -11076,7 +11137,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     return `Aquarium_Chat_range_${formatTimestamp(date)}${suffix}.png`;
   }
   __name(createRangeImageFilename, "createRangeImageFilename");
-  async function messageElementToPngBlob(messageElement) {
+  async function messageElementToPngBlob(messageElement, maskRules = []) {
     if (!(messageElement instanceof HTMLElement)) {
       throw new TypeError("保存対象のメッセージが見つかりません。");
     }
@@ -11091,14 +11152,14 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     applyCaptureStyles([messageElement]);
     try {
       await nextFrame();
-      const canvas = await captureElementToCanvas(messageElement, captureParams());
+      const canvas = await captureElementToCanvas(messageElement, { ...captureParams(), maskRules });
       return await canvasToPngBlob(canvas);
     } finally {
       removeCaptureStyles([messageElement]);
     }
   }
   __name(messageElementToPngBlob, "messageElementToPngBlob");
-  async function messagesRangeToPngBlobs(messageElements) {
+  async function messagesRangeToPngBlobs(messageElements, maskRules = []) {
     if (typeof html2canvas === "undefined") {
       throw new Error("画像生成ライブラリ（html2canvas）が読み込まれていません。ページを再読み込みしてください。");
     }
@@ -11117,7 +11178,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     try {
       await nextFrame();
       for (const element of targets) {
-        const canvas = await captureElementToCanvas(element, { backgroundColor, scale });
+        const canvas = await captureElementToCanvas(element, { backgroundColor, scale, maskRules });
         captures.push({ canvas, isUser: element.classList.contains("user") });
       }
     } finally {
@@ -11189,6 +11250,10 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
   __name(combineCanvases, "combineCanvases");
 
   // src/app-logic/media.js
+  function getNameMaskRules() {
+    return state.settings.enableNameMask ? parseNameMaskRules(state.settings.nameMaskText) : [];
+  }
+  __name(getNameMaskRules, "getNameMaskRules");
   function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -11203,7 +11268,7 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
   var mediaMethods = {
     async saveMessageAsImage(messageElement) {
       try {
-        const blob = await messageElementToPngBlob(messageElement);
+        const blob = await messageElementToPngBlob(messageElement, getNameMaskRules());
         triggerDownload(blob, createMessageImageFilename(messageElement));
       } catch (error) {
         console.error("メッセージ画像の保存に失敗:", error);
@@ -11268,7 +11333,7 @@ ${error.message}`);
       if (elementsInRange.length === 0) {
         throw new Error("保存対象のメッセージが見つかりません。");
       }
-      const blobs = await messagesRangeToPngBlobs(elementsInRange);
+      const blobs = await messagesRangeToPngBlobs(elementsInRange, getNameMaskRules());
       const now = /* @__PURE__ */ new Date();
       if (blobs.length === 1) {
         triggerDownload(blobs[0], createRangeImageFilename(now));

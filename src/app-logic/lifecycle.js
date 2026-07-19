@@ -1059,6 +1059,8 @@ export const lifecycleMethods = {
                 }
             },
             apiKey: { element: elements.apiKeyInput, event: 'input' },
+            enableNameMask: { element: elements.nameMaskToggle, event: 'change' },
+            nameMaskText: { element: elements.nameMaskTextarea, event: 'input' },
             zaiApiKey: { element: elements.zaiApiKeyInput, event: 'input' },
             openrouterApiKey: { element: elements.openrouterApiKeyInput, event: 'input' },
             bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: 'input' },

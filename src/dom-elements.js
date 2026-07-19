@@ -187,6 +187,8 @@ try {
         memoryOptionsContainer: document.getElementById('memory-options-container'),
         memoryAutoSaveIntervalSelect: document.getElementById('memory-auto-save-interval'),
         manageMemoryBtn: document.getElementById('manage-memory-btn'),
+        nameMaskToggle: document.getElementById('name-mask-toggle'),
+        nameMaskTextarea: document.getElementById('name-mask-text'),
         memoryManagementDialog: document.getElementById('memoryManagementDialog'),
         memoryListContainer: document.getElementById('memory-list-container'),
         newMemoryInput: document.getElementById('new-memory-input'),

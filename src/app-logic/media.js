@@ -5,7 +5,13 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
+import { parseNameMaskRules } from '../utils/format.js';
 import { createMessageImageFilename, createRangeImageFilename, messageElementToPngBlob, messagesRangeToPngBlobs } from '../utils/message-image.js';
+
+// 画像保存時の名前マスキング用の置換ルールを設定から組み立てる（無効時は空配列）。
+function getNameMaskRules() {
+    return state.settings.enableNameMask ? parseNameMaskRules(state.settings.nameMaskText) : [];
+}
 
 function triggerDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
@@ -21,7 +27,7 @@ function triggerDownload(blob, filename) {
 export const mediaMethods = {
     async saveMessageAsImage(messageElement) {
         try {
-            const blob = await messageElementToPngBlob(messageElement);
+            const blob = await messageElementToPngBlob(messageElement, getNameMaskRules());
             triggerDownload(blob, createMessageImageFilename(messageElement));
         } catch (error) {
             console.error('メッセージ画像の保存に失敗:', error);
@@ -91,7 +97,7 @@ export const mediaMethods = {
             throw new Error('保存対象のメッセージが見つかりません。');
         }
 
-        const blobs = await messagesRangeToPngBlobs(elementsInRange);
+        const blobs = await messagesRangeToPngBlobs(elementsInRange, getNameMaskRules());
         const now = new Date();
 
         if (blobs.length === 1) {

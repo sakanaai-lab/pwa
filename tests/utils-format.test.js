@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { sleep, interruptibleSleep, formatFileSize } from '../src/utils/format.js';
+import { sleep, interruptibleSleep, formatFileSize, parseNameMaskRules, applyNameMask } from '../src/utils/format.js';
 
 describe('formatFileSize', () => {
     it('0 バイトを "0 Bytes" で返す', () => {
@@ -30,6 +30,60 @@ describe('sleep', () => {
         await p;
         expect(done).toBe(true);
         vi.useRealTimers();
+    });
+});
+
+describe('parseNameMaskRules', () => {
+    it('「本名,別名」を解析する', () => {
+        expect(parseNameMaskRules('ゆすら,A')).toEqual([{ from: 'ゆすら', to: 'A' }]);
+    });
+
+    it('区切りに 、 → -> => を使える', () => {
+        expect(parseNameMaskRules('太郎、主人公')).toEqual([{ from: '太郎', to: '主人公' }]);
+        expect(parseNameMaskRules('太郎→主人公')).toEqual([{ from: '太郎', to: '主人公' }]);
+        expect(parseNameMaskRules('太郎->主人公')).toEqual([{ from: '太郎', to: '主人公' }]);
+    });
+
+    it('複数行を解析し、空行や本名なしの行は無視する', () => {
+        const rules = parseNameMaskRules('ゆすら,A\n\n,無視される\n田中太郎,主人公');
+        expect(rules).toContainEqual({ from: 'ゆすら', to: 'A' });
+        expect(rules).toContainEqual({ from: '田中太郎', to: '主人公' });
+        expect(rules).toHaveLength(2);
+    });
+
+    it('長い本名から先に並べる（部分一致の崩れ防止）', () => {
+        const rules = parseNameMaskRules('太郎,X\n田中太郎,Y');
+        expect(rules[0].from).toBe('田中太郎');
+    });
+
+    it('別名が空でも許容する（削除用）', () => {
+        expect(parseNameMaskRules('秘密,')).toEqual([{ from: '秘密', to: '' }]);
+    });
+
+    it('空・非文字列は空配列', () => {
+        expect(parseNameMaskRules('')).toEqual([]);
+        expect(parseNameMaskRules(null)).toEqual([]);
+    });
+});
+
+describe('applyNameMask', () => {
+    it('全出現を置換する', () => {
+        const rules = [{ from: 'ゆすら', to: 'A' }];
+        expect(applyNameMask('ゆすらとゆすらの話', rules)).toBe('AとAの話');
+    });
+
+    it('長い名前を先に処理して部分崩れを防ぐ', () => {
+        const rules = parseNameMaskRules('太郎,X\n田中太郎,Y');
+        expect(applyNameMask('田中太郎と太郎', rules)).toBe('YとX');
+    });
+
+    it('正規表現の特殊文字を含む名前も安全に置換する', () => {
+        const rules = [{ from: 'a.b', to: 'Z' }];
+        expect(applyNameMask('a.b axb', rules)).toBe('Z axb');
+    });
+
+    it('ルールが空ならそのまま返す', () => {
+        expect(applyNameMask('変わらない', [])).toBe('変わらない');
     });
 });
 
