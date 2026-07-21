@@ -1897,9 +1897,11 @@ ${relationship_context}`;
       label: "gemini-2.5-flash-image-preview (Nano Banana)",
       group: "プレビュー版"
     },
-    { value: "gemini-3-pro-preview", label: "gemini-3-pro-preview", group: "プレビュー版" },
     { value: "gemini-3.1-pro-preview", label: "gemini-3.1-pro-preview", group: "プレビュー版" }
   ];
+  var RETIRED_MODEL_MAP = {
+    "gemini-3-pro-preview": "gemini-3.1-pro-preview"
+  };
   var ZAI_MODELS = [
     { value: "glm-4.6", label: "GLM-4.6" },
     { value: "glm-4.5-Air", label: "GLM-4.5 Air" },
@@ -1978,6 +1980,9 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    1.29: [
+      "提供終了した gemini-3-pro-preview を後継の gemini-3.1-pro-preview へ自動移行。設定・要約モデルにこのモデルが残っていると「要約の生成に失敗しました（no longer available）」が出ていた問題を修正。モデル一覧からも削除しました。"
+    ],
     1.28: [
       "名前マスキング（画像保存用）を追加。設定で「本名,別名」を登録しておくと、会話を画像保存・コピーするときだけ名前を別名に置き換えます。画面表示・API送信・保存データは元のまま。SNS共有前に本名を伏せたいときに便利です。"
     ],
@@ -4168,6 +4173,22 @@ Reason: [NGの場合の理由]`,
         Object.assign(newSettings, loadedProfileSettings);
         newSettings.fetchedModels = globalFetchedModels;
         state.settings = newSettings;
+        let migratedRetiredModel = false;
+        for (const key of ["modelName", "summaryModelName", "proofreadingModelName"]) {
+          const current = state.settings[key];
+          if (current && RETIRED_MODEL_MAP[current]) {
+            const replacement = RETIRED_MODEL_MAP[current];
+            state.settings[key] = replacement;
+            if (state.activeProfile.settings) state.activeProfile.settings[key] = replacement;
+            migratedRetiredModel = true;
+            console.log(`[Profile] 提供終了モデル ${current} を ${replacement} に移行しました（${key}）。`);
+          }
+        }
+        if (migratedRetiredModel) {
+          dbUtils.updateProfile(state.activeProfile).catch(
+            (e) => console.error("[Profile] 移行後のプロファイル保存に失敗:", e)
+          );
+        }
         uiUtils.applySettingsToUI();
         uiUtils.updateProfileCardUI();
         DebugLogger.init();
