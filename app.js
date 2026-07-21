@@ -1981,6 +1981,7 @@ ${relationship_context}`;
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     1.29: [
+      "要約・メモリ自動学習を全プロバイダー対応に。これまで Gemini（＋要約は DeepSeek）専用だったため、Claude 等に切り替えると要約が失敗していました。今後は選択中のプロバイダー（Anthropic/OpenAI/Groq/xAI/Mistral/OpenRouter/Sakana 等）で動作します。Gemini キーがなくても Claude だけで完結できます。",
       "提供終了した gemini-3-pro-preview を後継の gemini-3.1-pro-preview へ自動移行。設定・要約モデルにこのモデルが残っていると「要約の生成に失敗しました（no longer available）」が出ていた問題を修正。モデル一覧からも削除しました。"
     ],
     1.28: [
@@ -12291,6 +12292,104 @@ ${msg}`);
   };
 
   // src/app-logic/memory.js
+  var GEMINI_SAFETY_OFF = [
+    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+  ];
+  function getOpenAICompatConfig(provider) {
+    const keys = {
+      openai: state.settings.openaiApiKey,
+      groq: state.settings.groqApiKey,
+      deepseek: state.settings.deepseekApiKey,
+      xai: state.settings.xaiApiKey,
+      mistral: state.settings.mistralApiKey,
+      openrouter: state.settings.openrouterApiKey,
+      zai: state.settings.zaiApiKey || state.settings.apiKey,
+      sakana: state.settings.sakanaApiKey
+    };
+    const urls = {
+      openai: "https://api.openai.com/v1/chat/completions",
+      groq: GROQ_API_BASE_URL,
+      deepseek: DEEPSEEK_API_BASE_URL,
+      xai: XAI_API_BASE_URL,
+      mistral: MISTRAL_API_BASE_URL,
+      openrouter: OPENROUTER_API_BASE_URL,
+      zai: ZAI_API_BASE_URL,
+      sakana: SAKANA_API_BASE_URL
+    };
+    return { apiKey: keys[provider], baseUrl: urls[provider] };
+  }
+  __name(getOpenAICompatConfig, "getOpenAICompatConfig");
+  async function runAuxiliaryCompletion({ provider, model, systemPrompt, userContent, temperature = 0.3, maxTokens = 4096 }) {
+    let endpoint, headers, body, parse;
+    if (provider === "anthropic") {
+      const apiKey = state.settings.anthropicApiKey;
+      if (!apiKey) throw new Error("Anthropic APIキーが設定されていません。");
+      const useModel = model && model.startsWith("claude") ? model : DEFAULT_ANTHROPIC_MODEL;
+      endpoint = "https://api.anthropic.com/v1/messages";
+      headers = {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      };
+      body = {
+        model: useModel,
+        max_tokens: maxTokens,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userContent }]
+      };
+      parse = /* @__PURE__ */ __name((d) => d.content?.find((c) => c.type === "text")?.text, "parse");
+    } else if (provider === "gemini") {
+      const apiKey = state.settings.apiKey;
+      if (!apiKey) throw new Error("Gemini APIキーが設定されていません。");
+      endpoint = `${GEMINI_API_BASE_URL}${model}:generateContent`;
+      headers = { "Content-Type": "application/json", "x-goog-api-key": apiKey };
+      body = {
+        contents: [{ role: "user", parts: [{ text: userContent }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+        generationConfig: { temperature, maxOutputTokens: maxTokens },
+        safetySettings: GEMINI_SAFETY_OFF
+      };
+      parse = /* @__PURE__ */ __name((d) => d.candidates?.[0]?.content?.parts?.[0]?.text, "parse");
+    } else {
+      const { apiKey, baseUrl } = getOpenAICompatConfig(provider);
+      if (!apiKey || !baseUrl) throw new Error("APIキーが設定されていません。");
+      endpoint = baseUrl;
+      headers = { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` };
+      body = {
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userContent }
+        ],
+        temperature,
+        max_tokens: maxTokens
+      };
+      parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
+    }
+    const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);
+    }
+    const raw = await response.json();
+    return { text: parse(raw), raw };
+  }
+  __name(runAuxiliaryCompletion, "runAuxiliaryCompletion");
+  function getMemoryLearnModel(provider) {
+    const lightModels = {
+      gemini: "gemini-2.5-flash",
+      anthropic: "claude-haiku-4-5-20251001",
+      deepseek: "deepseek-chat",
+      openai: "gpt-4o-mini",
+      mistral: "mistral-small-latest"
+    };
+    return lightModels[provider] || state.settings.modelName;
+  }
+  __name(getMemoryLearnModel, "getMemoryLearnModel");
   var memoryMethods = {
     /**
      * @private 現在の永続メモリから状況サマリーを生成するヘルパー関数
@@ -12498,7 +12597,9 @@ ${flagContent}`);
       }
     },
     async triggerAutoMemorySave() {
-      if (!state.activeProfileId || !state.settings.apiKey) {
+      const provider = state.settings.apiProvider || "gemini";
+      const hasKey = provider === "anthropic" ? !!state.settings.anthropicApiKey : provider === "gemini" ? !!state.settings.apiKey : !!getOpenAICompatConfig(provider).apiKey;
+      if (!state.activeProfileId || !hasKey) {
         console.error("[Memory] APIキーが未設定のため、自動学習をスキップしました。");
         return;
       }
@@ -12554,32 +12655,16 @@ ${flagContent}`);
             ---
 
             [抽出結果]`;
-        const modelForMemory = "gemini-2.5-flash";
-        const endpoint = `${GEMINI_API_BASE_URL}${modelForMemory}:generateContent`;
-        const requestBody = {
-          contents: [{
-            role: "user",
-            parts: [{ text: summarizationPrompt }]
-          }],
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ]
-        };
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey },
-          body: JSON.stringify(requestBody)
+        const modelForMemory = getMemoryLearnModel(provider);
+        console.log("[Memory] 自動学習 provider:", provider, "model:", modelForMemory);
+        const { text: summaryText } = await runAuxiliaryCompletion({
+          provider,
+          model: modelForMemory,
+          systemPrompt: "あなたはユーザーとの会話から永続的な個人情報を抽出するアシスタントです。",
+          userContent: summarizationPrompt,
+          temperature: 0.3,
+          maxTokens: 2048
         });
-        if (!response.ok) {
-          const errorData = await response.json();
-          const errorMessage = errorData.error?.message || `HTTPエラー: ${response.status}`;
-          throw new Error(errorMessage);
-        }
-        const responseData = await response.json();
-        const summaryText = responseData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!summaryText) {
           console.warn("[Memory] 自動学習による要約結果が空でした。");
           return;
@@ -12749,75 +12834,28 @@ ${flagContent}`);
     },
     async _callSummaryApi(originalText) {
       try {
-        const systemInstruction = {
-          parts: [{ text: state.settings.summarySystemPrompt }]
-        };
         const userContent = `【要約対象の会話履歴】
 ${originalText}`;
-        const requestBody = {
-          contents: [{ role: "user", parts: [{ text: userContent }] }],
-          systemInstruction,
-          generationConfig: {
-            temperature: 0.3
-          },
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ]
-        };
         const summaryModel = state.settings.summaryModelName || state.settings.modelName;
-        const isSummaryDeepSeek = summaryModel.startsWith("deepseek-");
-        console.log("--- [要約API] リクエスト開始 ---");
-        console.log("使用モデル:", summaryModel);
-        let summaryEndpoint, summaryHeaders, summaryBody;
-        if (isSummaryDeepSeek) {
-          const deepseekApiKey = state.settings.deepseekApiKey;
-          if (!deepseekApiKey) throw new Error("DeepSeek APIキーが設定されていません。");
-          summaryEndpoint = DEEPSEEK_API_BASE_URL;
-          summaryHeaders = { "Content-Type": "application/json", "Authorization": `Bearer ${deepseekApiKey}` };
-          summaryBody = {
-            model: summaryModel,
-            messages: [
-              { role: "system", content: state.settings.summarySystemPrompt },
-              { role: "user", content: userContent }
-            ],
-            temperature: 0.3
-          };
-        } else {
-          summaryEndpoint = `${GEMINI_API_BASE_URL}${summaryModel}:generateContent`;
-          summaryHeaders = { "Content-Type": "application/json", "x-goog-api-key": state.settings.apiKey };
-          summaryBody = requestBody;
-        }
-        const response = await fetch(summaryEndpoint, {
-          method: "POST",
-          headers: summaryHeaders,
-          body: JSON.stringify(summaryBody)
+        const provider = summaryModel.startsWith("deepseek-") ? "deepseek" : state.settings.apiProvider || "gemini";
+        console.log("--- [要約API] リクエスト開始 --- 使用モデル:", summaryModel, "provider:", provider);
+        const { text: summaryText, raw } = await runAuxiliaryCompletion({
+          provider,
+          model: summaryModel,
+          systemPrompt: state.settings.summarySystemPrompt,
+          userContent,
+          temperature: 0.3,
+          maxTokens: 4096
         });
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: { message: "レスポンスボディのJSONパースに失敗" } }));
-          console.error("--- [要約API] APIエラーレスポンス ---");
-          console.error("ステータス:", response.status, response.statusText);
-          console.error("エラーレスポンスボディ:", errorData);
-          throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);
-        }
-        const responseData = await response.json();
-        console.log("--- [要約API] 正常レスポンス ---");
-        const summaryText = isSummaryDeepSeek ? responseData.choices?.[0]?.message?.content : responseData.candidates?.[0]?.content?.parts?.[0]?.text;
         if (!summaryText) {
           let errorMessage = "APIから有効な要約結果が得られませんでした。";
-          const finishReason = responseData.candidates?.[0]?.finishReason;
-          const blockReason = responseData.promptFeedback?.blockReason;
+          const finishReason = raw?.candidates?.[0]?.finishReason;
+          const blockReason = raw?.promptFeedback?.blockReason;
           if (finishReason === "SAFETY" || blockReason) {
             const reason = finishReason === "SAFETY" ? "SAFETY" : blockReason;
             errorMessage = `生成された要約が安全フィルターにブロックされた可能性があります。(理由: ${reason})`;
-            console.error(`[要約API] ブロック検出: finishReason=${finishReason}, blockReason=${blockReason}`);
           } else if (finishReason) {
             errorMessage = `APIが予期せぬ理由で応答を終了しました。(理由: ${finishReason})`;
-            console.error(`[要約API] 予期せぬ終了: finishReason=${finishReason}`);
-          } else {
-            console.error("[要約API] 応答形式が不正です。テキスト部分が見つかりませんでした。");
           }
           throw new Error(errorMessage);
         }
