@@ -59,9 +59,14 @@ export const GEMINI_MODELS = [
         label: 'gemini-2.5-flash-image-preview (Nano Banana)',
         group: 'プレビュー版',
     },
-    { value: 'gemini-3-pro-preview', label: 'gemini-3-pro-preview', group: 'プレビュー版' },
     { value: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview', group: 'プレビュー版' },
 ];
+
+// Google が提供終了したモデルを後継へ自動移行するためのマップ（旧モデル名 → 新モデル名）。
+// プロファイル適用時に保存済みのモデル設定を書き換える。
+export const RETIRED_MODEL_MAP = {
+    'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
+};
 
 export const ZAI_MODELS = [
     { value: 'glm-4.6', label: 'GLM-4.6' },
@@ -152,6 +157,10 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    1.29: [
+        '要約・メモリ自動学習を全プロバイダー対応に。これまで Gemini（＋要約は DeepSeek）専用だったため、Claude 等に切り替えると要約が失敗していました。今後は選択中のプロバイダー（Anthropic/OpenAI/Groq/xAI/Mistral/OpenRouter/Sakana 等）で動作します。Gemini キーがなくても Claude だけで完結できます。要約用モデルに Claude（haiku/sonnet/opus）を選べるようになり、モデル名からプロバイダーを自動判定します。',
+        '提供終了した gemini-3-pro-preview を後継の gemini-3.1-pro-preview へ自動移行。設定・要約モデルにこのモデルが残っていると「要約の生成に失敗しました（no longer available）」が出ていた問題を修正。モデル一覧からも削除しました。',
+    ],
     1.28: [
         '名前マスキング（画像保存用）を追加。設定で「本名,別名」を登録しておくと、会話を画像保存・コピーするときだけ名前を別名に置き換えます。画面表示・API送信・保存データは元のまま。SNS共有前に本名を伏せたいときに便利です。',
     ],
