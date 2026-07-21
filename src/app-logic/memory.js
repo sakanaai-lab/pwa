@@ -110,6 +110,23 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
     return { text: parse(raw), raw };
 }
 
+// モデル名からプロバイダーを推定する。判別できない名前（groq/openrouter等の独自名）は
+// fallback（＝現在選択中のプロバイダー）を返す。要約モデルをメインと別プロバイダーに
+// 設定した場合（例: メインGemini・要約Claude）でも正しいAPIへ振り分けるために使う。
+function inferProviderFromModel(model, fallback) {
+    if (!model) return fallback;
+    const m = model.toLowerCase();
+    if (m.startsWith('claude')) return 'anthropic';
+    if (m.startsWith('deepseek')) return 'deepseek';
+    if (m.startsWith('gemini')) return 'gemini';
+    if (m.startsWith('gpt') || m.startsWith('chatgpt') || /^o[1-9]/.test(m)) return 'openai';
+    if (m.startsWith('grok')) return 'xai';
+    if (m.startsWith('mistral') || m.startsWith('codestral') || m.startsWith('open-mistral') || m.startsWith('open-mixtral')) return 'mistral';
+    if (m.startsWith('glm')) return 'zai';
+    if (m.startsWith('fugu')) return 'sakana';
+    return fallback;
+}
+
 // メモリ自動学習で使う軽量モデルをプロバイダー別に返す（コスト抑制。無ければメインモデル）。
 function getMemoryLearnModel(provider) {
     const lightModels = {
@@ -664,12 +681,10 @@ export const memoryMethods = {
         try {
             const userContent = `【要約対象の会話履歴】\n${originalText}`;
 
-            // 要約モデルはユーザー指定（summaryModelName）優先。プロバイダーはモデル名で判定できない
-            // ため、DeepSeekモデルが明示指定されていればDeepSeek、それ以外は現在のプロバイダーを使う。
+            // 要約モデルはユーザー指定（summaryModelName）優先。モデル名からプロバイダーを推定し、
+            // 判別できない場合のみ現在選択中のプロバイダーにフォールバックする。
             const summaryModel = state.settings.summaryModelName || state.settings.modelName;
-            const provider = summaryModel.startsWith('deepseek-')
-                ? 'deepseek'
-                : (state.settings.apiProvider || 'gemini');
+            const provider = inferProviderFromModel(summaryModel, state.settings.apiProvider || 'gemini');
             console.log('--- [要約API] リクエスト開始 --- 使用モデル:', summaryModel, 'provider:', provider);
 
             const { text: summaryText, raw } = await runAuxiliaryCompletion({

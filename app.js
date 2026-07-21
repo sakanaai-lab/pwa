@@ -1981,7 +1981,7 @@ ${relationship_context}`;
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     1.29: [
-      "要約・メモリ自動学習を全プロバイダー対応に。これまで Gemini（＋要約は DeepSeek）専用だったため、Claude 等に切り替えると要約が失敗していました。今後は選択中のプロバイダー（Anthropic/OpenAI/Groq/xAI/Mistral/OpenRouter/Sakana 等）で動作します。Gemini キーがなくても Claude だけで完結できます。",
+      "要約・メモリ自動学習を全プロバイダー対応に。これまで Gemini（＋要約は DeepSeek）専用だったため、Claude 等に切り替えると要約が失敗していました。今後は選択中のプロバイダー（Anthropic/OpenAI/Groq/xAI/Mistral/OpenRouter/Sakana 等）で動作します。Gemini キーがなくても Claude だけで完結できます。要約用モデルに Claude（haiku/sonnet/opus）を選べるようになり、モデル名からプロバイダーを自動判定します。",
       "提供終了した gemini-3-pro-preview を後継の gemini-3.1-pro-preview へ自動移行。設定・要約モデルにこのモデルが残っていると「要約の生成に失敗しました（no longer available）」が出ていた問題を修正。モデル一覧からも削除しました。"
     ],
     1.28: [
@@ -12379,6 +12379,20 @@ ${msg}`);
     return { text: parse(raw), raw };
   }
   __name(runAuxiliaryCompletion, "runAuxiliaryCompletion");
+  function inferProviderFromModel(model, fallback) {
+    if (!model) return fallback;
+    const m = model.toLowerCase();
+    if (m.startsWith("claude")) return "anthropic";
+    if (m.startsWith("deepseek")) return "deepseek";
+    if (m.startsWith("gemini")) return "gemini";
+    if (m.startsWith("gpt") || m.startsWith("chatgpt") || /^o[1-9]/.test(m)) return "openai";
+    if (m.startsWith("grok")) return "xai";
+    if (m.startsWith("mistral") || m.startsWith("codestral") || m.startsWith("open-mistral") || m.startsWith("open-mixtral")) return "mistral";
+    if (m.startsWith("glm")) return "zai";
+    if (m.startsWith("fugu")) return "sakana";
+    return fallback;
+  }
+  __name(inferProviderFromModel, "inferProviderFromModel");
   function getMemoryLearnModel(provider) {
     const lightModels = {
       gemini: "gemini-2.5-flash",
@@ -12837,7 +12851,7 @@ ${flagContent}`);
         const userContent = `【要約対象の会話履歴】
 ${originalText}`;
         const summaryModel = state.settings.summaryModelName || state.settings.modelName;
-        const provider = summaryModel.startsWith("deepseek-") ? "deepseek" : state.settings.apiProvider || "gemini";
+        const provider = inferProviderFromModel(summaryModel, state.settings.apiProvider || "gemini");
         console.log("--- [要約API] リクエスト開始 --- 使用モデル:", summaryModel, "provider:", provider);
         const { text: summaryText, raw } = await runAuxiliaryCompletion({
           provider,
