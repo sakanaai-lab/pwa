@@ -104,6 +104,8 @@ export const OPENAI_MODELS = [
 export const DEFAULT_OPENAI_MODEL = 'gpt-4o';
 
 export const ANTHROPIC_MODELS = [
+    { value: 'claude-opus-5', label: 'Claude Opus 5' },
+    { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
     { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
     { value: 'claude-opus-4-6', label: 'Claude Opus 4.6' },
     { value: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6' },
@@ -157,6 +159,12 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    '1.32': [
+        'Claude Opus 5 に対応。Anthropicのモデル一覧に「Claude Opus 5 / 4.8」を追加しました。',
+        'Anthropic新世代モデル（Opus 4.7/4.8/5 等）で temperature が廃止され送ると400エラーになる問題に対応（該当モデルでは temperature を送信しないよう修正）。これまで Opus 4.7 選択時に失敗し得た不具合も解消。',
+        '思考の深さ(Effort)に「xhigh（高品質・コーディング向け）」を追加。Opus 5 で選べる5段階（low/medium/high/xhigh/max）に対応しました。',
+        'Opus 5 は思考がデフォルトONのため、Effort「OFF」を選んだときは明示的に思考を停止するよう修正（意図せず思考が走るのを防止）。',
+    ],
     '1.31': [
         'モデルの★お気に入りを追加。設定のモデル名の横の★ボタンで、よく使うモデルを登録できます。お気に入りはドロップダウンの先頭「★ お気に入り」グループに固定表示され、チャットヘッダーのモデル選択にも反映されるので素早く選べます（プロバイダーごとに表示）。',
     ],

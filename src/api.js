@@ -1266,14 +1266,23 @@ export const apiUtils = {
             max_tokens: maxTokens,
         };
 
+        // 新世代モデル（Opus 4.7/4.8/5・Sonnet 5・Fable 5 等）は temperature/top_p/top_k が
+        // 廃止されており、送ると400になるため送らない。
+        const rejectsSamplingParams = ['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'].some(m => model.startsWith(m));
+        // thinking パラメータ非対応の旧モデル（Claude 3.x / 2.x）には thinking を送らない。
+        const supportsThinkingParam = !model.startsWith('claude-3') && !model.startsWith('claude-2');
+
         if (useAdaptive) {
             requestBody.thinking = { type: 'adaptive' };
-            requestBody.temperature = 1;
+            if (!rejectsSamplingParams) requestBody.temperature = 1;
         } else if (useManualThinking) {
             requestBody.thinking = { type: 'enabled', budget_tokens: state.settings.thinkingBudget };
-            requestBody.temperature = 1;
+            if (!rejectsSamplingParams) requestBody.temperature = 1;
         } else {
-            requestBody.temperature = config.temperature ?? 0.7;
+            // OFF（思考なし）。Opus 5 等は思考がデフォルトONのため、明示的に disabled を送って止める。
+            // （disabled は effort high 以下限定だが、OFF時は effort を送らない＝サーバー既定 high なので問題なし）
+            if (supportsThinkingParam) requestBody.thinking = { type: 'disabled' };
+            if (!rejectsSamplingParams) requestBody.temperature = config.temperature ?? 0.7;
         }
         if (effort) {
             requestBody.output_config = { effort };
