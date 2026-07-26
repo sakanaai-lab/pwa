@@ -35,7 +35,7 @@ describe('sleep', () => {
 
 describe('parseNameMaskRules', () => {
     it('「本名,別名」を解析する', () => {
-        expect(parseNameMaskRules('ゆすら,A')).toEqual([{ from: 'ゆすら', to: 'A' }]);
+        expect(parseNameMaskRules('佐藤花子,A')).toEqual([{ from: '佐藤花子', to: 'A' }]);
     });
 
     it('区切りに 、 → -> => を使える', () => {
@@ -45,8 +45,8 @@ describe('parseNameMaskRules', () => {
     });
 
     it('複数行を解析し、空行や本名なしの行は無視する', () => {
-        const rules = parseNameMaskRules('ゆすら,A\n\n,無視される\n田中太郎,主人公');
-        expect(rules).toContainEqual({ from: 'ゆすら', to: 'A' });
+        const rules = parseNameMaskRules('佐藤花子,A\n\n,無視される\n田中太郎,主人公');
+        expect(rules).toContainEqual({ from: '佐藤花子', to: 'A' });
         expect(rules).toContainEqual({ from: '田中太郎', to: '主人公' });
         expect(rules).toHaveLength(2);
     });
@@ -68,8 +68,8 @@ describe('parseNameMaskRules', () => {
 
 describe('applyNameMask', () => {
     it('全出現を置換する', () => {
-        const rules = [{ from: 'ゆすら', to: 'A' }];
-        expect(applyNameMask('ゆすらとゆすらの話', rules)).toBe('AとAの話');
+        const rules = [{ from: '佐藤花子', to: 'A' }];
+        expect(applyNameMask('佐藤花子と佐藤花子の話', rules)).toBe('AとAの話');
     });
 
     it('長い名前を先に処理して部分崩れを防ぐ', () => {
