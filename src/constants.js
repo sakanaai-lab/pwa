@@ -115,6 +115,22 @@ export const ANTHROPIC_MODELS = [
 ];
 export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 
+// Anthropic モデルごとに使用可能な Effort レベルを返す（'' は OFF＝思考なし）。
+// 未知のモデル（カスタム等）は null を返し、制限しない。
+// - フル（low/medium/high/xhigh/max）: Opus 4.7/4.8/5, Sonnet 5, Fable 5, Mythos 5
+// - xhigh 非対応（max はOK）: Opus 4.6, Sonnet 4.6
+// - xhigh/max 非対応: Opus 4.5
+// - Effort 非対応（OFFのみ）: Haiku 4.5, Sonnet 4.5, Claude 3.x / 2.x
+export function getAnthropicEffortLevels(model) {
+    if (!model) return null;
+    const full = ['claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'];
+    if (full.some((p) => model.startsWith(p))) return ['', 'low', 'medium', 'high', 'xhigh', 'max'];
+    if (model.startsWith('claude-opus-4-6') || model.startsWith('claude-sonnet-4-6')) return ['', 'low', 'medium', 'high', 'max'];
+    if (model.startsWith('claude-opus-4-5')) return ['', 'low', 'medium', 'high'];
+    if (model.startsWith('claude-haiku') || model.startsWith('claude-sonnet-4-5') || model.startsWith('claude-3') || model.startsWith('claude-2')) return [''];
+    return null;
+}
+
 export const GROQ_MODELS = [
     { value: 'moonshotai/kimi-k2-instruct', label: 'Kimi K2 Instruct' },
     { value: 'meta-llama/llama-4-maverick-17b-128e-instruct', label: 'Llama 4 Maverick 17B' },
@@ -159,6 +175,9 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    '1.33': [
+        '思考の深さ(Effort)を、選択中のClaudeモデルで使えるレベルだけ表示するように改善。xhighはOpus 4.7以降、Effort自体はOpus 4.6以降/Sonnet 4.6のみ対応で、非対応のモデルでは自動的に選べなくなり、注意書きも表示されます。非対応レベルが設定に残っていてもAPI送信時に対応レベルへ自動調整するため400エラーになりません（※Opus 4.8 は max も xhigh も使えます）。',
+    ],
     '1.32': [
         'Claude Opus 5 に対応。Anthropicのモデル一覧に「Claude Opus 5 / 4.8」を追加しました。',
         'Anthropic新世代モデル（Opus 4.7/4.8/5 等）で temperature が廃止され送ると400エラーになる問題に対応（該当モデルでは temperature を送信しないよう修正）。これまで Opus 4.7 選択時に失敗し得た不具合も解消。',
