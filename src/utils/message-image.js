@@ -10,7 +10,7 @@
 //  - 範囲保存は各メッセージを個別に撮影 → 縦に連結。長すぎる場合は縮小して1枚に収め、
 //    極端に長い場合のみ複数枚へ分割する。
 
-import { applyNameMask } from './format.js';
+import { applyNameMask, formatTimestamp } from './format.js';
 
 const CAPTURE_EXCLUDED_CLASSES = new Set([
     'message-actions',
@@ -142,18 +142,6 @@ function canvasToPngBlob(canvas) {
             'image/png'
         );
     });
-}
-
-function formatTimestamp(date) {
-    return [
-        date.getFullYear(),
-        String(date.getMonth() + 1).padStart(2, '0'),
-        String(date.getDate()).padStart(2, '0'),
-        '-',
-        String(date.getHours()).padStart(2, '0'),
-        String(date.getMinutes()).padStart(2, '0'),
-        String(date.getSeconds()).padStart(2, '0'),
-    ].join('');
 }
 
 export function createMessageImageFilename(messageElement, date = new Date()) {
