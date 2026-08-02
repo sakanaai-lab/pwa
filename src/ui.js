@@ -2,6 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -693,6 +694,85 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                 });
             };
             actionsDiv.appendChild(copyButton);
+            if (role === 'model') {
+                const ttsButton = document.createElement('button');
+                const ttsIdleHtml = '<span class="material-symbols-outlined">volume_up</span> 読み上げ';
+                ttsButton.innerHTML = ttsIdleHtml;
+                ttsButton.title = 'このメッセージを読み上げる';
+                ttsButton.classList.add('js-tts-btn');
+                ttsButton.onclick = async () => {
+                    const msg = state.currentMessages[index];
+                    if (!msg) return;
+                    if (!state.settings.ttsServerUrl) {
+                        await uiUtils.showCustomAlert('設定でTTSサーバーURLを入力してください。');
+                        return;
+                    }
+                    if (ttsButton.disabled) return;
+                    // iOS Safari 対策。生成を待ってから再生するとユーザー操作の文脈が切れて
+                    // 再生を拒否されるため、タップと同じ流れの中で再生権を確保しておく。
+                    const audio = createUnlockedAudio();
+                    // 生成に数秒かかるのでローディング表示にする
+                    ttsButton.disabled = true;
+                    ttsButton.classList.add('is-loading');
+                    ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
+                    try {
+                        await speak(msg.content || '', {
+                            baseUrl: state.settings.ttsServerUrl,
+                            voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                            caption: state.settings.ttsCaption,
+                            speed: state.settings.ttsSpeed,
+                            speakerScale: state.settings.ttsSpeakerScale,
+                            audio,
+                        });
+                    } catch (error) {
+                        // 読み上げの失敗はアプリ本体の動作に影響させない
+                        console.error('[TTS] 読み上げに失敗しました:', error);
+                        await uiUtils.showCustomAlert(`読み上げに失敗しました。\n${error.message}`);
+                    } finally {
+                        ttsButton.disabled = false;
+                        ttsButton.classList.remove('is-loading');
+                        ttsButton.innerHTML = ttsIdleHtml;
+                    }
+                };
+                actionsDiv.appendChild(ttsButton);
+
+                const ttsSaveButton = document.createElement('button');
+                const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
+                ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+                ttsSaveButton.title = 'この読み上げ音声をwavで保存';
+                ttsSaveButton.classList.add('js-tts-save-btn');
+                ttsSaveButton.onclick = async () => {
+                    const msg = state.currentMessages[index];
+                    if (!msg) return;
+                    if (!state.settings.ttsServerUrl) {
+                        await uiUtils.showCustomAlert('設定でTTSサーバーURLを入力してください。');
+                        return;
+                    }
+                    if (ttsSaveButton.disabled) return;
+                    ttsSaveButton.disabled = true;
+                    ttsSaveButton.classList.add('is-loading');
+                    ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
+                    try {
+                        // 直前に読み上げた音声と同じ内容なら生成し直さずに保存する
+                        await saveSpeech(msg.content || '', {
+                            baseUrl: state.settings.ttsServerUrl,
+                            voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                            caption: state.settings.ttsCaption,
+                            speed: state.settings.ttsSpeed,
+                            speakerScale: state.settings.ttsSpeakerScale,
+                            filename: createTtsFilename(messageDiv.dataset.turn),
+                        });
+                    } catch (error) {
+                        console.error('[TTS] 音声の保存に失敗しました:', error);
+                        await uiUtils.showCustomAlert(`音声の保存に失敗しました。\n${error.message}`);
+                    } finally {
+                        ttsSaveButton.disabled = false;
+                        ttsSaveButton.classList.remove('is-loading');
+                        ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+                    }
+                };
+                actionsDiv.appendChild(ttsSaveButton);
+            }
             if (role === 'user') {
                 const retryButton = document.createElement('button');
                 retryButton.innerHTML = '<span class="material-symbols-outlined">replay</span> 再生成'; 
@@ -1090,6 +1170,11 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.additionalModelsTextarea.value = state.settings.additionalModels || '';
         if (elements.nameMaskToggle) elements.nameMaskToggle.checked = state.settings.enableNameMask === true;
         if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || '';
+        if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || '';
+        if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
+        if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
+        if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
+        if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
         elements.enterToSendCheckbox.checked = state.settings.enterToSend;
         elements.historySortOrderSelect.value = state.settings.historySortOrder || 'updatedAt';
         elements.darkModeToggle.checked = state.settings.darkMode;

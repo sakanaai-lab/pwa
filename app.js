@@ -1753,6 +1753,11 @@ ${relationship_context}`;
       manageMemoryBtn: document.getElementById("manage-memory-btn"),
       nameMaskToggle: document.getElementById("name-mask-toggle"),
       nameMaskTextarea: document.getElementById("name-mask-text"),
+      ttsServerUrlInput: document.getElementById("tts-server-url"),
+      ttsVoiceIdInput: document.getElementById("tts-voice-id"),
+      ttsCaptionTextarea: document.getElementById("tts-caption"),
+      ttsSpeedInput: document.getElementById("tts-speed"),
+      ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
       memoryManagementDialog: document.getElementById("memoryManagementDialog"),
       memoryListContainer: document.getElementById("memory-list-container"),
       newMemoryInput: document.getElementById("new-memory-input"),
@@ -1994,6 +1999,12 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.36": [
+      "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。",
+      "読み上げの調整項目を追加。「読み上げスタイル」に文章で指定すると話し方や感情を変えられます（声そのものは音声IDのまま）。あわせて「話す速さ」と、参照音声への「声の寄せ具合」も設定できます。いずれも空欄なら従来どおりの動作です。",
+      "iPhone（iOS Safari）で読み上げが再生できない場合がある問題に対応。音声の生成に数秒かかるとタップの操作扱いが切れて再生を拒否されるため、タップ時に再生権を確保しておくようにしました。",
+      "音声保存を追加。AIのメッセージ操作の「音声保存」から、読み上げ音声をwavファイルとして保存できます。直前に読み上げた内容と同じ場合は生成し直さずすぐ保存されます。"
+    ],
     "1.35": [
       "配色プリセットを追加。設定の「配色プリセット」から、藍墨・青磁・灰桜・墨・琥珀の5種類（各ライト/ダーク対応）にワンタップで切り替えられます。ClaudeDesignで作成したテンプレートを移植しました。"
     ],
@@ -2183,6 +2194,16 @@ ${relationship_context}`;
       // 画像保存・コピー時の名前マスキング
       nameMaskText: "",
       // 置換リスト（1行に「本名,別名」）
+      ttsServerUrl: "",
+      // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
+      ttsVoiceId: "kouko",
+      // TTS音声ID
+      ttsCaption: "",
+      // 話し方・感情の指定（空なら送らない）
+      ttsSpeed: null,
+      // 話す速さ 0.25〜4.0（未設定なら送らない）
+      ttsSpeakerScale: null,
+      // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
       headerAutoHide: false,
       summaryModelName: "",
       // 空の場合はmodelNameを使用
@@ -2497,6 +2518,18 @@ Reason: [NGの場合の理由]`,
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
+  function formatTimestamp(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+      "-",
+      String(date.getHours()).padStart(2, "0"),
+      String(date.getMinutes()).padStart(2, "0"),
+      String(date.getSeconds()).padStart(2, "0")
+    ].join("");
+  }
+  __name(formatTimestamp, "formatTimestamp");
   function parseNameMaskRules(text) {
     if (!text || typeof text !== "string") return [];
     const rules = [];
@@ -2558,6 +2591,181 @@ Reason: [NGの場合の理由]`,
     return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
   }
   __name(base64ToBlob, "base64ToBlob");
+
+  // src/utils/tts.js
+  var TTS_PATH = "/v1/audio/speech";
+  var TTS_MODEL = "irodori-tts";
+  var DEFAULT_TTS_VOICE = "kouko";
+  var SPEED_MIN = 0.25;
+  var SPEED_MAX = 4;
+  var SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
+  var currentAudio = null;
+  var currentObjectUrl = null;
+  var currentController = null;
+  var generation = 0;
+  var lastBlob = null;
+  var lastKey = null;
+  function cacheKey(text, settings = {}) {
+    return JSON.stringify([
+      String(text),
+      settings.voice || "",
+      settings.caption || "",
+      settings.speed ?? "",
+      settings.speakerScale ?? ""
+    ]);
+  }
+  __name(cacheKey, "cacheKey");
+  function toFiniteNumber(value) {
+    if (value === null || value === void 0 || value === "") return null;
+    const num = typeof value === "number" ? value : parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  }
+  __name(toFiniteNumber, "toFiniteNumber");
+  function normalizeTtsBaseUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    let base = url.trim().replace(/\/+$/, "");
+    if (base.toLowerCase().endsWith(TTS_PATH)) {
+      base = base.slice(0, -TTS_PATH.length).replace(/\/+$/, "");
+    }
+    return base;
+  }
+  __name(normalizeTtsBaseUrl, "normalizeTtsBaseUrl");
+  function buildSpeechRequest(baseUrl, text, voice, extra = {}) {
+    const base = normalizeTtsBaseUrl(baseUrl);
+    if (!base) throw new Error("TTSサーバーURLが設定されていません。");
+    if (!text || !String(text).trim()) throw new Error("読み上げるテキストがありません。");
+    const body = {
+      model: TTS_MODEL,
+      input: String(text),
+      voice: voice || DEFAULT_TTS_VOICE,
+      response_format: "wav"
+    };
+    const speed = toFiniteNumber(extra.speed);
+    if (speed !== null) {
+      body.speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed));
+    }
+    const irodori = {};
+    const caption = typeof extra.caption === "string" ? extra.caption.trim() : "";
+    if (caption) irodori.caption = caption;
+    const speakerScale = toFiniteNumber(extra.speakerScale);
+    if (speakerScale !== null) irodori.cfg_scale_speaker = speakerScale;
+    if (Object.keys(irodori).length > 0) body.irodori = irodori;
+    return {
+      url: `${base}${TTS_PATH}`,
+      options: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      }
+    };
+  }
+  __name(buildSpeechRequest, "buildSpeechRequest");
+  function createUnlockedAudio() {
+    const audio = new Audio(SILENT_WAV);
+    try {
+      const played = audio.play();
+      if (played && typeof played.then === "function") {
+        played.then(() => audio.pause()).catch(() => {
+        });
+      }
+    } catch {
+    }
+    return audio;
+  }
+  __name(createUnlockedAudio, "createUnlockedAudio");
+  async function fetchSpeechBlob(text, settings, signal) {
+    const { url, options } = buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
+    let response;
+    try {
+      response = await fetch(url, { ...options, signal });
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+    }
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+    const blob = await response.blob();
+    lastBlob = blob;
+    lastKey = cacheKey(text, settings);
+    return blob;
+  }
+  __name(fetchSpeechBlob, "fetchSpeechBlob");
+  function createTtsFilename(turn, date = /* @__PURE__ */ new Date()) {
+    const turnPart = turn === void 0 || turn === null || turn === "" ? "message" : String(turn);
+    return `Aquarium_Chat_tts_${turnPart}_${formatTimestamp(date)}.wav`;
+  }
+  __name(createTtsFilename, "createTtsFilename");
+  async function saveSpeech(text, settings = {}) {
+    const key = cacheKey(text, settings);
+    const blob = lastBlob && lastKey === key ? lastBlob : await fetchSpeechBlob(text, settings);
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = settings.filename || createTtsFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1e3);
+  }
+  __name(saveSpeech, "saveSpeech");
+  function stopSpeech() {
+    generation++;
+    if (currentController) {
+      currentController.abort();
+      currentController = null;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = null;
+    }
+  }
+  __name(stopSpeech, "stopSpeech");
+  async function speak(text, settings = {}) {
+    const { audio: providedAudio } = settings;
+    buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
+    stopSpeech();
+    const myGeneration = generation;
+    const controller = new AbortController();
+    currentController = controller;
+    let blob;
+    try {
+      blob = await fetchSpeechBlob(text, settings, controller.signal);
+    } catch (error) {
+      if (currentController === controller) currentController = null;
+      if (error?.name === "AbortError") return false;
+      throw error;
+    }
+    if (currentController === controller) currentController = null;
+    if (myGeneration !== generation) return false;
+    const objectUrl = URL.createObjectURL(blob);
+    const audio = providedAudio || new Audio();
+    audio.src = objectUrl;
+    currentAudio = audio;
+    currentObjectUrl = objectUrl;
+    const release = /* @__PURE__ */ __name(() => {
+      if (currentObjectUrl === objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        currentObjectUrl = null;
+        currentAudio = null;
+      }
+    }, "release");
+    audio.addEventListener("ended", release);
+    audio.addEventListener("error", release);
+    try {
+      await audio.play();
+    } catch (error) {
+      release();
+      throw new Error(`音声の再生に失敗しました: ${error.message}`);
+    }
+    return true;
+  }
+  __name(speak, "speak");
 
   // src/utils/html.js
   var htmlUtils = {
@@ -3212,6 +3420,81 @@ Reason: [NGの場合の理由]`,
             });
           };
           actionsDiv.appendChild(copyButton);
+          if (role === "model") {
+            const ttsButton = document.createElement("button");
+            const ttsIdleHtml = '<span class="material-symbols-outlined">volume_up</span> 読み上げ';
+            ttsButton.innerHTML = ttsIdleHtml;
+            ttsButton.title = "このメッセージを読み上げる";
+            ttsButton.classList.add("js-tts-btn");
+            ttsButton.onclick = async () => {
+              const msg = state.currentMessages[index];
+              if (!msg) return;
+              if (!state.settings.ttsServerUrl) {
+                await uiUtils.showCustomAlert("設定でTTSサーバーURLを入力してください。");
+                return;
+              }
+              if (ttsButton.disabled) return;
+              const audio = createUnlockedAudio();
+              ttsButton.disabled = true;
+              ttsButton.classList.add("is-loading");
+              ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
+              try {
+                await speak(msg.content || "", {
+                  baseUrl: state.settings.ttsServerUrl,
+                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                  caption: state.settings.ttsCaption,
+                  speed: state.settings.ttsSpeed,
+                  speakerScale: state.settings.ttsSpeakerScale,
+                  audio
+                });
+              } catch (error) {
+                console.error("[TTS] 読み上げに失敗しました:", error);
+                await uiUtils.showCustomAlert(`読み上げに失敗しました。
+${error.message}`);
+              } finally {
+                ttsButton.disabled = false;
+                ttsButton.classList.remove("is-loading");
+                ttsButton.innerHTML = ttsIdleHtml;
+              }
+            };
+            actionsDiv.appendChild(ttsButton);
+            const ttsSaveButton = document.createElement("button");
+            const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
+            ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+            ttsSaveButton.title = "この読み上げ音声をwavで保存";
+            ttsSaveButton.classList.add("js-tts-save-btn");
+            ttsSaveButton.onclick = async () => {
+              const msg = state.currentMessages[index];
+              if (!msg) return;
+              if (!state.settings.ttsServerUrl) {
+                await uiUtils.showCustomAlert("設定でTTSサーバーURLを入力してください。");
+                return;
+              }
+              if (ttsSaveButton.disabled) return;
+              ttsSaveButton.disabled = true;
+              ttsSaveButton.classList.add("is-loading");
+              ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
+              try {
+                await saveSpeech(msg.content || "", {
+                  baseUrl: state.settings.ttsServerUrl,
+                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                  caption: state.settings.ttsCaption,
+                  speed: state.settings.ttsSpeed,
+                  speakerScale: state.settings.ttsSpeakerScale,
+                  filename: createTtsFilename(messageDiv.dataset.turn)
+                });
+              } catch (error) {
+                console.error("[TTS] 音声の保存に失敗しました:", error);
+                await uiUtils.showCustomAlert(`音声の保存に失敗しました。
+${error.message}`);
+              } finally {
+                ttsSaveButton.disabled = false;
+                ttsSaveButton.classList.remove("is-loading");
+                ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+              }
+            };
+            actionsDiv.appendChild(ttsSaveButton);
+          }
           if (role === "user") {
             const retryButton = document.createElement("button");
             retryButton.innerHTML = '<span class="material-symbols-outlined">replay</span> 再生成';
@@ -3569,6 +3852,11 @@ Reason: [NGの場合の理由]`,
       elements.additionalModelsTextarea.value = state.settings.additionalModels || "";
       if (elements.nameMaskToggle) elements.nameMaskToggle.checked = state.settings.enableNameMask === true;
       if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || "";
+      if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
+      if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
+      if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
+      if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
+      if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
       elements.enterToSendCheckbox.checked = state.settings.enterToSend;
       elements.historySortOrderSelect.value = state.settings.historySortOrder || "updatedAt";
       elements.darkModeToggle.checked = state.settings.darkMode;
@@ -5405,6 +5693,11 @@ Reason: [NGの場合の理由]`,
         apiKey: { element: elements.apiKeyInput, event: "input" },
         enableNameMask: { element: elements.nameMaskToggle, event: "change" },
         nameMaskText: { element: elements.nameMaskTextarea, event: "input" },
+        ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
+        ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
+        ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
+        ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
+        ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
         zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
         openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
         bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
@@ -11356,18 +11649,6 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     });
   }
   __name(canvasToPngBlob, "canvasToPngBlob");
-  function formatTimestamp(date) {
-    return [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, "0"),
-      String(date.getDate()).padStart(2, "0"),
-      "-",
-      String(date.getHours()).padStart(2, "0"),
-      String(date.getMinutes()).padStart(2, "0"),
-      String(date.getSeconds()).padStart(2, "0")
-    ].join("");
-  }
-  __name(formatTimestamp, "formatTimestamp");
   function createMessageImageFilename(messageElement, date = /* @__PURE__ */ new Date()) {
     const role = messageElement.classList.contains("user") ? "user" : "assistant";
     const turn = messageElement.dataset.turn || "message";

@@ -284,6 +284,39 @@
                     </div>
                 </div>
 
+                <div class="settings-group">
+                    <h3>音声読み上げ（Irodori-TTS）</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
+                        Irodori-TTS-Server（OpenAI TTS API互換）と連携し、AIの発言を読み上げます。設定するとメッセージ操作に「読み上げ」ボタンが表示されます。
+                    </p>
+                    <label for="tts-server-url">TTSサーバーURL:</label>
+                    <input type="url" id="tts-server-url" placeholder="https://xxx.trycloudflare.com" autocomplete="off">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ cloudflaredのトンネルURL。Colabを起動し直すたびに変わるので、その都度貼り直してください。<br>
+                        ※ 末尾の <code>/v1/audio/speech</code> は付けても付けなくても構いません。
+                    </p>
+                    <label for="tts-voice-id" style="margin-top: 12px;">TTS音声ID:</label>
+                    <input type="text" id="tts-voice-id" placeholder="kouko" autocomplete="off">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ <code>voices</code> に置いた音声ファイル名から拡張子を除いたもの（<code>kouko.wav</code> → <code>kouko</code>）。<code>none</code> にすると参照音声を使わず毎回異なる声になります。
+                    </p>
+
+                    <label for="tts-caption" style="margin-top: 12px;">読み上げスタイル（任意）:</label>
+                    <textarea id="tts-caption" rows="2" placeholder="明るく元気で、楽しそうな話し方。" style="width:100%;box-sizing:border-box;"></textarea>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ 話し方や感情を文章で指定します（声そのものは音声IDのまま）。空欄なら指定なし。
+                    </p>
+
+                    <label for="tts-speed" style="margin-top: 12px;">話す速さ（任意・0.25〜4.0）:</label>
+                    <input type="number" id="tts-speed" min="0.25" max="4" step="0.05" placeholder="1.0">
+
+                    <label for="tts-speaker-scale" style="margin-top: 12px;">声の寄せ具合（任意）:</label>
+                    <input type="number" id="tts-speaker-scale" step="0.1" placeholder="未設定（サーバー既定）">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ 参照音声への似せ具合（cfg_scale_speaker）。「あまり似ていない」と感じるときに上げてみてください。空欄ならサーバー既定値。
+                    </p>
+                </div>
+
                 <details class="settings-group" open>
                     <summary class="settings-summary"><h3 style="display:inline;font-size:15px;color:var(--text-primary);margin:0;">▼ 基礎設定</h3></summary>
                     <div class="settings-content" style="padding-top:15px;">

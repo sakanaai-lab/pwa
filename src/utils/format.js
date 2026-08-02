@@ -5,6 +5,23 @@
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * 保存ファイル名用に日時を `YYYYMMDD-HHMMSS` 形式へ整形する。
+ * @param {Date} date
+ * @returns {string}
+ */
+export function formatTimestamp(date) {
+    return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, '0'),
+        String(date.getDate()).padStart(2, '0'),
+        '-',
+        String(date.getHours()).padStart(2, '0'),
+        String(date.getMinutes()).padStart(2, '0'),
+        String(date.getSeconds()).padStart(2, '0'),
+    ].join('');
+}
+
+/**
  * 名前マスキング用の置換リストを解析する。
  * 1行に1組、「本名,別名」の形式（区切りは , 、 → -> => のいずれか）。
  * 本名が空の行は無視。別名は空でもよい（＝その名前を削除）。
