@@ -8,12 +8,27 @@ const TTS_PATH = '/v1/audio/speech';
 const TTS_MODEL = 'irodori-tts';
 export const DEFAULT_TTS_VOICE = 'kouko';
 
+// speed の許容範囲（サーバー仕様）。範囲外を送ると400になるのでクランプする。
+const SPEED_MIN = 0.25;
+const SPEED_MAX = 4.0;
+
+// iOSの自動再生制限を解除するための無音WAV（1サンプル）。
+const SILENT_WAV =
+    'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=';
+
 // 再生中の音声。新しい再生が始まったら前のものを止めるために保持する。
 let currentAudio = null;
 let currentObjectUrl = null;
 let currentController = null;
 // 再生要求の世代。停止や再要求のあとに、古い要求の音声が鳴り出すのを防ぐ。
 let generation = 0;
+
+/** 数値設定を取り出す。空欄・未設定・数値でないものは null（＝送らない）。 */
+function toFiniteNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const num = typeof value === 'number' ? value : parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+}
 
 /**
  * ベースURLを正規化する。末尾のスラッシュや、誤ってエンドポイントごと
@@ -32,28 +47,66 @@ export function normalizeTtsBaseUrl(url) {
 
 /**
  * 音声合成リクエスト（URLとfetchオプション）を組み立てる。
+ * caption / speed / speakerScale は未設定なら送らないので、既定の挙動は変わらない。
  * @param {string} baseUrl - TTSサーバーのベースURL
  * @param {string} text - 読み上げるテキスト
  * @param {string} [voice] - 音声ID
+ * @param {{caption?: string, speed?: number|string, speakerScale?: number|string}} [extra]
  * @returns {{url: string, options: object}}
  */
-export function buildSpeechRequest(baseUrl, text, voice) {
+export function buildSpeechRequest(baseUrl, text, voice, extra = {}) {
     const base = normalizeTtsBaseUrl(baseUrl);
     if (!base) throw new Error('TTSサーバーURLが設定されていません。');
     if (!text || !String(text).trim()) throw new Error('読み上げるテキストがありません。');
+
+    const body = {
+        model: TTS_MODEL,
+        input: String(text),
+        voice: voice || DEFAULT_TTS_VOICE,
+        response_format: 'wav',
+    };
+
+    const speed = toFiniteNumber(extra.speed);
+    if (speed !== null) {
+        body.speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed));
+    }
+
+    // サーバー独自の拡張は irodori オブジェクトに入れて送る。
+    const irodori = {};
+    const caption = typeof extra.caption === 'string' ? extra.caption.trim() : '';
+    if (caption) irodori.caption = caption;
+    const speakerScale = toFiniteNumber(extra.speakerScale);
+    if (speakerScale !== null) irodori.cfg_scale_speaker = speakerScale;
+    if (Object.keys(irodori).length > 0) body.irodori = irodori;
+
     return {
         url: `${base}${TTS_PATH}`,
         options: {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: TTS_MODEL,
-                input: String(text),
-                voice: voice || DEFAULT_TTS_VOICE,
-                response_format: 'wav',
-            }),
+            body: JSON.stringify(body),
         },
     };
+}
+
+/**
+ * iOS Safari の自動再生制限を解除した Audio 要素を作る。
+ * 「タップ → 数秒かかる生成 → 再生」の流れだと、再生時にはユーザー操作の文脈が
+ * 切れていて再生を拒否される。タップと同じ同期処理の中でこれを呼び、
+ * 無音を一瞬鳴らして再生権を得た要素を使い回すことで回避する。
+ * @returns {HTMLAudioElement}
+ */
+export function createUnlockedAudio() {
+    const audio = new Audio(SILENT_WAV);
+    try {
+        const played = audio.play();
+        if (played && typeof played.then === 'function') {
+            played.then(() => audio.pause()).catch(() => { /* 解除できなくても続行する */ });
+        }
+    } catch {
+        /* 解除できなくても続行する */
+    }
+    return audio;
 }
 
 /** 再生中の音声を停止し、リソースを解放する。 */
@@ -76,11 +129,13 @@ export function stopSpeech() {
 /**
  * テキストを読み上げる。再生中に呼ばれた場合は前の再生を停止してから開始する。
  * @param {string} text - 読み上げるテキスト
- * @param {{baseUrl: string, voice?: string}} settings
+ * @param {{baseUrl: string, voice?: string, caption?: string, speed?: number|string,
+ *          speakerScale?: number|string, audio?: HTMLAudioElement}} settings
  * @returns {Promise<boolean>} 再生を開始したら true（新しい要求に追い越された場合は false）
  */
-export async function speak(text, { baseUrl, voice } = {}) {
-    const { url, options } = buildSpeechRequest(baseUrl, text, voice);
+export async function speak(text, settings = {}) {
+    const { baseUrl, voice, audio: providedAudio } = settings;
+    const { url, options } = buildSpeechRequest(baseUrl, text, voice, settings);
 
     stopSpeech(); // 前の再生を止める（generation もここで進む）
     const myGeneration = generation;
@@ -108,7 +163,9 @@ export async function speak(text, { baseUrl, voice } = {}) {
     if (myGeneration !== generation) return false; // 待っている間に新しい要求が来た
 
     const objectUrl = URL.createObjectURL(blob);
-    const audio = new Audio(objectUrl);
+    // iOS対策で先に解除済みの要素が渡されていればそれを使う（無ければその場で作る）
+    const audio = providedAudio || new Audio();
+    audio.src = objectUrl;
     currentAudio = audio;
     currentObjectUrl = objectUrl;
 

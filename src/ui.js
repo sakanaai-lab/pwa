@@ -2,7 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, createUnlockedAudio, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -708,6 +708,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         return;
                     }
                     if (ttsButton.disabled) return;
+                    // iOS Safari 対策。生成を待ってから再生するとユーザー操作の文脈が切れて
+                    // 再生を拒否されるため、タップと同じ流れの中で再生権を確保しておく。
+                    const audio = createUnlockedAudio();
                     // 生成に数秒かかるのでローディング表示にする
                     ttsButton.disabled = true;
                     ttsButton.classList.add('is-loading');
@@ -716,6 +719,10 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await speak(msg.content || '', {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                            caption: state.settings.ttsCaption,
+                            speed: state.settings.ttsSpeed,
+                            speakerScale: state.settings.ttsSpeakerScale,
+                            audio,
                         });
                     } catch (error) {
                         // 読み上げの失敗はアプリ本体の動作に影響させない
@@ -1128,6 +1135,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || '';
         if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || '';
         if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
+        if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
+        if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
+        if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
         elements.enterToSendCheckbox.checked = state.settings.enterToSend;
         elements.historySortOrderSelect.value = state.settings.historySortOrder || 'updatedAt';
         elements.darkModeToggle.checked = state.settings.darkMode;

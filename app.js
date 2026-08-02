@@ -1755,6 +1755,9 @@ ${relationship_context}`;
       nameMaskTextarea: document.getElementById("name-mask-text"),
       ttsServerUrlInput: document.getElementById("tts-server-url"),
       ttsVoiceIdInput: document.getElementById("tts-voice-id"),
+      ttsCaptionTextarea: document.getElementById("tts-caption"),
+      ttsSpeedInput: document.getElementById("tts-speed"),
+      ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
       memoryManagementDialog: document.getElementById("memoryManagementDialog"),
       memoryListContainer: document.getElementById("memory-list-container"),
       newMemoryInput: document.getElementById("new-memory-input"),
@@ -1997,7 +2000,9 @@ ${relationship_context}`;
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     "1.36": [
-      "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。"
+      "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。",
+      "読み上げの調整項目を追加。「読み上げスタイル」に文章で指定すると話し方や感情を変えられます（声そのものは音声IDのまま）。あわせて「話す速さ」と、参照音声への「声の寄せ具合」も設定できます。いずれも空欄なら従来どおりの動作です。",
+      "iPhone（iOS Safari）で読み上げが再生できない場合がある問題に対応。音声の生成に数秒かかるとタップの操作扱いが切れて再生を拒否されるため、タップ時に再生権を確保しておくようにしました。"
     ],
     "1.35": [
       "配色プリセットを追加。設定の「配色プリセット」から、藍墨・青磁・灰桜・墨・琥珀の5種類（各ライト/ダーク対応）にワンタップで切り替えられます。ClaudeDesignで作成したテンプレートを移植しました。"
@@ -2192,6 +2197,12 @@ ${relationship_context}`;
       // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
       ttsVoiceId: "kouko",
       // TTS音声ID
+      ttsCaption: "",
+      // 話し方・感情の指定（空なら送らない）
+      ttsSpeed: null,
+      // 話す速さ 0.25〜4.0（未設定なら送らない）
+      ttsSpeakerScale: null,
+      // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
       headerAutoHide: false,
       summaryModelName: "",
       // 空の場合はmodelNameを使用
@@ -2572,10 +2583,19 @@ Reason: [NGの場合の理由]`,
   var TTS_PATH = "/v1/audio/speech";
   var TTS_MODEL = "irodori-tts";
   var DEFAULT_TTS_VOICE = "kouko";
+  var SPEED_MIN = 0.25;
+  var SPEED_MAX = 4;
+  var SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";
   var currentAudio = null;
   var currentObjectUrl = null;
   var currentController = null;
   var generation = 0;
+  function toFiniteNumber(value) {
+    if (value === null || value === void 0 || value === "") return null;
+    const num = typeof value === "number" ? value : parseFloat(value);
+    return Number.isFinite(num) ? num : null;
+  }
+  __name(toFiniteNumber, "toFiniteNumber");
   function normalizeTtsBaseUrl(url) {
     if (!url || typeof url !== "string") return "";
     let base = url.trim().replace(/\/+$/, "");
@@ -2585,25 +2605,49 @@ Reason: [NGの場合の理由]`,
     return base;
   }
   __name(normalizeTtsBaseUrl, "normalizeTtsBaseUrl");
-  function buildSpeechRequest(baseUrl, text, voice) {
+  function buildSpeechRequest(baseUrl, text, voice, extra = {}) {
     const base = normalizeTtsBaseUrl(baseUrl);
     if (!base) throw new Error("TTSサーバーURLが設定されていません。");
     if (!text || !String(text).trim()) throw new Error("読み上げるテキストがありません。");
+    const body = {
+      model: TTS_MODEL,
+      input: String(text),
+      voice: voice || DEFAULT_TTS_VOICE,
+      response_format: "wav"
+    };
+    const speed = toFiniteNumber(extra.speed);
+    if (speed !== null) {
+      body.speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed));
+    }
+    const irodori = {};
+    const caption = typeof extra.caption === "string" ? extra.caption.trim() : "";
+    if (caption) irodori.caption = caption;
+    const speakerScale = toFiniteNumber(extra.speakerScale);
+    if (speakerScale !== null) irodori.cfg_scale_speaker = speakerScale;
+    if (Object.keys(irodori).length > 0) body.irodori = irodori;
     return {
       url: `${base}${TTS_PATH}`,
       options: {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: TTS_MODEL,
-          input: String(text),
-          voice: voice || DEFAULT_TTS_VOICE,
-          response_format: "wav"
-        })
+        body: JSON.stringify(body)
       }
     };
   }
   __name(buildSpeechRequest, "buildSpeechRequest");
+  function createUnlockedAudio() {
+    const audio = new Audio(SILENT_WAV);
+    try {
+      const played = audio.play();
+      if (played && typeof played.then === "function") {
+        played.then(() => audio.pause()).catch(() => {
+        });
+      }
+    } catch {
+    }
+    return audio;
+  }
+  __name(createUnlockedAudio, "createUnlockedAudio");
   function stopSpeech() {
     generation++;
     if (currentController) {
@@ -2620,8 +2664,9 @@ Reason: [NGの場合の理由]`,
     }
   }
   __name(stopSpeech, "stopSpeech");
-  async function speak(text, { baseUrl, voice } = {}) {
-    const { url, options } = buildSpeechRequest(baseUrl, text, voice);
+  async function speak(text, settings = {}) {
+    const { baseUrl, voice, audio: providedAudio } = settings;
+    const { url, options } = buildSpeechRequest(baseUrl, text, voice, settings);
     stopSpeech();
     const myGeneration = generation;
     const controller = new AbortController();
@@ -2643,7 +2688,8 @@ Reason: [NGの場合の理由]`,
     const blob = await response.blob();
     if (myGeneration !== generation) return false;
     const objectUrl = URL.createObjectURL(blob);
-    const audio = new Audio(objectUrl);
+    const audio = providedAudio || new Audio();
+    audio.src = objectUrl;
     currentAudio = audio;
     currentObjectUrl = objectUrl;
     const release = /* @__PURE__ */ __name(() => {
@@ -3332,13 +3378,18 @@ Reason: [NGの場合の理由]`,
                 return;
               }
               if (ttsButton.disabled) return;
+              const audio = createUnlockedAudio();
               ttsButton.disabled = true;
               ttsButton.classList.add("is-loading");
               ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
               try {
                 await speak(msg.content || "", {
                   baseUrl: state.settings.ttsServerUrl,
-                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE
+                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                  caption: state.settings.ttsCaption,
+                  speed: state.settings.ttsSpeed,
+                  speakerScale: state.settings.ttsSpeakerScale,
+                  audio
                 });
               } catch (error) {
                 console.error("[TTS] 読み上げに失敗しました:", error);
@@ -3711,6 +3762,9 @@ ${error.message}`);
       if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || "";
       if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
       if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
+      if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
+      if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
+      if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
       elements.enterToSendCheckbox.checked = state.settings.enterToSend;
       elements.historySortOrderSelect.value = state.settings.historySortOrder || "updatedAt";
       elements.darkModeToggle.checked = state.settings.darkMode;
@@ -5549,6 +5603,9 @@ ${error.message}`);
         nameMaskText: { element: elements.nameMaskTextarea, event: "input" },
         ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
         ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
+        ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
+        ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
+        ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
         zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
         openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
         bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },

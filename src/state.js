@@ -87,6 +87,9 @@ export const state = {
         nameMaskText: '',      // 置換リスト（1行に「本名,別名」）
         ttsServerUrl: '',      // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
         ttsVoiceId: 'kouko',   // TTS音声ID
+        ttsCaption: '',        // 話し方・感情の指定（空なら送らない）
+        ttsSpeed: null,        // 話す速さ 0.25〜4.0（未設定なら送らない）
+        ttsSpeakerScale: null, // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
         headerAutoHide: false,
         summaryModelName: '', // 空の場合はmodelNameを使用
         summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。

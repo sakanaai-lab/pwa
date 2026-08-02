@@ -57,3 +57,48 @@ describe('buildSpeechRequest', () => {
         expect(() => buildSpeechRequest('https://x.trycloudflare.com', '   ')).toThrow(/テキスト/);
     });
 });
+
+describe('buildSpeechRequest — 追加パラメータ', () => {
+    const parse = (extra) =>
+        JSON.parse(buildSpeechRequest('https://x.trycloudflare.com', 'テスト', 'kouko', extra).options.body);
+
+    it('未指定なら speed も irodori も送らない（既定の挙動を変えない）', () => {
+        const body = parse({});
+        expect(body).not.toHaveProperty('speed');
+        expect(body).not.toHaveProperty('irodori');
+    });
+
+    it('キャプションを irodori.caption に入れる', () => {
+        expect(parse({ caption: '明るく元気な話し方。' }).irodori).toEqual({ caption: '明るく元気な話し方。' });
+    });
+
+    it('空白だけのキャプションは送らない', () => {
+        expect(parse({ caption: '   ' })).not.toHaveProperty('irodori');
+    });
+
+    it('speed をトップレベルに入れる', () => {
+        expect(parse({ speed: 1.5 }).speed).toBe(1.5);
+        expect(parse({ speed: '1.25' }).speed).toBe(1.25);
+    });
+
+    it('speed を 0.25〜4.0 にクランプする', () => {
+        expect(parse({ speed: 10 }).speed).toBe(4);
+        expect(parse({ speed: 0.01 }).speed).toBe(0.25);
+    });
+
+    it('speakerScale を irodori.cfg_scale_speaker に入れる', () => {
+        expect(parse({ speakerScale: 2.5 }).irodori).toEqual({ cfg_scale_speaker: 2.5 });
+    });
+
+    it('caption と speakerScale を同じ irodori にまとめる', () => {
+        expect(parse({ caption: '落ち着いた声', speakerScale: 3 }).irodori).toEqual({
+            caption: '落ち着いた声',
+            cfg_scale_speaker: 3,
+        });
+    });
+
+    it('null・空文字・数値でない値は送らない', () => {
+        expect(parse({ speed: null, speakerScale: '' })).not.toHaveProperty('speed');
+        expect(parse({ speed: '', speakerScale: 'abc' })).not.toHaveProperty('irodori');
+    });
+});
