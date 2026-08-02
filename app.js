@@ -2002,7 +2002,8 @@ ${relationship_context}`;
     "1.36": [
       "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。",
       "読み上げの調整項目を追加。「読み上げスタイル」に文章で指定すると話し方や感情を変えられます（声そのものは音声IDのまま）。あわせて「話す速さ」と、参照音声への「声の寄せ具合」も設定できます。いずれも空欄なら従来どおりの動作です。",
-      "iPhone（iOS Safari）で読み上げが再生できない場合がある問題に対応。音声の生成に数秒かかるとタップの操作扱いが切れて再生を拒否されるため、タップ時に再生権を確保しておくようにしました。"
+      "iPhone（iOS Safari）で読み上げが再生できない場合がある問題に対応。音声の生成に数秒かかるとタップの操作扱いが切れて再生を拒否されるため、タップ時に再生権を確保しておくようにしました。",
+      "音声保存を追加。AIのメッセージ操作の「音声保存」から、読み上げ音声をwavファイルとして保存できます。直前に読み上げた内容と同じ場合は生成し直さずすぐ保存されます。"
     ],
     "1.35": [
       "配色プリセットを追加。設定の「配色プリセット」から、藍墨・青磁・灰桜・墨・琥珀の5種類（各ライト/ダーク対応）にワンタップで切り替えられます。ClaudeDesignで作成したテンプレートを移植しました。"
@@ -2517,6 +2518,18 @@ Reason: [NGの場合の理由]`,
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
+  function formatTimestamp(date) {
+    return [
+      date.getFullYear(),
+      String(date.getMonth() + 1).padStart(2, "0"),
+      String(date.getDate()).padStart(2, "0"),
+      "-",
+      String(date.getHours()).padStart(2, "0"),
+      String(date.getMinutes()).padStart(2, "0"),
+      String(date.getSeconds()).padStart(2, "0")
+    ].join("");
+  }
+  __name(formatTimestamp, "formatTimestamp");
   function parseNameMaskRules(text) {
     if (!text || typeof text !== "string") return [];
     const rules = [];
@@ -2590,6 +2603,18 @@ Reason: [NGの場合の理由]`,
   var currentObjectUrl = null;
   var currentController = null;
   var generation = 0;
+  var lastBlob = null;
+  var lastKey = null;
+  function cacheKey(text, settings = {}) {
+    return JSON.stringify([
+      String(text),
+      settings.voice || "",
+      settings.caption || "",
+      settings.speed ?? "",
+      settings.speakerScale ?? ""
+    ]);
+  }
+  __name(cacheKey, "cacheKey");
   function toFiniteNumber(value) {
     if (value === null || value === void 0 || value === "") return null;
     const num = typeof value === "number" ? value : parseFloat(value);
@@ -2648,6 +2673,43 @@ Reason: [NGの場合の理由]`,
     return audio;
   }
   __name(createUnlockedAudio, "createUnlockedAudio");
+  async function fetchSpeechBlob(text, settings, signal) {
+    const { url, options } = buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
+    let response;
+    try {
+      response = await fetch(url, { ...options, signal });
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+    }
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+    const blob = await response.blob();
+    lastBlob = blob;
+    lastKey = cacheKey(text, settings);
+    return blob;
+  }
+  __name(fetchSpeechBlob, "fetchSpeechBlob");
+  function createTtsFilename(turn, date = /* @__PURE__ */ new Date()) {
+    const turnPart = turn === void 0 || turn === null || turn === "" ? "message" : String(turn);
+    return `Aquarium_Chat_tts_${turnPart}_${formatTimestamp(date)}.wav`;
+  }
+  __name(createTtsFilename, "createTtsFilename");
+  async function saveSpeech(text, settings = {}) {
+    const key = cacheKey(text, settings);
+    const blob = lastBlob && lastKey === key ? lastBlob : await fetchSpeechBlob(text, settings);
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = settings.filename || createTtsFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1e3);
+  }
+  __name(saveSpeech, "saveSpeech");
   function stopSpeech() {
     generation++;
     if (currentController) {
@@ -2665,27 +2727,21 @@ Reason: [NGの場合の理由]`,
   }
   __name(stopSpeech, "stopSpeech");
   async function speak(text, settings = {}) {
-    const { baseUrl, voice, audio: providedAudio } = settings;
-    const { url, options } = buildSpeechRequest(baseUrl, text, voice, settings);
+    const { audio: providedAudio } = settings;
+    buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
     stopSpeech();
     const myGeneration = generation;
     const controller = new AbortController();
     currentController = controller;
-    let response;
+    let blob;
     try {
-      response = await fetch(url, { ...options, signal: controller.signal });
+      blob = await fetchSpeechBlob(text, settings, controller.signal);
     } catch (error) {
       if (currentController === controller) currentController = null;
       if (error?.name === "AbortError") return false;
-      throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+      throw error;
     }
     if (currentController === controller) currentController = null;
-    if (myGeneration !== generation) return false;
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
-    }
-    const blob = await response.blob();
     if (myGeneration !== generation) return false;
     const objectUrl = URL.createObjectURL(blob);
     const audio = providedAudio || new Audio();
@@ -3402,6 +3458,42 @@ ${error.message}`);
               }
             };
             actionsDiv.appendChild(ttsButton);
+            const ttsSaveButton = document.createElement("button");
+            const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
+            ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+            ttsSaveButton.title = "この読み上げ音声をwavで保存";
+            ttsSaveButton.classList.add("js-tts-save-btn");
+            ttsSaveButton.onclick = async () => {
+              const msg = state.currentMessages[index];
+              if (!msg) return;
+              if (!state.settings.ttsServerUrl) {
+                await uiUtils.showCustomAlert("設定でTTSサーバーURLを入力してください。");
+                return;
+              }
+              if (ttsSaveButton.disabled) return;
+              ttsSaveButton.disabled = true;
+              ttsSaveButton.classList.add("is-loading");
+              ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
+              try {
+                await saveSpeech(msg.content || "", {
+                  baseUrl: state.settings.ttsServerUrl,
+                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                  caption: state.settings.ttsCaption,
+                  speed: state.settings.ttsSpeed,
+                  speakerScale: state.settings.ttsSpeakerScale,
+                  filename: createTtsFilename(messageDiv.dataset.turn)
+                });
+              } catch (error) {
+                console.error("[TTS] 音声の保存に失敗しました:", error);
+                await uiUtils.showCustomAlert(`音声の保存に失敗しました。
+${error.message}`);
+              } finally {
+                ttsSaveButton.disabled = false;
+                ttsSaveButton.classList.remove("is-loading");
+                ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+              }
+            };
+            actionsDiv.appendChild(ttsSaveButton);
           }
           if (role === "user") {
             const retryButton = document.createElement("button");
@@ -11557,18 +11649,6 @@ JPEG・PNG・GIF・WebP形式に変換してから添付してください。
     });
   }
   __name(canvasToPngBlob, "canvasToPngBlob");
-  function formatTimestamp(date) {
-    return [
-      date.getFullYear(),
-      String(date.getMonth() + 1).padStart(2, "0"),
-      String(date.getDate()).padStart(2, "0"),
-      "-",
-      String(date.getHours()).padStart(2, "0"),
-      String(date.getMinutes()).padStart(2, "0"),
-      String(date.getSeconds()).padStart(2, "0")
-    ].join("");
-  }
-  __name(formatTimestamp, "formatTimestamp");
   function createMessageImageFilename(messageElement, date = /* @__PURE__ */ new Date()) {
     const role = messageElement.classList.contains("user") ? "user" : "assistant";
     const turn = messageElement.dataset.turn || "message";

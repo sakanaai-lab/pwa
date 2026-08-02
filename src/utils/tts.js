@@ -4,6 +4,8 @@
 // それを Blob として受け取り Audio で再生する。
 // ベースURLは cloudflared のトンネルURLで、起動のたびに変わる想定。
 
+import { formatTimestamp } from './format.js';
+
 const TTS_PATH = '/v1/audio/speech';
 const TTS_MODEL = 'irodori-tts';
 export const DEFAULT_TTS_VOICE = 'kouko';
@@ -22,6 +24,21 @@ let currentObjectUrl = null;
 let currentController = null;
 // 再生要求の世代。停止や再要求のあとに、古い要求の音声が鳴り出すのを防ぐ。
 let generation = 0;
+// 直近に生成した音声を1件だけ保持する。読み上げた直後に保存するとき、
+// 同じ内容なら生成し直さずに済ませるため（生成には数秒〜かかる）。
+let lastBlob = null;
+let lastKey = null;
+
+/** 生成結果の同一性を判定するキー。内容か設定が変われば作り直す。 */
+function cacheKey(text, settings = {}) {
+    return JSON.stringify([
+        String(text),
+        settings.voice || '',
+        settings.caption || '',
+        settings.speed ?? '',
+        settings.speakerScale ?? '',
+    ]);
+}
 
 /** 数値設定を取り出す。空欄・未設定・数値でないものは null（＝送らない）。 */
 function toFiniteNumber(value) {
@@ -109,6 +126,70 @@ export function createUnlockedAudio() {
     return audio;
 }
 
+/**
+ * 音声を合成して Blob を返す。再生も保存もここを通す。
+ * @param {string} text
+ * @param {object} settings - baseUrl / voice / caption / speed / speakerScale
+ * @param {AbortSignal} [signal]
+ * @returns {Promise<Blob>}
+ */
+async function fetchSpeechBlob(text, settings, signal) {
+    const { url, options } = buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
+
+    let response;
+    try {
+        response = await fetch(url, { ...options, signal });
+    } catch (error) {
+        if (error?.name === 'AbortError') throw error;
+        // サーバー停止・トンネルURLの期限切れ・CORS未許可などはここに来る
+        throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+    }
+
+    if (!response.ok) {
+        const detail = await response.text().catch(() => '');
+        throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`);
+    }
+
+    const blob = await response.blob();
+    lastBlob = blob;
+    lastKey = cacheKey(text, settings);
+    return blob;
+}
+
+/**
+ * 保存用のファイル名を作る。
+ * @param {string|number} [turn] - ターン番号（あれば）
+ * @param {Date} [date]
+ * @returns {string}
+ */
+export function createTtsFilename(turn, date = new Date()) {
+    const turnPart = turn === undefined || turn === null || turn === '' ? 'message' : String(turn);
+    return `Aquarium_Chat_tts_${turnPart}_${formatTimestamp(date)}.wav`;
+}
+
+/**
+ * テキストを音声に変換して wav ファイルとして保存する。
+ * 直前に同じ内容を読み上げていれば、その音声を使い回して生成し直さない。
+ * @param {string} text
+ * @param {object} settings - baseUrl / voice / caption / speed / speakerScale / filename
+ * @returns {Promise<void>}
+ */
+export async function saveSpeech(text, settings = {}) {
+    const key = cacheKey(text, settings);
+    const blob = lastBlob && lastKey === key
+        ? lastBlob
+        : await fetchSpeechBlob(text, settings);
+
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = settings.filename || createTtsFilename();
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
 /** 再生中の音声を停止し、リソースを解放する。 */
 export function stopSpeech() {
     generation++;
@@ -134,32 +215,24 @@ export function stopSpeech() {
  * @returns {Promise<boolean>} 再生を開始したら true（新しい要求に追い越された場合は false）
  */
 export async function speak(text, settings = {}) {
-    const { baseUrl, voice, audio: providedAudio } = settings;
-    const { url, options } = buildSpeechRequest(baseUrl, text, voice, settings);
+    const { audio: providedAudio } = settings;
+    // URL未設定などはここで弾く（fetchより前に検証する）
+    buildSpeechRequest(settings.baseUrl, text, settings.voice, settings);
 
     stopSpeech(); // 前の再生を止める（generation もここで進む）
     const myGeneration = generation;
     const controller = new AbortController();
     currentController = controller;
 
-    let response;
+    let blob;
     try {
-        response = await fetch(url, { ...options, signal: controller.signal });
+        blob = await fetchSpeechBlob(text, settings, controller.signal);
     } catch (error) {
         if (currentController === controller) currentController = null;
         if (error?.name === 'AbortError') return false;
-        // サーバー停止・トンネルURLの期限切れ・CORS未許可などはここに来る
-        throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+        throw error;
     }
     if (currentController === controller) currentController = null;
-    if (myGeneration !== generation) return false;
-
-    if (!response.ok) {
-        const detail = await response.text().catch(() => '');
-        throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ''}`);
-    }
-
-    const blob = await response.blob();
     if (myGeneration !== generation) return false; // 待っている間に新しい要求が来た
 
     const objectUrl = URL.createObjectURL(blob);

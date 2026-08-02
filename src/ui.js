@@ -2,7 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, createUnlockedAudio, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -735,6 +735,43 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                     }
                 };
                 actionsDiv.appendChild(ttsButton);
+
+                const ttsSaveButton = document.createElement('button');
+                const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
+                ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+                ttsSaveButton.title = 'この読み上げ音声をwavで保存';
+                ttsSaveButton.classList.add('js-tts-save-btn');
+                ttsSaveButton.onclick = async () => {
+                    const msg = state.currentMessages[index];
+                    if (!msg) return;
+                    if (!state.settings.ttsServerUrl) {
+                        await uiUtils.showCustomAlert('設定でTTSサーバーURLを入力してください。');
+                        return;
+                    }
+                    if (ttsSaveButton.disabled) return;
+                    ttsSaveButton.disabled = true;
+                    ttsSaveButton.classList.add('is-loading');
+                    ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
+                    try {
+                        // 直前に読み上げた音声と同じ内容なら生成し直さずに保存する
+                        await saveSpeech(msg.content || '', {
+                            baseUrl: state.settings.ttsServerUrl,
+                            voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
+                            caption: state.settings.ttsCaption,
+                            speed: state.settings.ttsSpeed,
+                            speakerScale: state.settings.ttsSpeakerScale,
+                            filename: createTtsFilename(messageDiv.dataset.turn),
+                        });
+                    } catch (error) {
+                        console.error('[TTS] 音声の保存に失敗しました:', error);
+                        await uiUtils.showCustomAlert(`音声の保存に失敗しました。\n${error.message}`);
+                    } finally {
+                        ttsSaveButton.disabled = false;
+                        ttsSaveButton.classList.remove('is-loading');
+                        ttsSaveButton.innerHTML = ttsSaveIdleHtml;
+                    }
+                };
+                actionsDiv.appendChild(ttsSaveButton);
             }
             if (role === 'user') {
                 const retryButton = document.createElement('button');

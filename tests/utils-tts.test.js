@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTtsBaseUrl, buildSpeechRequest, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
+import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
 
 describe('normalizeTtsBaseUrl', () => {
     it('前後の空白を除去する', () => {
@@ -100,5 +100,18 @@ describe('buildSpeechRequest — 追加パラメータ', () => {
     it('null・空文字・数値でない値は送らない', () => {
         expect(parse({ speed: null, speakerScale: '' })).not.toHaveProperty('speed');
         expect(parse({ speed: '', speakerScale: 'abc' })).not.toHaveProperty('irodori');
+    });
+});
+
+describe('createTtsFilename', () => {
+    const date = new Date(2026, 6, 27, 9, 5, 3); // 2026-07-27 09:05:03
+
+    it('ターン番号と日時からwavのファイル名を作る', () => {
+        expect(createTtsFilename(12, date)).toBe('Aquarium_Chat_tts_12_20260727-090503.wav');
+    });
+
+    it('ターン番号が無ければ message にする', () => {
+        expect(createTtsFilename(undefined, date)).toBe('Aquarium_Chat_tts_message_20260727-090503.wav');
+        expect(createTtsFilename('', date)).toBe('Aquarium_Chat_tts_message_20260727-090503.wav');
     });
 });
