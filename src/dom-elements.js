@@ -191,6 +191,8 @@ try {
         manageMemoryBtn: document.getElementById('manage-memory-btn'),
         nameMaskToggle: document.getElementById('name-mask-toggle'),
         nameMaskTextarea: document.getElementById('name-mask-text'),
+        ttsServerUrlInput: document.getElementById('tts-server-url'),
+        ttsVoiceIdInput: document.getElementById('tts-voice-id'),
         memoryManagementDialog: document.getElementById('memoryManagementDialog'),
         memoryListContainer: document.getElementById('memory-list-container'),
         newMemoryInput: document.getElementById('new-memory-input'),

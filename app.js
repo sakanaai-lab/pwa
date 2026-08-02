@@ -1753,6 +1753,8 @@ ${relationship_context}`;
       manageMemoryBtn: document.getElementById("manage-memory-btn"),
       nameMaskToggle: document.getElementById("name-mask-toggle"),
       nameMaskTextarea: document.getElementById("name-mask-text"),
+      ttsServerUrlInput: document.getElementById("tts-server-url"),
+      ttsVoiceIdInput: document.getElementById("tts-voice-id"),
       memoryManagementDialog: document.getElementById("memoryManagementDialog"),
       memoryListContainer: document.getElementById("memory-list-container"),
       newMemoryInput: document.getElementById("new-memory-input"),
@@ -1994,6 +1996,9 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.36": [
+      "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。"
+    ],
     "1.35": [
       "配色プリセットを追加。設定の「配色プリセット」から、藍墨・青磁・灰桜・墨・琥珀の5種類（各ライト/ダーク対応）にワンタップで切り替えられます。ClaudeDesignで作成したテンプレートを移植しました。"
     ],
@@ -2183,6 +2188,10 @@ ${relationship_context}`;
       // 画像保存・コピー時の名前マスキング
       nameMaskText: "",
       // 置換リスト（1行に「本名,別名」）
+      ttsServerUrl: "",
+      // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
+      ttsVoiceId: "kouko",
+      // TTS音声ID
       headerAutoHide: false,
       summaryModelName: "",
       // 空の場合はmodelNameを使用
@@ -2558,6 +2567,103 @@ Reason: [NGの場合の理由]`,
     return fetch(`data:${mimeType};base64,${base64}`).then((res) => res.blob());
   }
   __name(base64ToBlob, "base64ToBlob");
+
+  // src/utils/tts.js
+  var TTS_PATH = "/v1/audio/speech";
+  var TTS_MODEL = "irodori-tts";
+  var DEFAULT_TTS_VOICE = "kouko";
+  var currentAudio = null;
+  var currentObjectUrl = null;
+  var currentController = null;
+  var generation = 0;
+  function normalizeTtsBaseUrl(url) {
+    if (!url || typeof url !== "string") return "";
+    let base = url.trim().replace(/\/+$/, "");
+    if (base.toLowerCase().endsWith(TTS_PATH)) {
+      base = base.slice(0, -TTS_PATH.length).replace(/\/+$/, "");
+    }
+    return base;
+  }
+  __name(normalizeTtsBaseUrl, "normalizeTtsBaseUrl");
+  function buildSpeechRequest(baseUrl, text, voice) {
+    const base = normalizeTtsBaseUrl(baseUrl);
+    if (!base) throw new Error("TTSサーバーURLが設定されていません。");
+    if (!text || !String(text).trim()) throw new Error("読み上げるテキストがありません。");
+    return {
+      url: `${base}${TTS_PATH}`,
+      options: {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: TTS_MODEL,
+          input: String(text),
+          voice: voice || DEFAULT_TTS_VOICE,
+          response_format: "wav"
+        })
+      }
+    };
+  }
+  __name(buildSpeechRequest, "buildSpeechRequest");
+  function stopSpeech() {
+    generation++;
+    if (currentController) {
+      currentController.abort();
+      currentController = null;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio = null;
+    }
+    if (currentObjectUrl) {
+      URL.revokeObjectURL(currentObjectUrl);
+      currentObjectUrl = null;
+    }
+  }
+  __name(stopSpeech, "stopSpeech");
+  async function speak(text, { baseUrl, voice } = {}) {
+    const { url, options } = buildSpeechRequest(baseUrl, text, voice);
+    stopSpeech();
+    const myGeneration = generation;
+    const controller = new AbortController();
+    currentController = controller;
+    let response;
+    try {
+      response = await fetch(url, { ...options, signal: controller.signal });
+    } catch (error) {
+      if (currentController === controller) currentController = null;
+      if (error?.name === "AbortError") return false;
+      throw new Error(`TTSサーバーに接続できませんでした（サーバー停止・URLの期限切れ・CORS設定をご確認ください）: ${error.message}`);
+    }
+    if (currentController === controller) currentController = null;
+    if (myGeneration !== generation) return false;
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`TTSサーバーがエラーを返しました (HTTP ${response.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+    const blob = await response.blob();
+    if (myGeneration !== generation) return false;
+    const objectUrl = URL.createObjectURL(blob);
+    const audio = new Audio(objectUrl);
+    currentAudio = audio;
+    currentObjectUrl = objectUrl;
+    const release = /* @__PURE__ */ __name(() => {
+      if (currentObjectUrl === objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        currentObjectUrl = null;
+        currentAudio = null;
+      }
+    }, "release");
+    audio.addEventListener("ended", release);
+    audio.addEventListener("error", release);
+    try {
+      await audio.play();
+    } catch (error) {
+      release();
+      throw new Error(`音声の再生に失敗しました: ${error.message}`);
+    }
+    return true;
+  }
+  __name(speak, "speak");
 
   // src/utils/html.js
   var htmlUtils = {
@@ -3212,6 +3318,40 @@ Reason: [NGの場合の理由]`,
             });
           };
           actionsDiv.appendChild(copyButton);
+          if (role === "model") {
+            const ttsButton = document.createElement("button");
+            const ttsIdleHtml = '<span class="material-symbols-outlined">volume_up</span> 読み上げ';
+            ttsButton.innerHTML = ttsIdleHtml;
+            ttsButton.title = "このメッセージを読み上げる";
+            ttsButton.classList.add("js-tts-btn");
+            ttsButton.onclick = async () => {
+              const msg = state.currentMessages[index];
+              if (!msg) return;
+              if (!state.settings.ttsServerUrl) {
+                await uiUtils.showCustomAlert("設定でTTSサーバーURLを入力してください。");
+                return;
+              }
+              if (ttsButton.disabled) return;
+              ttsButton.disabled = true;
+              ttsButton.classList.add("is-loading");
+              ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
+              try {
+                await speak(msg.content || "", {
+                  baseUrl: state.settings.ttsServerUrl,
+                  voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE
+                });
+              } catch (error) {
+                console.error("[TTS] 読み上げに失敗しました:", error);
+                await uiUtils.showCustomAlert(`読み上げに失敗しました。
+${error.message}`);
+              } finally {
+                ttsButton.disabled = false;
+                ttsButton.classList.remove("is-loading");
+                ttsButton.innerHTML = ttsIdleHtml;
+              }
+            };
+            actionsDiv.appendChild(ttsButton);
+          }
           if (role === "user") {
             const retryButton = document.createElement("button");
             retryButton.innerHTML = '<span class="material-symbols-outlined">replay</span> 再生成';
@@ -3569,6 +3709,8 @@ Reason: [NGの場合の理由]`,
       elements.additionalModelsTextarea.value = state.settings.additionalModels || "";
       if (elements.nameMaskToggle) elements.nameMaskToggle.checked = state.settings.enableNameMask === true;
       if (elements.nameMaskTextarea) elements.nameMaskTextarea.value = state.settings.nameMaskText || "";
+      if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
+      if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
       elements.enterToSendCheckbox.checked = state.settings.enterToSend;
       elements.historySortOrderSelect.value = state.settings.historySortOrder || "updatedAt";
       elements.darkModeToggle.checked = state.settings.darkMode;
@@ -5405,6 +5547,8 @@ Reason: [NGの場合の理由]`,
         apiKey: { element: elements.apiKeyInput, event: "input" },
         enableNameMask: { element: elements.nameMaskToggle, event: "change" },
         nameMaskText: { element: elements.nameMaskTextarea, event: "input" },
+        ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
+        ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
         zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
         openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
         bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
