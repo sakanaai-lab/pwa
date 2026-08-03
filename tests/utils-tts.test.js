@@ -25,18 +25,18 @@ describe('normalizeTtsBaseUrl', () => {
 
 describe('buildSpeechRequest', () => {
     it('エンドポイントURLを組み立てる', () => {
-        const { url } = buildSpeechRequest('https://x.trycloudflare.com', 'こんにちは', 'kouko');
+        const { url } = buildSpeechRequest('https://x.trycloudflare.com', 'こんにちは', 'hanako');
         expect(url).toBe('https://x.trycloudflare.com/v1/audio/speech');
     });
 
     it('仕様どおりのJSONボディとヘッダーを作る', () => {
-        const { options } = buildSpeechRequest('https://x.trycloudflare.com', 'こんにちは', 'kouko');
+        const { options } = buildSpeechRequest('https://x.trycloudflare.com', 'こんにちは', 'hanako');
         expect(options.method).toBe('POST');
         expect(options.headers).toEqual({ 'Content-Type': 'application/json' });
         expect(JSON.parse(options.body)).toEqual({
             model: 'irodori-tts',
             input: 'こんにちは',
-            voice: 'kouko',
+            voice: 'hanako',
             response_format: 'wav',
         });
     });
@@ -44,7 +44,7 @@ describe('buildSpeechRequest', () => {
     it('音声IDが未指定なら既定値を使う', () => {
         const { options } = buildSpeechRequest('https://x.trycloudflare.com', 'テスト');
         expect(JSON.parse(options.body).voice).toBe(DEFAULT_TTS_VOICE);
-        expect(DEFAULT_TTS_VOICE).toBe('kouko');
+        expect(DEFAULT_TTS_VOICE).toBe('hanako');
     });
 
     it('ベースURL未設定ならエラーにする', () => {
@@ -60,7 +60,7 @@ describe('buildSpeechRequest', () => {
 
 describe('buildSpeechRequest — 追加パラメータ', () => {
     const parse = (extra) =>
-        JSON.parse(buildSpeechRequest('https://x.trycloudflare.com', 'テスト', 'kouko', extra).options.body);
+        JSON.parse(buildSpeechRequest('https://x.trycloudflare.com', 'テスト', 'hanako', extra).options.body);
 
     it('未指定なら speed も irodori も送らない（既定の挙動を変えない）', () => {
         const body = parse({});

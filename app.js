@@ -2196,7 +2196,7 @@ ${relationship_context}`;
       // 置換リスト（1行に「本名,別名」）
       ttsServerUrl: "",
       // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
-      ttsVoiceId: "kouko",
+      ttsVoiceId: "hanako",
       // TTS音声ID
       ttsCaption: "",
       // 話し方・感情の指定（空なら送らない）
@@ -2595,7 +2595,7 @@ Reason: [NGの場合の理由]`,
   // src/utils/tts.js
   var TTS_PATH = "/v1/audio/speech";
   var TTS_MODEL = "irodori-tts";
-  var DEFAULT_TTS_VOICE = "kouko";
+  var DEFAULT_TTS_VOICE = "hanako";
   var SPEED_MIN = 0.25;
   var SPEED_MAX = 4;
   var SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAgD4AAAB9AAACABAAZGF0YQAAAAA=";

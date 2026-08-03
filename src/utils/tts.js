@@ -8,7 +8,7 @@ import { formatTimestamp } from './format.js';
 
 const TTS_PATH = '/v1/audio/speech';
 const TTS_MODEL = 'irodori-tts';
-export const DEFAULT_TTS_VOICE = 'kouko';
+export const DEFAULT_TTS_VOICE = 'hanako';
 
 // speed の許容範囲（サーバー仕様）。範囲外を送ると400になるのでクランプする。
 const SPEED_MIN = 0.25;
