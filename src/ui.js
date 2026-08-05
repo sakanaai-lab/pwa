@@ -2,11 +2,26 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
 import { state } from './state.js';
+
+/**
+ * 指定要素の中で選択されている文字列を返す。要素の外の選択は拾わない。
+ * 読み上げ時に「別のメッセージで選択した文字列」が混ざるのを防ぐため、
+ * 選択の両端がその要素内にあることを確認する。
+ * @param {HTMLElement} container
+ * @returns {string} 選択文字列（選択が無い・範囲外なら空文字）
+ */
+function getSelectionTextWithin(container) {
+    if (!container || typeof window.getSelection !== 'function') return '';
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return '';
+    if (!container.contains(selection.anchorNode) || !container.contains(selection.focusNode)) return '';
+    return selection.toString();
+}
 
 export const uiUtils = {
     setLoadingIndicatorText(text) {
@@ -698,8 +713,16 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                 const ttsButton = document.createElement('button');
                 const ttsIdleHtml = '<span class="material-symbols-outlined">volume_up</span> 読み上げ';
                 ttsButton.innerHTML = ttsIdleHtml;
-                ttsButton.title = 'このメッセージを読み上げる';
+                ttsButton.title = 'このメッセージを読み上げる（範囲を選択していればその部分だけ）';
                 ttsButton.classList.add('js-tts-btn');
+                // クリック時点では選択が解除されていることがあるため、押し込みの時点で捕まえておく。
+                // mousedown の既定動作を止めるのは、選択を保ったままボタンを押せるようにするため。
+                let ttsSelectedText = '';
+                const captureSelection = () => {
+                    ttsSelectedText = state.settings.ttsUseSelection ? getSelectionTextWithin(messageDiv) : '';
+                };
+                ttsButton.addEventListener('pointerdown', captureSelection);
+                ttsButton.addEventListener('mousedown', (e) => e.preventDefault());
                 ttsButton.onclick = async () => {
                     const msg = state.currentMessages[index];
                     if (!msg) return;
@@ -716,7 +739,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                     ttsButton.classList.add('is-loading');
                     ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
                     try {
-                        await speak(msg.content || '', {
+                        // 選択範囲があればその部分だけ、無ければ全文を読む
+                        const textToSpeak = pickSpeechText(msg.content || '', ttsSelectedText, state.settings.ttsUseSelection);
+                        await speak(textToSpeak, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
                             caption: state.settings.ttsCaption,
@@ -739,8 +764,13 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                 const ttsSaveButton = document.createElement('button');
                 const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
                 ttsSaveButton.innerHTML = ttsSaveIdleHtml;
-                ttsSaveButton.title = 'この読み上げ音声をwavで保存';
+                ttsSaveButton.title = 'この読み上げ音声をwavで保存（範囲を選択していればその部分だけ）';
                 ttsSaveButton.classList.add('js-tts-save-btn');
+                let ttsSaveSelectedText = '';
+                ttsSaveButton.addEventListener('pointerdown', () => {
+                    ttsSaveSelectedText = state.settings.ttsUseSelection ? getSelectionTextWithin(messageDiv) : '';
+                });
+                ttsSaveButton.addEventListener('mousedown', (e) => e.preventDefault());
                 ttsSaveButton.onclick = async () => {
                     const msg = state.currentMessages[index];
                     if (!msg) return;
@@ -754,7 +784,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                     ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
                     try {
                         // 直前に読み上げた音声と同じ内容なら生成し直さずに保存する
-                        await saveSpeech(msg.content || '', {
+                        const textToSave = pickSpeechText(msg.content || '', ttsSaveSelectedText, state.settings.ttsUseSelection);
+                        await saveSpeech(textToSave, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
                             caption: state.settings.ttsCaption,
@@ -1175,6 +1206,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
         if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
         if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
+        if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
         elements.enterToSendCheckbox.checked = state.settings.enterToSend;
         elements.historySortOrderSelect.value = state.settings.historySortOrder || 'updatedAt';
         elements.darkModeToggle.checked = state.settings.darkMode;

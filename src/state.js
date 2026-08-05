@@ -90,6 +90,7 @@ export const state = {
         ttsCaption: '',        // 話し方・感情の指定（空なら送らない）
         ttsSpeed: null,        // 話す速さ 0.25〜4.0（未設定なら送らない）
         ttsSpeakerScale: null, // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
+        ttsUseSelection: true, // 範囲を選択していればその部分だけ読み上げる
         headerAutoHide: false,
         summaryModelName: '', // 空の場合はmodelNameを使用
         summarySystemPrompt: `あなたはプロの編集者です。以下の会話履歴を、第三者の視点から見た物語の「あらすじ」として要約してください。

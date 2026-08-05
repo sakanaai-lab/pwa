@@ -196,6 +196,7 @@ try {
         ttsCaptionTextarea: document.getElementById('tts-caption'),
         ttsSpeedInput: document.getElementById('tts-speed'),
         ttsSpeakerScaleInput: document.getElementById('tts-speaker-scale'),
+        ttsUseSelectionToggle: document.getElementById('tts-use-selection'),
         memoryManagementDialog: document.getElementById('memoryManagementDialog'),
         memoryListContainer: document.getElementById('memory-list-container'),
         newMemoryInput: document.getElementById('new-memory-input'),
