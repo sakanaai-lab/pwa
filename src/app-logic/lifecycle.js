@@ -1091,6 +1091,7 @@ export const lifecycleMethods = {
             ttsCaption: { element: elements.ttsCaptionTextarea, event: 'input' },
             ttsSpeed: { element: elements.ttsSpeedInput, event: 'input' },
             ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: 'input' },
+            ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: 'change' },
             zaiApiKey: { element: elements.zaiApiKeyInput, event: 'input' },
             openrouterApiKey: { element: elements.openrouterApiKeyInput, event: 'input' },
             bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: 'input' },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
+import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
 
 describe('normalizeTtsBaseUrl', () => {
     it('前後の空白を除去する', () => {
@@ -113,5 +113,30 @@ describe('createTtsFilename', () => {
     it('ターン番号が無ければ message にする', () => {
         expect(createTtsFilename(undefined, date)).toBe('Aquarium_Chat_tts_message_20260727-090503.wav');
         expect(createTtsFilename('', date)).toBe('Aquarium_Chat_tts_message_20260727-090503.wav');
+    });
+});
+
+describe('pickSpeechText', () => {
+    it('選択範囲があればその部分だけを読む', () => {
+        expect(pickSpeechText('全文です。ここも全文。', 'ここも全文。', true)).toBe('ここも全文。');
+    });
+
+    // 回帰: 選択が無いときに無音になると「押しても鳴らない」状態になるため必ず全文へ落とす
+    it('選択が無ければ全文を読む', () => {
+        expect(pickSpeechText('全文です。', '', true)).toBe('全文です。');
+        expect(pickSpeechText('全文です。', null, true)).toBe('全文です。');
+        expect(pickSpeechText('全文です。', undefined, true)).toBe('全文です。');
+    });
+
+    it('空白だけの選択は選択なし扱いにする', () => {
+        expect(pickSpeechText('全文です。', '   \n  ', true)).toBe('全文です。');
+    });
+
+    it('設定がOFFなら選択範囲を無視して全文を読む', () => {
+        expect(pickSpeechText('全文です。', 'ここだけ', false)).toBe('全文です。');
+    });
+
+    it('選択の前後の空白は取り除く', () => {
+        expect(pickSpeechText('全文', '  ここだけ  ', true)).toBe('ここだけ');
     });
 });

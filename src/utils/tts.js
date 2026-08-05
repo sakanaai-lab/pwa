@@ -40,6 +40,21 @@ function cacheKey(text, settings = {}) {
     ]);
 }
 
+/**
+ * 読み上げる文字列を決める。
+ * 選択範囲があればそこだけ、無ければメッセージ全文を読む。
+ * 「選択が無いと無音になる」のを避けるため、必ず全文へフォールバックする。
+ * @param {string} fullText - メッセージ全文
+ * @param {string} selectedText - 選択されている文字列（無ければ空）
+ * @param {boolean} useSelection - 選択範囲を優先する設定
+ * @returns {string}
+ */
+export function pickSpeechText(fullText, selectedText, useSelection) {
+    if (!useSelection) return fullText;
+    const selected = typeof selectedText === 'string' ? selectedText.trim() : '';
+    return selected || fullText;
+}
+
 /** 数値設定を取り出す。空欄・未設定・数値でないものは null（＝送らない）。 */
 function toFiniteNumber(value) {
     if (value === null || value === undefined || value === '') return null;
