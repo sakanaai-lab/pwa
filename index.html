@@ -340,6 +340,15 @@
                     <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
                         ※ 参照音声への似せ具合（cfg_scale_speaker）。「あまり似ていない」と感じるときに上げてみてください。空欄ならサーバー既定値。
                     </p>
+
+                    <label class="checkbox-label" style="margin-top: 16px;">
+                        <input type="checkbox" id="tts-use-selection">
+                        選択した範囲だけ読み上げる
+                    </label>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ メッセージ内の文字を選択してから読み上げると、その部分だけを再生します（音声保存も同様）。<br>
+                        ※ 選択していないときは全文を読み上げるので、OFFにしなくても普段の使い方は変わりません。
+                    </p>
                 </div>
 
                 <details class="settings-group" open>

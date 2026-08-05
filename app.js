@@ -1758,6 +1758,7 @@ ${relationship_context}`;
       ttsCaptionTextarea: document.getElementById("tts-caption"),
       ttsSpeedInput: document.getElementById("tts-speed"),
       ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
+      ttsUseSelectionToggle: document.getElementById("tts-use-selection"),
       memoryManagementDialog: document.getElementById("memoryManagementDialog"),
       memoryListContainer: document.getElementById("memory-list-container"),
       newMemoryInput: document.getElementById("new-memory-input"),
@@ -1999,6 +2000,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.37": [
+      "設定画面の「基礎設定」をプロファイルの直下へ移動しました。メモリ機能・名前マスキング・音声読み上げより上に来るので、APIプロバイダーの切り替えがすぐ行えます。",
+      "読み上げ・音声保存で「選択した範囲だけ」再生できるようになりました。メッセージ内の文字を選択してからボタンを押すと、その部分だけを読み上げます。選択していないときは従来どおり全文を読むので、普段の使い方は変わりません（設定でOFFにもできます）。"
+    ],
     "1.36": [
       "音声読み上げ（Irodori-TTS連携）を追加。設定の「音声読み上げ」にTTSサーバーURLと音声IDを入力すると、AIの各メッセージに「読み上げ」ボタンが表示され、押すとその発言を音声で再生します。生成中はボタンが待機表示になり、再生中に別のメッセージを押すと前の音声を止めて切り替えます。",
       "読み上げの調整項目を追加。「読み上げスタイル」に文章で指定すると話し方や感情を変えられます（声そのものは音声IDのまま）。あわせて「話す速さ」と、参照音声への「声の寄せ具合」も設定できます。いずれも空欄なら従来どおりの動作です。",
@@ -2204,6 +2209,8 @@ ${relationship_context}`;
       // 話す速さ 0.25〜4.0（未設定なら送らない）
       ttsSpeakerScale: null,
       // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
+      ttsUseSelection: true,
+      // 範囲を選択していればその部分だけ読み上げる
       headerAutoHide: false,
       summaryModelName: "",
       // 空の場合はmodelNameを使用
@@ -2615,6 +2622,12 @@ Reason: [NGの場合の理由]`,
     ]);
   }
   __name(cacheKey, "cacheKey");
+  function pickSpeechText(fullText, selectedText, useSelection) {
+    if (!useSelection) return fullText;
+    const selected = typeof selectedText === "string" ? selectedText.trim() : "";
+    return selected || fullText;
+  }
+  __name(pickSpeechText, "pickSpeechText");
   function toFiniteNumber(value) {
     if (value === null || value === void 0 || value === "") return null;
     const num = typeof value === "number" ? value : parseFloat(value);
@@ -2808,6 +2821,14 @@ Reason: [NGの場合の理由]`,
   };
 
   // src/ui.js
+  function getSelectionTextWithin(container) {
+    if (!container || typeof window.getSelection !== "function") return "";
+    const selection = window.getSelection();
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) return "";
+    if (!container.contains(selection.anchorNode) || !container.contains(selection.focusNode)) return "";
+    return selection.toString();
+  }
+  __name(getSelectionTextWithin, "getSelectionTextWithin");
   var uiUtils = {
     setLoadingIndicatorText(text) {
       elements.loadingIndicator.textContent = text;
@@ -3424,8 +3445,14 @@ Reason: [NGの場合の理由]`,
             const ttsButton = document.createElement("button");
             const ttsIdleHtml = '<span class="material-symbols-outlined">volume_up</span> 読み上げ';
             ttsButton.innerHTML = ttsIdleHtml;
-            ttsButton.title = "このメッセージを読み上げる";
+            ttsButton.title = "このメッセージを読み上げる（範囲を選択していればその部分だけ）";
             ttsButton.classList.add("js-tts-btn");
+            let ttsSelectedText = "";
+            const captureSelection = /* @__PURE__ */ __name(() => {
+              ttsSelectedText = state.settings.ttsUseSelection ? getSelectionTextWithin(messageDiv) : "";
+            }, "captureSelection");
+            ttsButton.addEventListener("pointerdown", captureSelection);
+            ttsButton.addEventListener("mousedown", (e) => e.preventDefault());
             ttsButton.onclick = async () => {
               const msg = state.currentMessages[index];
               if (!msg) return;
@@ -3439,7 +3466,8 @@ Reason: [NGの場合の理由]`,
               ttsButton.classList.add("is-loading");
               ttsButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 生成中';
               try {
-                await speak(msg.content || "", {
+                const textToSpeak = pickSpeechText(msg.content || "", ttsSelectedText, state.settings.ttsUseSelection);
+                await speak(textToSpeak, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
                   caption: state.settings.ttsCaption,
@@ -3461,8 +3489,13 @@ ${error.message}`);
             const ttsSaveButton = document.createElement("button");
             const ttsSaveIdleHtml = '<span class="material-symbols-outlined">download</span> 音声保存';
             ttsSaveButton.innerHTML = ttsSaveIdleHtml;
-            ttsSaveButton.title = "この読み上げ音声をwavで保存";
+            ttsSaveButton.title = "この読み上げ音声をwavで保存（範囲を選択していればその部分だけ）";
             ttsSaveButton.classList.add("js-tts-save-btn");
+            let ttsSaveSelectedText = "";
+            ttsSaveButton.addEventListener("pointerdown", () => {
+              ttsSaveSelectedText = state.settings.ttsUseSelection ? getSelectionTextWithin(messageDiv) : "";
+            });
+            ttsSaveButton.addEventListener("mousedown", (e) => e.preventDefault());
             ttsSaveButton.onclick = async () => {
               const msg = state.currentMessages[index];
               if (!msg) return;
@@ -3475,7 +3508,8 @@ ${error.message}`);
               ttsSaveButton.classList.add("is-loading");
               ttsSaveButton.innerHTML = '<span class="material-symbols-outlined">progress_activity</span> 保存中';
               try {
-                await saveSpeech(msg.content || "", {
+                const textToSave = pickSpeechText(msg.content || "", ttsSaveSelectedText, state.settings.ttsUseSelection);
+                await saveSpeech(textToSave, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
                   caption: state.settings.ttsCaption,
@@ -3857,6 +3891,7 @@ ${error.message}`);
       if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
       if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
       if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
+      if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
       elements.enterToSendCheckbox.checked = state.settings.enterToSend;
       elements.historySortOrderSelect.value = state.settings.historySortOrder || "updatedAt";
       elements.darkModeToggle.checked = state.settings.darkMode;
@@ -5698,6 +5733,7 @@ ${error.message}`);
         ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
         ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
         ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
+        ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: "change" },
         zaiApiKey: { element: elements.zaiApiKeyInput, event: "input" },
         openrouterApiKey: { element: elements.openrouterApiKeyInput, event: "input" },
         bedrockAccessKey: { element: elements.bedrockAccessKeyInput, event: "input" },
