@@ -40,29 +40,80 @@ function cacheKey(text, settings = {}) {
     ]);
 }
 
-/**
- * 読み上げスタイルのプリセットを解析する。
- * 1行に1件、「名前,キャプション」の形式（区切りは , 、 : ：）。
- * キャプション側には句読点として「、」が入りうるので、**最初の区切りだけ**で分割する。
- * @param {string} text - 設定テキストエリアの内容
- * @returns {Array<{name: string, caption: string}>}
- */
-export function parseStylePresets(text) {
-    if (!text || typeof text !== 'string') return [];
+/** プリセット配列を正規化する（名前・指示が揃っているものだけ、重複名は先勝ち）。 */
+function normalizePresets(list) {
     const presets = [];
     const seen = new Set();
-    for (const line of text.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
-        if (!m) continue;
-        const name = m[1].trim();
-        const caption = m[2].trim();
+    for (const item of list) {
+        if (!item || typeof item !== 'object') continue;
+        const name = typeof item.name === 'string' ? item.name.trim() : '';
+        const caption = typeof item.caption === 'string' ? item.caption.trim() : '';
         if (!name || !caption || seen.has(name)) continue;
         seen.add(name);
         presets.push({ name, caption });
     }
     return presets;
+}
+
+/** 旧形式（1行に「名前,指示」）を読む。区切りは最初の1つだけ（指示に「、」が入りうるため）。 */
+function parseLegacyPresetLines(text) {
+    const presets = [];
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
+        if (!m) continue;
+        presets.push({ name: m[1], caption: m[2] });
+    }
+    return normalizePresets(presets);
+}
+
+/**
+ * 読み上げスタイルのプリセットを解析する。
+ * 保存形式はJSON配列。過去に使っていた行区切り形式も読めるようにしてある。
+ * @param {string|Array} stored
+ * @returns {Array<{name: string, caption: string}>}
+ */
+export function parseStylePresets(stored) {
+    if (Array.isArray(stored)) return normalizePresets(stored);
+    if (!stored || typeof stored !== 'string') return [];
+    const trimmed = stored.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[')) {
+        try {
+            const parsed = JSON.parse(trimmed);
+            if (Array.isArray(parsed)) return normalizePresets(parsed);
+        } catch {
+            /* JSONとして壊れていれば旧形式として読み直す */
+        }
+    }
+    return parseLegacyPresetLines(trimmed);
+}
+
+/** プリセット配列を保存用の文字列にする。 */
+export function serializeStylePresets(presets) {
+    return JSON.stringify(normalizePresets(Array.isArray(presets) ? presets : []));
+}
+
+/**
+ * プリセットを追加または更新する（同じ名前があれば指示を差し替え、無ければ末尾に追加）。
+ * @returns {Array<{name: string, caption: string}>} 新しい配列
+ */
+export function upsertStylePreset(presets, name, caption) {
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    const trimmedCaption = typeof caption === 'string' ? caption.trim() : '';
+    if (!trimmedName || !trimmedCaption) return normalizePresets(presets || []);
+    const list = normalizePresets(presets || []);
+    const at = list.findIndex((p) => p.name === trimmedName);
+    if (at >= 0) list[at] = { name: trimmedName, caption: trimmedCaption };
+    else list.push({ name: trimmedName, caption: trimmedCaption });
+    return list;
+}
+
+/** 指定した名前のプリセットを削除する。 */
+export function removeStylePreset(presets, name) {
+    const trimmedName = typeof name === 'string' ? name.trim() : '';
+    return normalizePresets(presets || []).filter((p) => p.name !== trimmedName);
 }
 
 /**

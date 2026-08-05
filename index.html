@@ -331,17 +331,26 @@
                         <option value="">指定なし（下の自由入力を使う）</option>
                     </select>
 
-                    <label for="tts-style-presets" style="margin-top: 12px;">スタイルのプリセット（1行に1件「名前,指示」）:</label>
-                    <textarea id="tts-style-presets" rows="4" placeholder="通常,落ち着いた自然な話し方。&#10;怒りモード,強い怒りを込めた、荒く低い口調。&#10;ASMR風,耳元でささやくような、ごく静かで甘い声。" style="width:100%;box-sizing:border-box;"></textarea>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ ここに書いた名前が上のプルダウンに並びます。名前と指示の区切りは最初の「,」「、」「:」です（指示の中の「、」はそのまま使えます）。
-                    </p>
+                    <div style="margin-top: 16px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
+                        <p style="font-size: 12px; font-weight: 600; margin: 0 0 10px 0;">スタイルの登録・編集</p>
+                        <label for="tts-style-input-name">スタイル名:</label>
+                        <input type="text" id="tts-style-input-name" placeholder="怒りモード" autocomplete="off">
+                        <label for="tts-style-input-caption" style="margin-top: 10px;">指示:</label>
+                        <textarea id="tts-style-input-caption" rows="2" placeholder="強い怒りを込めた、荒く低い口調。" style="width:100%;box-sizing:border-box;"></textarea>
+                        <div style="display:flex; gap:8px; margin-top:10px;">
+                            <button id="tts-style-save-btn" class="settings-action-button" type="button">このスタイルを保存</button>
+                            <button id="tts-style-delete-btn" class="settings-reset-button" type="button">削除</button>
+                        </div>
+                        <p id="tts-style-note" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            ※ 上のプルダウンでスタイルを選ぶと、ここに読み込まれて編集できます。<br>
+                            ※ 同じ名前で保存すると上書き、新しい名前なら追加されます。
+                        </p>
+                    </div>
 
-                    <label for="tts-caption" style="margin-top: 12px;">スタイルの自由入力（任意）:</label>
+                    <label for="tts-caption" style="margin-top: 16px;">「指定なし」のときに使う指示（任意）:</label>
                     <textarea id="tts-caption" rows="2" placeholder="明るく元気で、楽しそうな話し方。" style="width:100%;box-sizing:border-box;"></textarea>
                     <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ 話し方や感情を文章で指定します（声そのものは音声IDのまま）。<br>
-                        ※ <strong>プルダウンでプリセットを選んでいるときは、そちらが優先されます。</strong>両方空欄なら指定なしです。
+                        ※ プルダウンが「指定なし」のときだけ使われます。空欄なら話し方の指定なしで読み上げます。
                     </p>
 
                     <label for="tts-speed" style="margin-top: 12px;">話す速さ（任意・0.25〜4.0）:</label>

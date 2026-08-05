@@ -1757,7 +1757,10 @@ ${relationship_context}`;
       ttsVoiceIdInput: document.getElementById("tts-voice-id"),
       ttsCaptionTextarea: document.getElementById("tts-caption"),
       ttsStyleNameSelect: document.getElementById("tts-style-name"),
-      ttsStylePresetsTextarea: document.getElementById("tts-style-presets"),
+      ttsStyleNameInput: document.getElementById("tts-style-input-name"),
+      ttsStyleCaptionInput: document.getElementById("tts-style-input-caption"),
+      ttsStyleSaveBtn: document.getElementById("tts-style-save-btn"),
+      ttsStyleDeleteBtn: document.getElementById("tts-style-delete-btn"),
       ttsSpeedInput: document.getElementById("tts-speed"),
       ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
       ttsUseSelectionToggle: document.getElementById("tts-use-selection"),
@@ -2003,7 +2006,7 @@ ${relationship_context}`;
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     "1.38": [
-      "読み上げスタイルをプリセットから選べるようになりました。設定の「スタイルのプリセット」に「通常,落ち着いた自然な話し方。」のように1行ずつ登録すると、その名前がプルダウンに並び、切り替えるだけで話し方を変えられます（例：通常／怒りモード／ASMR風）。プリセットを選んでいないときは従来の自由入力欄が使われます。"
+      "読み上げスタイルをプリセットから選べるようになりました。設定の「スタイルの登録・編集」で「スタイル名」（例：怒りモード）と「指示」（例：強い怒りを込めた、荒く低い口調。）を入力して保存すると、その名前が「読み上げスタイル」のプルダウンに並び、切り替えるだけで話し方を変えられます。プルダウンで選ぶと内容がフォームに読み込まれるので、そのまま編集・上書き・削除ができます。プリセットを選んでいないときは従来の自由入力欄が使われます。"
     ],
     "1.37": [
       "設定画面の「基礎設定」をプロファイルの直下へ移動しました。メモリ機能・名前マスキング・音声読み上げより上に来るので、APIプロバイダーの切り替えがすぐ行えます。",
@@ -2631,24 +2634,67 @@ Reason: [NGの場合の理由]`,
     ]);
   }
   __name(cacheKey, "cacheKey");
-  function parseStylePresets(text) {
-    if (!text || typeof text !== "string") return [];
+  function normalizePresets(list) {
     const presets = [];
     const seen = /* @__PURE__ */ new Set();
-    for (const line of text.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
-      if (!m) continue;
-      const name = m[1].trim();
-      const caption = m[2].trim();
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue;
+      const name = typeof item.name === "string" ? item.name.trim() : "";
+      const caption = typeof item.caption === "string" ? item.caption.trim() : "";
       if (!name || !caption || seen.has(name)) continue;
       seen.add(name);
       presets.push({ name, caption });
     }
     return presets;
   }
+  __name(normalizePresets, "normalizePresets");
+  function parseLegacyPresetLines(text) {
+    const presets = [];
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
+      if (!m) continue;
+      presets.push({ name: m[1], caption: m[2] });
+    }
+    return normalizePresets(presets);
+  }
+  __name(parseLegacyPresetLines, "parseLegacyPresetLines");
+  function parseStylePresets(stored) {
+    if (Array.isArray(stored)) return normalizePresets(stored);
+    if (!stored || typeof stored !== "string") return [];
+    const trimmed = stored.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return normalizePresets(parsed);
+      } catch {
+      }
+    }
+    return parseLegacyPresetLines(trimmed);
+  }
   __name(parseStylePresets, "parseStylePresets");
+  function serializeStylePresets(presets) {
+    return JSON.stringify(normalizePresets(Array.isArray(presets) ? presets : []));
+  }
+  __name(serializeStylePresets, "serializeStylePresets");
+  function upsertStylePreset(presets, name, caption) {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedCaption = typeof caption === "string" ? caption.trim() : "";
+    if (!trimmedName || !trimmedCaption) return normalizePresets(presets || []);
+    const list = normalizePresets(presets || []);
+    const at = list.findIndex((p) => p.name === trimmedName);
+    if (at >= 0) list[at] = { name: trimmedName, caption: trimmedCaption };
+    else list.push({ name: trimmedName, caption: trimmedCaption });
+    return list;
+  }
+  __name(upsertStylePreset, "upsertStylePreset");
+  function removeStylePreset(presets, name) {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    return normalizePresets(presets || []).filter((p) => p.name !== trimmedName);
+  }
+  __name(removeStylePreset, "removeStylePreset");
   function resolveTtsCaption(presetsText, selectedName, freeText) {
     const name = typeof selectedName === "string" ? selectedName.trim() : "";
     if (name) {
@@ -3925,7 +3971,6 @@ ${error.message}`);
       if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
       if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
       if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
-      if (elements.ttsStylePresetsTextarea) elements.ttsStylePresetsTextarea.value = state.settings.ttsStylePresets || "";
       this.updateTtsStylePresetOptions();
       if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
       if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
@@ -4349,8 +4394,7 @@ ${error.message}`);
       elements.modelWarningMessage.classList.toggle("hidden", !isNanoBanana);
       this.updateAnthropicEffortOptions();
     },
-    // スタイルのプリセット定義から読み上げスタイルのプルダウンを組み立てる。
-    // 定義が変わると選択肢も変わるため、設定反映時とプリセット編集時に呼ぶ。
+    // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
     updateTtsStylePresetOptions() {
       const select = elements.ttsStyleNameSelect;
       if (!select) return;
@@ -4359,7 +4403,7 @@ ${error.message}`);
       select.innerHTML = "";
       const none = document.createElement("option");
       none.value = "";
-      none.textContent = "指定なし（下の自由入力を使う）";
+      none.textContent = "指定なし";
       select.appendChild(none);
       for (const preset of presets) {
         const option = document.createElement("option");
@@ -4372,15 +4416,69 @@ ${error.message}`);
         select.value = saved;
       } else {
         select.value = "";
-        if (saved) {
-          state.settings.ttsStyleName = "";
-          if (state.activeProfile) {
-            state.activeProfile.settings.ttsStyleName = "";
-            dbUtils.updateProfile(state.activeProfile).catch(() => {
-            });
-          }
-        }
+        if (saved) this._saveTtsStyleSetting("ttsStyleName", "");
       }
+      this.loadTtsStyleIntoForm();
+    },
+    // プルダウンで選ばれているスタイルを編集フォームに読み込む。
+    loadTtsStyleIntoForm() {
+      const nameInput = elements.ttsStyleNameInput;
+      const captionInput = elements.ttsStyleCaptionInput;
+      if (!nameInput || !captionInput) return;
+      const selected = elements.ttsStyleNameSelect ? elements.ttsStyleNameSelect.value : "";
+      if (!selected) {
+        nameInput.value = "";
+        captionInput.value = "";
+        return;
+      }
+      const hit = parseStylePresets(state.settings.ttsStylePresets).find((p) => p.name === selected);
+      nameInput.value = hit ? hit.name : "";
+      captionInput.value = hit ? hit.caption : "";
+    },
+    /** @private TTS関連の設定を1件保存する（プロファイルにも反映）。 */
+    _saveTtsStyleSetting(key, value) {
+      state.settings[key] = value;
+      if (state.activeProfile) {
+        state.activeProfile.settings[key] = value;
+        dbUtils.updateProfile(state.activeProfile).catch(
+          (e) => console.error("[TTS] スタイル設定の保存に失敗:", e)
+        );
+        appLogic.markAsDirtyAndSchedulePush("structural");
+      }
+    },
+    // 編集フォームの内容でプリセットを追加・更新する。
+    async saveTtsStylePreset() {
+      const name = (elements.ttsStyleNameInput?.value || "").trim();
+      const caption = (elements.ttsStyleCaptionInput?.value || "").trim();
+      if (!name) {
+        await this.showCustomAlert("スタイル名を入力してください。");
+        return;
+      }
+      if (!caption) {
+        await this.showCustomAlert("指示を入力してください。");
+        return;
+      }
+      const presets = upsertStylePreset(parseStylePresets(state.settings.ttsStylePresets), name, caption);
+      this._saveTtsStyleSetting("ttsStylePresets", serializeStylePresets(presets));
+      this._saveTtsStyleSetting("ttsStyleName", name);
+      this.updateTtsStylePresetOptions();
+    },
+    // 編集フォームに入っている名前のプリセットを削除する。
+    async deleteTtsStylePreset() {
+      const name = (elements.ttsStyleNameInput?.value || "").trim();
+      if (!name) {
+        await this.showCustomAlert("削除するスタイル名を入力（またはプルダウンで選択）してください。");
+        return;
+      }
+      const before = parseStylePresets(state.settings.ttsStylePresets);
+      if (!before.some((p) => p.name === name)) {
+        await this.showCustomAlert(`「${name}」は登録されていません。`);
+        return;
+      }
+      if (!await this.showCustomConfirm(`スタイル「${name}」を削除しますか？`)) return;
+      this._saveTtsStyleSetting("ttsStylePresets", serializeStylePresets(removeStylePreset(before, name)));
+      this._saveTtsStyleSetting("ttsStyleName", "");
+      this.updateTtsStylePresetOptions();
     },
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
@@ -5802,8 +5900,7 @@ ${error.message}`);
         ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
         ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
         ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
-        ttsStyleName: { element: elements.ttsStyleNameSelect, event: "change" },
-        ttsStylePresets: { element: elements.ttsStylePresetsTextarea, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.updateTtsStylePresetOptions(), "onUpdate") },
+        ttsStyleName: { element: elements.ttsStyleNameSelect, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.loadTtsStyleIntoForm(), "onUpdate") },
         ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
         ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
         ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: "change" },
@@ -5943,6 +6040,8 @@ ${error.message}`);
       }
       elements.memoryToggleBtn.addEventListener("click", () => this.toggleChatMemory());
       elements.manageMemoryBtn.addEventListener("click", () => this.openMemoryManagementDialog());
+      elements.ttsStyleSaveBtn?.addEventListener("click", () => uiUtils.saveTtsStylePreset());
+      elements.ttsStyleDeleteBtn?.addEventListener("click", () => uiUtils.deleteTtsStylePreset());
       elements.closeMemoryDialogBtn.addEventListener("click", () => elements.memoryManagementDialog.close());
       elements.addMemoryBtn.addEventListener("click", () => this.addMemoryItem());
       elements.deleteAllMemoryBtn.addEventListener("click", () => this.confirmDeleteAllMemory());
