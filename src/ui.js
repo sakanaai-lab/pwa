@@ -2,7 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -744,7 +744,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await speak(textToSpeak, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             audio,
@@ -788,7 +788,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await saveSpeech(textToSave, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             filename: createTtsFilename(messageDiv.dataset.turn),
@@ -1204,6 +1204,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || '';
         if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
         if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
+        this.updateTtsStylePresetOptions();
         if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
         if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
         if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
@@ -1707,6 +1708,90 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.modelWarningMessage.classList.toggle('hidden', !isNanoBanana);
         this.updateAnthropicEffortOptions();
     },
+    // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
+    updateTtsStylePresetOptions() {
+        const select = elements.ttsStyleNameSelect;
+        if (!select) return;
+        const presets = parseStylePresets(state.settings.ttsStylePresets);
+        const saved = state.settings.ttsStyleName || '';
+        select.innerHTML = '';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '指定なし';
+        select.appendChild(none);
+        for (const preset of presets) {
+            const option = document.createElement('option');
+            option.value = preset.name;
+            option.textContent = preset.name;
+            option.title = preset.caption;
+            select.appendChild(option);
+        }
+        // 保存済みの選択が削除されていた場合は「指定なし」に戻す
+        if (saved && presets.some((p) => p.name === saved)) {
+            select.value = saved;
+        } else {
+            select.value = '';
+            if (saved) this._saveTtsStyleSetting('ttsStyleName', '');
+        }
+        this.loadTtsStyleIntoForm();
+    },
+
+    // プルダウンで選ばれているスタイルを編集フォームに読み込む。
+    loadTtsStyleIntoForm() {
+        const nameInput = elements.ttsStyleNameInput;
+        const captionInput = elements.ttsStyleCaptionInput;
+        if (!nameInput || !captionInput) return;
+        const selected = elements.ttsStyleNameSelect ? elements.ttsStyleNameSelect.value : '';
+        if (!selected) {
+            nameInput.value = '';
+            captionInput.value = '';
+            return;
+        }
+        const hit = parseStylePresets(state.settings.ttsStylePresets).find((p) => p.name === selected);
+        nameInput.value = hit ? hit.name : '';
+        captionInput.value = hit ? hit.caption : '';
+    },
+
+    /** @private TTS関連の設定を1件保存する（プロファイルにも反映）。 */
+    _saveTtsStyleSetting(key, value) {
+        state.settings[key] = value;
+        if (state.activeProfile) {
+            state.activeProfile.settings[key] = value;
+            dbUtils.updateProfile(state.activeProfile).catch((e) =>
+                console.error('[TTS] スタイル設定の保存に失敗:', e)
+            );
+            appLogic.markAsDirtyAndSchedulePush('structural');
+        }
+    },
+
+    // 編集フォームの内容でプリセットを追加・更新する。
+    async saveTtsStylePreset() {
+        const name = (elements.ttsStyleNameInput?.value || '').trim();
+        const caption = (elements.ttsStyleCaptionInput?.value || '').trim();
+        if (!name) { await this.showCustomAlert('スタイル名を入力してください。'); return; }
+        if (!caption) { await this.showCustomAlert('指示を入力してください。'); return; }
+        const presets = upsertStylePreset(parseStylePresets(state.settings.ttsStylePresets), name, caption);
+        this._saveTtsStyleSetting('ttsStylePresets', serializeStylePresets(presets));
+        // 保存したスタイルをそのまま選択状態にする
+        this._saveTtsStyleSetting('ttsStyleName', name);
+        this.updateTtsStylePresetOptions();
+    },
+
+    // 編集フォームに入っている名前のプリセットを削除する。
+    async deleteTtsStylePreset() {
+        const name = (elements.ttsStyleNameInput?.value || '').trim();
+        if (!name) { await this.showCustomAlert('削除するスタイル名を入力（またはプルダウンで選択）してください。'); return; }
+        const before = parseStylePresets(state.settings.ttsStylePresets);
+        if (!before.some((p) => p.name === name)) {
+            await this.showCustomAlert(`「${name}」は登録されていません。`);
+            return;
+        }
+        if (!(await this.showCustomConfirm(`スタイル「${name}」を削除しますか？`))) return;
+        this._saveTtsStyleSetting('ttsStylePresets', serializeStylePresets(removeStylePreset(before, name)));
+        this._saveTtsStyleSetting('ttsStyleName', '');
+        this.updateTtsStylePresetOptions();
+    },
+
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
         const sel = elements.anthropicEffortSelect;

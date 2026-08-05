@@ -1089,6 +1089,7 @@ export const lifecycleMethods = {
             ttsServerUrl: { element: elements.ttsServerUrlInput, event: 'input' },
             ttsVoiceId: { element: elements.ttsVoiceIdInput, event: 'input' },
             ttsCaption: { element: elements.ttsCaptionTextarea, event: 'input' },
+            ttsStyleName: { element: elements.ttsStyleNameSelect, event: 'change', onUpdate: () => uiUtils.loadTtsStyleIntoForm() },
             ttsSpeed: { element: elements.ttsSpeedInput, event: 'input' },
             ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: 'input' },
             ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: 'change' },
@@ -1238,6 +1239,9 @@ export const lifecycleMethods = {
         // --- メモリ機能の個別イベントリスナー ---
         elements.memoryToggleBtn.addEventListener('click', () => this.toggleChatMemory());
         elements.manageMemoryBtn.addEventListener('click', () => this.openMemoryManagementDialog());
+        // 読み上げスタイルのプリセット登録・削除
+        elements.ttsStyleSaveBtn?.addEventListener('click', () => uiUtils.saveTtsStylePreset());
+        elements.ttsStyleDeleteBtn?.addEventListener('click', () => uiUtils.deleteTtsStylePreset());
         elements.closeMemoryDialogBtn.addEventListener('click', () => elements.memoryManagementDialog.close());
         elements.addMemoryBtn.addEventListener('click', () => this.addMemoryItem());
         elements.deleteAllMemoryBtn.addEventListener('click', () => this.confirmDeleteAllMemory());

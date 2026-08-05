@@ -87,7 +87,9 @@ export const state = {
         nameMaskText: '',      // 置換リスト（1行に「本名,別名」）
         ttsServerUrl: '',      // Irodori-TTS-Server のベースURL（cloudflaredトンネル）
         ttsVoiceId: 'hanako',   // TTS音声ID
-        ttsCaption: '',        // 話し方・感情の指定（空なら送らない）
+        ttsCaption: '',        // 話し方・感情の自由入力（空なら送らない）
+        ttsStylePresets: '',   // スタイルのプリセット定義（1行に「名前,指示」）
+        ttsStyleName: '',      // 選択中のプリセット名（空なら自由入力を使う）
         ttsSpeed: null,        // 話す速さ 0.25〜4.0（未設定なら送らない）
         ttsSpeakerScale: null, // 参照音声への寄せ具合 cfg_scale_speaker（未設定なら送らない）
         ttsUseSelection: true, // 範囲を選択していればその部分だけ読み上げる
