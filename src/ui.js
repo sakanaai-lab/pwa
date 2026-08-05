@@ -2,7 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
@@ -744,7 +744,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await speak(textToSpeak, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             audio,
@@ -788,7 +788,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await saveSpeech(textToSave, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             filename: createTtsFilename(messageDiv.dataset.turn),
@@ -1204,6 +1204,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || '';
         if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
         if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
+        if (elements.ttsStylePresetsTextarea) elements.ttsStylePresetsTextarea.value = state.settings.ttsStylePresets || '';
+        this.updateTtsStylePresetOptions();
         if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
         if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
         if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
@@ -1706,6 +1708,39 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         const isNanoBanana = selectedModel === 'gemini-2.5-flash-image-preview';
         elements.modelWarningMessage.classList.toggle('hidden', !isNanoBanana);
         this.updateAnthropicEffortOptions();
+    },
+    // スタイルのプリセット定義から読み上げスタイルのプルダウンを組み立てる。
+    // 定義が変わると選択肢も変わるため、設定反映時とプリセット編集時に呼ぶ。
+    updateTtsStylePresetOptions() {
+        const select = elements.ttsStyleNameSelect;
+        if (!select) return;
+        const presets = parseStylePresets(state.settings.ttsStylePresets);
+        const saved = state.settings.ttsStyleName || '';
+        select.innerHTML = '';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '指定なし（下の自由入力を使う）';
+        select.appendChild(none);
+        for (const preset of presets) {
+            const option = document.createElement('option');
+            option.value = preset.name;
+            option.textContent = preset.name;
+            option.title = preset.caption;
+            select.appendChild(option);
+        }
+        // 保存済みの選択が定義から消えていた場合は「指定なし」に戻す
+        if (saved && presets.some((p) => p.name === saved)) {
+            select.value = saved;
+        } else {
+            select.value = '';
+            if (saved) {
+                state.settings.ttsStyleName = '';
+                if (state.activeProfile) {
+                    state.activeProfile.settings.ttsStyleName = '';
+                    dbUtils.updateProfile(state.activeProfile).catch(() => {});
+                }
+            }
+        }
     },
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {

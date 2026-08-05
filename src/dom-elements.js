@@ -194,6 +194,8 @@ try {
         ttsServerUrlInput: document.getElementById('tts-server-url'),
         ttsVoiceIdInput: document.getElementById('tts-voice-id'),
         ttsCaptionTextarea: document.getElementById('tts-caption'),
+        ttsStyleNameSelect: document.getElementById('tts-style-name'),
+        ttsStylePresetsTextarea: document.getElementById('tts-style-presets'),
         ttsSpeedInput: document.getElementById('tts-speed'),
         ttsSpeakerScaleInput: document.getElementById('tts-speaker-scale'),
         ttsUseSelectionToggle: document.getElementById('tts-use-selection'),

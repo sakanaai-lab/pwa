@@ -41,6 +41,48 @@ function cacheKey(text, settings = {}) {
 }
 
 /**
+ * 読み上げスタイルのプリセットを解析する。
+ * 1行に1件、「名前,キャプション」の形式（区切りは , 、 : ：）。
+ * キャプション側には句読点として「、」が入りうるので、**最初の区切りだけ**で分割する。
+ * @param {string} text - 設定テキストエリアの内容
+ * @returns {Array<{name: string, caption: string}>}
+ */
+export function parseStylePresets(text) {
+    if (!text || typeof text !== 'string') return [];
+    const presets = [];
+    const seen = new Set();
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
+        if (!m) continue;
+        const name = m[1].trim();
+        const caption = m[2].trim();
+        if (!name || !caption || seen.has(name)) continue;
+        seen.add(name);
+        presets.push({ name, caption });
+    }
+    return presets;
+}
+
+/**
+ * 実際に送るキャプションを決める。
+ * プリセットが選ばれていればそれを、選ばれていなければ自由入力欄を使う。
+ * @param {string} presetsText - プリセット定義
+ * @param {string} selectedName - 選択中のプリセット名（未選択なら空）
+ * @param {string} freeText - 自由入力欄の内容
+ * @returns {string}
+ */
+export function resolveTtsCaption(presetsText, selectedName, freeText) {
+    const name = typeof selectedName === 'string' ? selectedName.trim() : '';
+    if (name) {
+        const hit = parseStylePresets(presetsText).find((p) => p.name === name);
+        if (hit) return hit.caption;
+    }
+    return typeof freeText === 'string' ? freeText : '';
+}
+
+/**
  * 読み上げる文字列を決める。
  * 選択範囲があればそこだけ、無ければメッセージ全文を読む。
  * 「選択が無いと無音になる」のを避けるため、必ず全文へフォールバックする。

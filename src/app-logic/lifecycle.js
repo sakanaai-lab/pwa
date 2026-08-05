@@ -1089,6 +1089,8 @@ export const lifecycleMethods = {
             ttsServerUrl: { element: elements.ttsServerUrlInput, event: 'input' },
             ttsVoiceId: { element: elements.ttsVoiceIdInput, event: 'input' },
             ttsCaption: { element: elements.ttsCaptionTextarea, event: 'input' },
+            ttsStyleName: { element: elements.ttsStyleNameSelect, event: 'change' },
+            ttsStylePresets: { element: elements.ttsStylePresetsTextarea, event: 'input', onUpdate: () => uiUtils.updateTtsStylePresetOptions() },
             ttsSpeed: { element: elements.ttsSpeedInput, event: 'input' },
             ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: 'input' },
             ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: 'change' },

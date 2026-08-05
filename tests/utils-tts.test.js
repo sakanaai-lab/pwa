@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
+import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, pickSpeechText, parseStylePresets, resolveTtsCaption, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
 
 describe('normalizeTtsBaseUrl', () => {
     it('前後の空白を除去する', () => {
@@ -138,5 +138,68 @@ describe('pickSpeechText', () => {
 
     it('選択の前後の空白は取り除く', () => {
         expect(pickSpeechText('全文', '  ここだけ  ', true)).toBe('ここだけ');
+    });
+});
+
+describe('parseStylePresets', () => {
+    it('「名前,指示」を解析する', () => {
+        expect(parseStylePresets('通常,落ち着いた自然な話し方。')).toEqual([
+            { name: '通常', caption: '落ち着いた自然な話し方。' },
+        ]);
+    });
+
+    // 指示の中に句読点の「、」が入るので、最初の区切りだけで分割する必要がある
+    it('指示に含まれる「、」で切ってしまわない', () => {
+        expect(parseStylePresets('怒りモード,強い怒りを込めた、荒く低い口調。')).toEqual([
+            { name: '怒りモード', caption: '強い怒りを込めた、荒く低い口調。' },
+        ]);
+    });
+
+    it('区切りに 、 : ： も使える', () => {
+        expect(parseStylePresets('通常、自然な声')[0]).toEqual({ name: '通常', caption: '自然な声' });
+        expect(parseStylePresets('通常:自然な声')[0]).toEqual({ name: '通常', caption: '自然な声' });
+        expect(parseStylePresets('通常：自然な声')[0]).toEqual({ name: '通常', caption: '自然な声' });
+    });
+
+    it('複数行を順番どおりに解析する', () => {
+        const presets = parseStylePresets('通常,自然に\n怒り,荒く\nASMR風,ささやくように');
+        expect(presets.map((p) => p.name)).toEqual(['通常', '怒り', 'ASMR風']);
+    });
+
+    it('空行・名前だけ・指示だけの行は無視する', () => {
+        expect(parseStylePresets('通常,自然に\n\n名前だけ\n,指示だけ')).toEqual([
+            { name: '通常', caption: '自然に' },
+        ]);
+    });
+
+    it('同じ名前が複数あれば最初のものを使う', () => {
+        expect(parseStylePresets('通常,古い\n通常,新しい')).toEqual([{ name: '通常', caption: '古い' }]);
+    });
+
+    it('空・非文字列は空配列', () => {
+        expect(parseStylePresets('')).toEqual([]);
+        expect(parseStylePresets(null)).toEqual([]);
+    });
+});
+
+describe('resolveTtsCaption', () => {
+    const presets = '通常,自然な話し方\n怒りモード,強い怒りを込めた、荒い口調';
+
+    it('選択中のプリセットの指示を返す', () => {
+        expect(resolveTtsCaption(presets, '怒りモード', '自由入力')).toBe('強い怒りを込めた、荒い口調');
+    });
+
+    it('プリセット未選択なら自由入力を使う', () => {
+        expect(resolveTtsCaption(presets, '', '自由入力')).toBe('自由入力');
+    });
+
+    // 回帰: プリセット定義を消したあとも古い選択名が残っていると空になりかねない
+    it('選択名が定義に無ければ自由入力へ落とす', () => {
+        expect(resolveTtsCaption(presets, '存在しない名前', '自由入力')).toBe('自由入力');
+    });
+
+    it('どちらも無ければ空文字（＝指定なし）', () => {
+        expect(resolveTtsCaption('', '', '')).toBe('');
+        expect(resolveTtsCaption(null, null, null)).toBe('');
     });
 });

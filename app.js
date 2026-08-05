@@ -1756,6 +1756,8 @@ ${relationship_context}`;
       ttsServerUrlInput: document.getElementById("tts-server-url"),
       ttsVoiceIdInput: document.getElementById("tts-voice-id"),
       ttsCaptionTextarea: document.getElementById("tts-caption"),
+      ttsStyleNameSelect: document.getElementById("tts-style-name"),
+      ttsStylePresetsTextarea: document.getElementById("tts-style-presets"),
       ttsSpeedInput: document.getElementById("tts-speed"),
       ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
       ttsUseSelectionToggle: document.getElementById("tts-use-selection"),
@@ -2000,6 +2002,9 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.38": [
+      "読み上げスタイルをプリセットから選べるようになりました。設定の「スタイルのプリセット」に「通常,落ち着いた自然な話し方。」のように1行ずつ登録すると、その名前がプルダウンに並び、切り替えるだけで話し方を変えられます（例：通常／怒りモード／ASMR風）。プリセットを選んでいないときは従来の自由入力欄が使われます。"
+    ],
     "1.37": [
       "設定画面の「基礎設定」をプロファイルの直下へ移動しました。メモリ機能・名前マスキング・音声読み上げより上に来るので、APIプロバイダーの切り替えがすぐ行えます。",
       "読み上げ・音声保存で「選択した範囲だけ」再生できるようになりました。メッセージ内の文字を選択してからボタンを押すと、その部分だけを読み上げます。選択していないときは従来どおり全文を読むので、普段の使い方は変わりません（設定でOFFにもできます）。"
@@ -2204,7 +2209,11 @@ ${relationship_context}`;
       ttsVoiceId: "hanako",
       // TTS音声ID
       ttsCaption: "",
-      // 話し方・感情の指定（空なら送らない）
+      // 話し方・感情の自由入力（空なら送らない）
+      ttsStylePresets: "",
+      // スタイルのプリセット定義（1行に「名前,指示」）
+      ttsStyleName: "",
+      // 選択中のプリセット名（空なら自由入力を使う）
       ttsSpeed: null,
       // 話す速さ 0.25〜4.0（未設定なら送らない）
       ttsSpeakerScale: null,
@@ -2622,6 +2631,33 @@ Reason: [NGの場合の理由]`,
     ]);
   }
   __name(cacheKey, "cacheKey");
+  function parseStylePresets(text) {
+    if (!text || typeof text !== "string") return [];
+    const presets = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
+      if (!m) continue;
+      const name = m[1].trim();
+      const caption = m[2].trim();
+      if (!name || !caption || seen.has(name)) continue;
+      seen.add(name);
+      presets.push({ name, caption });
+    }
+    return presets;
+  }
+  __name(parseStylePresets, "parseStylePresets");
+  function resolveTtsCaption(presetsText, selectedName, freeText) {
+    const name = typeof selectedName === "string" ? selectedName.trim() : "";
+    if (name) {
+      const hit = parseStylePresets(presetsText).find((p) => p.name === name);
+      if (hit) return hit.caption;
+    }
+    return typeof freeText === "string" ? freeText : "";
+  }
+  __name(resolveTtsCaption, "resolveTtsCaption");
   function pickSpeechText(fullText, selectedText, useSelection) {
     if (!useSelection) return fullText;
     const selected = typeof selectedText === "string" ? selectedText.trim() : "";
@@ -3470,7 +3506,7 @@ Reason: [NGの場合の理由]`,
                 await speak(textToSpeak, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                  caption: state.settings.ttsCaption,
+                  caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                   speed: state.settings.ttsSpeed,
                   speakerScale: state.settings.ttsSpeakerScale,
                   audio
@@ -3512,7 +3548,7 @@ ${error.message}`);
                 await saveSpeech(textToSave, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                  caption: state.settings.ttsCaption,
+                  caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                   speed: state.settings.ttsSpeed,
                   speakerScale: state.settings.ttsSpeakerScale,
                   filename: createTtsFilename(messageDiv.dataset.turn)
@@ -3889,6 +3925,8 @@ ${error.message}`);
       if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
       if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
       if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
+      if (elements.ttsStylePresetsTextarea) elements.ttsStylePresetsTextarea.value = state.settings.ttsStylePresets || "";
+      this.updateTtsStylePresetOptions();
       if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
       if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
       if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
@@ -4310,6 +4348,39 @@ ${error.message}`);
       const isNanoBanana = selectedModel === "gemini-2.5-flash-image-preview";
       elements.modelWarningMessage.classList.toggle("hidden", !isNanoBanana);
       this.updateAnthropicEffortOptions();
+    },
+    // スタイルのプリセット定義から読み上げスタイルのプルダウンを組み立てる。
+    // 定義が変わると選択肢も変わるため、設定反映時とプリセット編集時に呼ぶ。
+    updateTtsStylePresetOptions() {
+      const select = elements.ttsStyleNameSelect;
+      if (!select) return;
+      const presets = parseStylePresets(state.settings.ttsStylePresets);
+      const saved = state.settings.ttsStyleName || "";
+      select.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "指定なし（下の自由入力を使う）";
+      select.appendChild(none);
+      for (const preset of presets) {
+        const option = document.createElement("option");
+        option.value = preset.name;
+        option.textContent = preset.name;
+        option.title = preset.caption;
+        select.appendChild(option);
+      }
+      if (saved && presets.some((p) => p.name === saved)) {
+        select.value = saved;
+      } else {
+        select.value = "";
+        if (saved) {
+          state.settings.ttsStyleName = "";
+          if (state.activeProfile) {
+            state.activeProfile.settings.ttsStyleName = "";
+            dbUtils.updateProfile(state.activeProfile).catch(() => {
+            });
+          }
+        }
+      }
     },
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
@@ -5731,6 +5802,8 @@ ${error.message}`);
         ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
         ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
         ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
+        ttsStyleName: { element: elements.ttsStyleNameSelect, event: "change" },
+        ttsStylePresets: { element: elements.ttsStylePresetsTextarea, event: "input", onUpdate: /* @__PURE__ */ __name(() => uiUtils.updateTtsStylePresetOptions(), "onUpdate") },
         ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
         ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
         ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: "change" },
