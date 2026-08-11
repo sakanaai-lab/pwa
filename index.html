@@ -436,115 +436,6 @@
                     </div>
                 </details>
 
-                <div class="settings-group" id="memory-settings-container">
-                    <h3>メモリ機能</h3>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
-                        チャットを横断してユーザーの好みや指示を記憶し、応答に反映させます。記憶はプロファイルごとに独立して保存されます。
-                    </p>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="enable-memory-toggle">
-                        メモリ機能を有効にする
-                    </label>
-                    <div id="memory-options-container" class="hidden">
-                        <label for="memory-auto-save-interval">自動学習の間隔:</label>
-                        <select id="memory-auto-save-interval">
-                            <option value="10">10メッセージごと</option>
-                            <option value="20">20メッセージごと</option>
-                            <option value="30">30メッセージごと</option>
-                            <option value="40">40メッセージごと</option>
-                            <option value="50">50メッセージごと</option>
-                            <option value="75">75メッセージごと</option>
-                            <option value="100">100メッセージごと</option>
-                            <option value="0">自動学習OFF</option>
-                        </select>
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ユーザーのメッセージ送信を1回としてカウントします。
-                        </p>
-                        <button id="manage-memory-btn" class="settings-action-button" style="margin-top: 16px;">記憶を管理する</button>
-                    </div>
-                </div>
-
-                <div class="settings-group">
-                    <h3>名前マスキング（画像保存用）</h3>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
-                        会話を<strong>画像保存・コピー</strong>するときだけ、登録した名前を別名に置き換えます。画面表示・API送信・保存データには影響しません（元のまま）。SNSへの共有前に本名を伏せたいときに使えます。
-                    </p>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="name-mask-toggle">
-                        名前マスキングを有効にする
-                    </label>
-                    <div style="margin-top: 12px;">
-                        <label for="name-mask-text">置換リスト（1行に1組「本名,別名」）:</label>
-                        <textarea id="name-mask-text" rows="4" placeholder="佐藤花子,A&#10;田中太郎,主人公&#10;タマ,愛猫" style="width:100%;box-sizing:border-box;"></textarea>
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            区切りは「,」「、」「→」が使えます。別名を空にするとその名前は削除されます。長い名前から優先して置換します。
-                        </p>
-                    </div>
-                </div>
-
-                <div class="settings-group">
-                    <h3>音声読み上げ（Irodori-TTS）</h3>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
-                        Irodori-TTS-Server（OpenAI TTS API互換）と連携し、AIの発言を読み上げます。設定するとメッセージ操作に「読み上げ」ボタンが表示されます。
-                    </p>
-                    <label for="tts-server-url">TTSサーバーURL:</label>
-                    <input type="url" id="tts-server-url" placeholder="https://xxx.trycloudflare.com" autocomplete="off">
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ cloudflaredのトンネルURL。Colabを起動し直すたびに変わるので、その都度貼り直してください。<br>
-                        ※ 末尾の <code>/v1/audio/speech</code> は付けても付けなくても構いません。
-                    </p>
-                    <label for="tts-voice-id" style="margin-top: 12px;">TTS音声ID:</label>
-                    <input type="text" id="tts-voice-id" placeholder="hanako" autocomplete="off">
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ <code>voices</code> に置いた音声ファイル名から拡張子を除いたもの（<code>hanako.wav</code> → <code>hanako</code>）。<code>none</code> にすると参照音声を使わず毎回異なる声になります。
-                    </p>
-
-                    <label for="tts-style-name" style="margin-top: 12px;">読み上げスタイル:</label>
-                    <select id="tts-style-name">
-                        <option value="">指定なし（下の自由入力を使う）</option>
-                    </select>
-
-                    <div style="margin-top: 16px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
-                        <p style="font-size: 12px; font-weight: 600; margin: 0 0 10px 0;">スタイルの登録・編集</p>
-                        <label for="tts-style-input-name">スタイル名:</label>
-                        <input type="text" id="tts-style-input-name" placeholder="怒りモード" autocomplete="off">
-                        <label for="tts-style-input-caption" style="margin-top: 10px;">指示:</label>
-                        <textarea id="tts-style-input-caption" rows="2" placeholder="強い怒りを込めた、荒く低い口調。" style="width:100%;box-sizing:border-box;"></textarea>
-                        <div style="display:flex; gap:8px; margin-top:10px;">
-                            <button id="tts-style-save-btn" class="settings-action-button" type="button">このスタイルを保存</button>
-                            <button id="tts-style-delete-btn" class="settings-reset-button" type="button">削除</button>
-                        </div>
-                        <p id="tts-style-note" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ 上のプルダウンでスタイルを選ぶと、ここに読み込まれて編集できます。<br>
-                            ※ 同じ名前で保存すると上書き、新しい名前なら追加されます。
-                        </p>
-                    </div>
-
-                    <label for="tts-caption" style="margin-top: 16px;">「指定なし」のときに使う指示（任意）:</label>
-                    <textarea id="tts-caption" rows="2" placeholder="明るく元気で、楽しそうな話し方。" style="width:100%;box-sizing:border-box;"></textarea>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ プルダウンが「指定なし」のときだけ使われます。空欄なら話し方の指定なしで読み上げます。
-                    </p>
-
-                    <label for="tts-speed" style="margin-top: 12px;">話す速さ（任意・0.25〜4.0）:</label>
-                    <input type="number" id="tts-speed" min="0.25" max="4" step="0.05" placeholder="1.0">
-
-                    <label for="tts-speaker-scale" style="margin-top: 12px;">声の寄せ具合（任意）:</label>
-                    <input type="number" id="tts-speaker-scale" step="0.1" placeholder="未設定（サーバー既定）">
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ 参照音声への似せ具合（cfg_scale_speaker）。「あまり似ていない」と感じるときに上げてみてください。空欄ならサーバー既定値。
-                    </p>
-
-                    <label class="checkbox-label" style="margin-top: 16px;">
-                        <input type="checkbox" id="tts-use-selection">
-                        選択した範囲だけ読み上げる
-                    </label>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
-                        ※ メッセージ内の文字を選択してから読み上げると、その部分だけを再生します（音声保存も同様）。<br>
-                        ※ 選択していないときは全文を読み上げるので、OFFにしなくても普段の使い方は変わりません。
-                    </p>
-                </div>
-
                 <div class="settings-group">
                     <h3>パラメータ</h3>
                     <label for="system-prompt-default">システムプロンプト (デフォルト):</label>
@@ -612,6 +503,254 @@
                             </select>
                         </div>
                     </details>
+                </div>
+
+                <div class="settings-group" id="memory-settings-container">
+                    <h3>メモリ機能</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
+                        チャットを横断してユーザーの好みや指示を記憶し、応答に反映させます。記憶はプロファイルごとに独立して保存されます。
+                    </p>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-memory-toggle">
+                        メモリ機能を有効にする
+                    </label>
+                    <div id="memory-options-container" class="hidden">
+                        <label for="memory-auto-save-interval">自動学習の間隔:</label>
+                        <select id="memory-auto-save-interval">
+                            <option value="10">10メッセージごと</option>
+                            <option value="20">20メッセージごと</option>
+                            <option value="30">30メッセージごと</option>
+                            <option value="40">40メッセージごと</option>
+                            <option value="50">50メッセージごと</option>
+                            <option value="75">75メッセージごと</option>
+                            <option value="100">100メッセージごと</option>
+                            <option value="0">自動学習OFF</option>
+                        </select>
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            ※ユーザーのメッセージ送信を1回としてカウントします。
+                        </p>
+                        <button id="manage-memory-btn" class="settings-action-button" style="margin-top: 16px;">記憶を管理する</button>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>履歴の要約機能</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
+                        チャット履歴が長くなった際に、AIに送信するコンテキストを要約して応答品質の低下を防ぎます。
+                    </p>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-summary-button-toggle">
+                        チャット画面に要約ボタンを表示する
+                    </label>
+                    <label for="summary-model-name">要約用モデル名:</label>
+                    <select id="summary-model-name" aria-label="要約用モデル名">
+                        <option value="gemini-2.5-flash">gemini-2.5-flash (推奨・無料枠あり)</option>
+                        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (無料枠あり・軽量)</option>
+                        <option value="gemini-2.5-pro">gemini-2.5-pro (高品質)</option>
+                        <optgroup label="Claude (Anthropic・APIキー必要)">
+                            <option value="claude-haiku-4-5-20251001">claude-haiku-4.5 (推奨・軽量/安価)</option>
+                            <option value="claude-sonnet-4-6">claude-sonnet-4.6 (高品質)</option>
+                            <option value="claude-opus-4-7">claude-opus-4.7 (最高品質・高価)</option>
+                        </optgroup>
+                        <optgroup label="DeepSeek (APIキー必要)">
+                            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
+                            <option value="deepseek-chat">deepseek-chat (V3)</option>
+                            <option value="deepseek-reasoner">deepseek-reasoner (R1)</option>
+                        </optgroup>
+                        <optgroup label="旧バージョン">
+                            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+                            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
+                        </optgroup>
+                        <optgroup label="プレビュー版">
+                            <option value="gemini-2.5-flash-preview-09-2025">gemini-2.5-flash-preview-09-2025</option>
+                            <option value="gemini-2.5-flash-lite-preview-09-2025">gemini-2.5-flash-lite-preview-09-2025</option>
+                            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
+                        </optgroup>
+                        <optgroup label="ユーザー指定" id="summary-user-models">
+                        </optgroup>
+                    </select>
+                    <label for="summary-system-prompt">要約実行時のシステムプロンプト:</label>
+                    <textarea id="summary-system-prompt" placeholder="要約を実行するAIへの指示を入力します。" aria-label="要約実行時のシステムプロンプト"></textarea>
+                </div>
+
+                <div class="settings-group">
+                    <h3>音声読み上げ（Irodori-TTS）</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
+                        Irodori-TTS-Server（OpenAI TTS API互換）と連携し、AIの発言を読み上げます。設定するとメッセージ操作に「読み上げ」ボタンが表示されます。
+                    </p>
+                    <label for="tts-server-url">TTSサーバーURL:</label>
+                    <input type="url" id="tts-server-url" placeholder="https://xxx.trycloudflare.com" autocomplete="off">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ cloudflaredのトンネルURL。Colabを起動し直すたびに変わるので、その都度貼り直してください。<br>
+                        ※ 末尾の <code>/v1/audio/speech</code> は付けても付けなくても構いません。
+                    </p>
+                    <label for="tts-voice-id" style="margin-top: 12px;">TTS音声ID:</label>
+                    <input type="text" id="tts-voice-id" placeholder="hanako" autocomplete="off">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ <code>voices</code> に置いた音声ファイル名から拡張子を除いたもの（<code>hanako.wav</code> → <code>hanako</code>）。<code>none</code> にすると参照音声を使わず毎回異なる声になります。
+                    </p>
+
+                    <label for="tts-style-name" style="margin-top: 12px;">読み上げスタイル:</label>
+                    <select id="tts-style-name">
+                        <option value="">指定なし（下の自由入力を使う）</option>
+                    </select>
+
+                    <div style="margin-top: 16px; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--border-radius-md);">
+                        <p style="font-size: 12px; font-weight: 600; margin: 0 0 10px 0;">スタイルの登録・編集</p>
+                        <label for="tts-style-input-name">スタイル名:</label>
+                        <input type="text" id="tts-style-input-name" placeholder="怒りモード" autocomplete="off">
+                        <label for="tts-style-input-caption" style="margin-top: 10px;">指示:</label>
+                        <textarea id="tts-style-input-caption" rows="2" placeholder="強い怒りを込めた、荒く低い口調。" style="width:100%;box-sizing:border-box;"></textarea>
+                        <div style="display:flex; gap:8px; margin-top:10px;">
+                            <button id="tts-style-save-btn" class="settings-action-button" type="button">このスタイルを保存</button>
+                            <button id="tts-style-delete-btn" class="settings-reset-button" type="button">削除</button>
+                        </div>
+                        <p id="tts-style-note" style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            ※ 上のプルダウンでスタイルを選ぶと、ここに読み込まれて編集できます。<br>
+                            ※ 同じ名前で保存すると上書き、新しい名前なら追加されます。
+                        </p>
+                    </div>
+
+                    <label for="tts-caption" style="margin-top: 16px;">「指定なし」のときに使う指示（任意）:</label>
+                    <textarea id="tts-caption" rows="2" placeholder="明るく元気で、楽しそうな話し方。" style="width:100%;box-sizing:border-box;"></textarea>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ プルダウンが「指定なし」のときだけ使われます。空欄なら話し方の指定なしで読み上げます。
+                    </p>
+
+                    <label for="tts-speed" style="margin-top: 12px;">話す速さ（任意・0.25〜4.0）:</label>
+                    <input type="number" id="tts-speed" min="0.25" max="4" step="0.05" placeholder="1.0">
+
+                    <label for="tts-speaker-scale" style="margin-top: 12px;">声の寄せ具合（任意）:</label>
+                    <input type="number" id="tts-speaker-scale" step="0.1" placeholder="未設定（サーバー既定）">
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ 参照音声への似せ具合（cfg_scale_speaker）。「あまり似ていない」と感じるときに上げてみてください。空欄ならサーバー既定値。
+                    </p>
+
+                    <label class="checkbox-label" style="margin-top: 16px;">
+                        <input type="checkbox" id="tts-use-selection">
+                        選択した範囲だけ読み上げる
+                    </label>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ メッセージ内の文字を選択してから読み上げると、その部分だけを再生します（音声保存も同様）。<br>
+                        ※ 選択していないときは全文を読み上げるので、OFFにしなくても普段の使い方は変わりません。
+                    </p>
+                </div>
+
+                <div class="settings-group" id="novelai-settings">
+                    <h3>NovelAI設定</h3>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-top:-10px;margin-bottom:15px;">
+                        Function Callingで「絵を描いて」と言うとNovelAIでアニメ調画像を生成します。
+                    </p>
+                    <label for="novelai-api-key">APIトークン:</label>
+                    <input type="password" id="novelai-api-key" placeholder="eyJ..." autocomplete="new-password">
+                    <label for="novelai-model" style="margin-top:15px;">モデル:</label>
+                    <select id="novelai-model">
+                        <option value="nai-diffusion-4-5-curated">V4.5 Curated（推奨）</option>
+                        <option value="nai-diffusion-4-5-full">V4.5 Full</option>
+                        <option value="nai-diffusion-3">V3</option>
+                    </select>
+                </div>
+
+                <div class="settings-group">
+                    <h3>校正機能</h3>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="enable-proofreading">
+                        生成後に別のモデルで文章を校正する
+                    </label>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                        ※チェック時、最初の応答生成に成功した後、下記設定で校正処理が実行されます。<br>
+                        ※校正処理にもAPIコストが発生します。
+                    </p>
+                
+                    <div id="proofreading-options" class="hidden">
+                        <label for="proofreading-model-name">校正用モデル名:</label>
+                        <select id="proofreading-model-name" aria-label="校正用モデル名">
+                            <!-- オプションは既存のモデル選択と同様にJSで動的に設定可能 -->
+                            <optgroup label="推奨">
+                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+                            </optgroup>
+                             <optgroup label="その他">
+                                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+                                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
+                             </optgroup>
+                             <optgroup label="ユーザー指定" id="proofreading-user-models">
+                             </optgroup>
+                        </select>
+                
+                        <label for="proofreading-system-instruction">校正用システムプロンプト:</label>
+                        <textarea id="proofreading-system-instruction" placeholder="例: あなたはプロの編集者です。受け取った文章をより自然で分かりやすく校正してください。" aria-label="校正用システムプロンプト"></textarea>
+                    </div>
+                </div>
+
+                <div class="settings-group" id="data-sync-group">
+                    <div class="sync-header">
+                        <h3>
+                            データ同期
+                        </h3>
+                    </div>
+                
+                    <!-- 連携前の表示 -->
+                    <div id="dropbox-auth-state">
+                        <p class="sync-description">
+                            Dropboxアカウントと連携して、異なるブラウザ間でPWAの全データを安全に同期します。<br>
+                            初回は複数環境で残したいデータを1つのブラウザーにまとめてから連携することをおすすめします。<br>
+                            初回連携時は全データをクラウドにアップロードする処理が実行されます。<a href="https://github.com/kinkan04/Gemini-PWA-Mk-II" target="_blank">本機能の詳細はこちら</a>
+                        </p>
+                        <p style="font-size:0.85em; line-height:1.6; word-break:break-word;">
+                            ⚠️ 連携エラーが出る場合は <a href="https://www.dropbox.com/developers/apps" target="_blank">Dropbox App Console</a> のRedirect URIsに <code>https://sakanaai-lab.github.io/pwa/</code> が登録されているか確認してください。
+                        </p>
+                        <button id="dropbox-auth-btn" class="sync-primary-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128,32,69.6,71.2,10.4,110.4,69.6,149.6,128,188.8l58.4-39.2,59.2-39.2L186.4,71.2ZM128,51.5l38.7,26.1-38.7,26.1-38.7-26.1Zm0,153.3,58.4-39.2,0-52.2-58.4,39.2Zm-58.4-91.4,58.4,39.2,0,52.2-58.4-39.2Z"/></svg>
+                            <span>Dropboxと連携する</span>
+                        </button>
+                    </div>
+                
+                    <!-- 連携後の表示 -->
+                    <div id="dropbox-connected-state" class="hidden">
+                        <p class="sync-description">
+                            <span id="sync-status-settings-icon" class="sync-status-header-icon" title="同期ステータス"></span>
+                            <strong id="dropbox-user-name"></strong> のアカウントと連携済みです。
+                            <span id="sync-progress-text" class="sync-progress-text"></span>
+                        </p>
+
+                        <p id="last-sync-time-display" class="last-sync-time-display"></p>
+
+                        <div class="sync-setting-row">
+                            <label for="dropbox-sync-frequency">セッションの自動同期のタイミング:</label>
+                            <select id="dropbox-sync-frequency">
+                                <option value="instant">メッセージ送信後すぐ (即時)</option>
+                                <option value="5">5メッセージごと</option>
+                                <option value="10">10メッセージごと</option>
+                                <option value="30">30メッセージごと</option>
+                                <option value="manual">手動同期のみ</option>
+                            </select>
+                        </div>
+
+                        <div id="sync-error-display" class="sync-error-display hidden">
+                            <div class="sync-error-header">
+                                <span class="material-symbols-outlined">error</span>
+                                <span>同期エラー</span>
+                            </div>
+                            <p id="sync-error-message" class="sync-error-message"></p>
+                            <span id="sync-error-timestamp" class="sync-error-timestamp"></span>
+                            <button id="clear-sync-error-btn" class="clear-sync-error-btn">エラーをクリア</button>
+                        </div>
+
+                        <div class="sync-actions">
+                            <button id="dropbox-sync-btn">
+                                <span class="material-symbols-outlined">sync</span>
+                                今すぐ同期
+                            </button>
+                            <button id="dropbox-restore-btn">
+                                <span class="material-symbols-outlined">cloud_download</span>
+                                クラウドから復元
+                            </button>
+                            <button id="dropbox-disconnect-btn">
+                                <span class="material-symbols-outlined">link_off</span>
+                                連携を解除
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="settings-group">
@@ -705,80 +844,6 @@
                     </div>
                 </div>
 
-                <div class="settings-group" id="data-sync-group">
-                    <div class="sync-header">
-                        <h3>
-                            データ同期
-                        </h3>
-                    </div>
-                
-                    <!-- 連携前の表示 -->
-                    <div id="dropbox-auth-state">
-                        <p class="sync-description">
-                            Dropboxアカウントと連携して、異なるブラウザ間でPWAの全データを安全に同期します。<br>
-                            初回は複数環境で残したいデータを1つのブラウザーにまとめてから連携することをおすすめします。<br>
-                            初回連携時は全データをクラウドにアップロードする処理が実行されます。<a href="https://github.com/kinkan04/Gemini-PWA-Mk-II" target="_blank">本機能の詳細はこちら</a>
-                        </p>
-                        <p style="font-size:0.85em; line-height:1.6; word-break:break-word;">
-                            ⚠️ 連携エラーが出る場合は <a href="https://www.dropbox.com/developers/apps" target="_blank">Dropbox App Console</a> のRedirect URIsに <code>https://sakanaai-lab.github.io/pwa/</code> が登録されているか確認してください。
-                        </p>
-                        <button id="dropbox-auth-btn" class="sync-primary-btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 256 256" fill="currentColor"><path d="M128,32,69.6,71.2,10.4,110.4,69.6,149.6,128,188.8l58.4-39.2,59.2-39.2L186.4,71.2ZM128,51.5l38.7,26.1-38.7,26.1-38.7-26.1Zm0,153.3,58.4-39.2,0-52.2-58.4,39.2Zm-58.4-91.4,58.4,39.2,0,52.2-58.4-39.2Z"/></svg>
-                            <span>Dropboxと連携する</span>
-                        </button>
-                    </div>
-                
-                    <!-- 連携後の表示 -->
-                    <div id="dropbox-connected-state" class="hidden">
-                        <p class="sync-description">
-                            <span id="sync-status-settings-icon" class="sync-status-header-icon" title="同期ステータス"></span>
-                            <strong id="dropbox-user-name"></strong> のアカウントと連携済みです。
-                            <span id="sync-progress-text" class="sync-progress-text"></span>
-                        </p>
-
-                        <p id="last-sync-time-display" class="last-sync-time-display"></p>
-
-                        <div class="sync-setting-row">
-                            <label for="dropbox-sync-frequency">セッションの自動同期のタイミング:</label>
-                            <select id="dropbox-sync-frequency">
-                                <option value="instant">メッセージ送信後すぐ (即時)</option>
-                                <option value="5">5メッセージごと</option>
-                                <option value="10">10メッセージごと</option>
-                                <option value="30">30メッセージごと</option>
-                                <option value="manual">手動同期のみ</option>
-                            </select>
-                        </div>
-
-                        <div id="sync-error-display" class="sync-error-display hidden">
-                            <div class="sync-error-header">
-                                <span class="material-symbols-outlined">error</span>
-                                <span>同期エラー</span>
-                            </div>
-                            <p id="sync-error-message" class="sync-error-message"></p>
-                            <span id="sync-error-timestamp" class="sync-error-timestamp"></span>
-                            <button id="clear-sync-error-btn" class="clear-sync-error-btn">エラーをクリア</button>
-                        </div>
-
-                        <div class="sync-actions">
-                            <button id="dropbox-sync-btn">
-                                <span class="material-symbols-outlined">sync</span>
-                                今すぐ同期
-                            </button>
-                            <button id="dropbox-restore-btn">
-                                <span class="material-symbols-outlined">cloud_download</span>
-                                クラウドから復元
-                            </button>
-                            <button id="dropbox-disconnect-btn">
-                                <span class="material-symbols-outlined">link_off</span>
-                                連携を解除
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-
-
-                      
                 <div id="gemini-grounding-param" class="settings-group">
                     <h3>ツール設定 (Gemini)</h3>
                     <p style="font-size: 12px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
@@ -814,89 +879,22 @@
                     </p>
                 </div>
 
-                <div class="settings-group" id="novelai-settings">
-                    <h3>NovelAI設定</h3>
-                    <p style="font-size:12px;color:var(--text-secondary);margin-top:-10px;margin-bottom:15px;">
-                        Function Callingで「絵を描いて」と言うとNovelAIでアニメ調画像を生成します。
-                    </p>
-                    <label for="novelai-api-key">APIトークン:</label>
-                    <input type="password" id="novelai-api-key" placeholder="eyJ..." autocomplete="new-password">
-                    <label for="novelai-model" style="margin-top:15px;">モデル:</label>
-                    <select id="novelai-model">
-                        <option value="nai-diffusion-4-5-curated">V4.5 Curated（推奨）</option>
-                        <option value="nai-diffusion-4-5-full">V4.5 Full</option>
-                        <option value="nai-diffusion-3">V3</option>
-                    </select>
-                </div>
-
                 <div class="settings-group">
-                    <h3>校正機能</h3>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="enable-proofreading">
-                        生成後に別のモデルで文章を校正する
-                    </label>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                        ※チェック時、最初の応答生成に成功した後、下記設定で校正処理が実行されます。<br>
-                        ※校正処理にもAPIコストが発生します。
-                    </p>
-                
-                    <div id="proofreading-options" class="hidden">
-                        <label for="proofreading-model-name">校正用モデル名:</label>
-                        <select id="proofreading-model-name" aria-label="校正用モデル名">
-                            <!-- オプションは既存のモデル選択と同様にJSで動的に設定可能 -->
-                            <optgroup label="推奨">
-                                <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-                            </optgroup>
-                             <optgroup label="その他">
-                                <option value="gemini-2.5-pro">gemini-2.5-pro</option>
-                                <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
-                             </optgroup>
-                             <optgroup label="ユーザー指定" id="proofreading-user-models">
-                             </optgroup>
-                        </select>
-                
-                        <label for="proofreading-system-instruction">校正用システムプロンプト:</label>
-                        <textarea id="proofreading-system-instruction" placeholder="例: あなたはプロの編集者です。受け取った文章をより自然で分かりやすく校正してください。" aria-label="校正用システムプロンプト"></textarea>
-                    </div>
-                </div>
-                <div class="settings-group">
-                    <h3>履歴の要約機能</h3>
+                    <h3>名前マスキング（画像保存用）</h3>
                     <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
-                        チャット履歴が長くなった際に、AIに送信するコンテキストを要約して応答品質の低下を防ぎます。
+                        会話を<strong>画像保存・コピー</strong>するときだけ、登録した名前を別名に置き換えます。画面表示・API送信・保存データには影響しません（元のまま）。SNSへの共有前に本名を伏せたいときに使えます。
                     </p>
                     <label class="checkbox-label">
-                        <input type="checkbox" id="enable-summary-button-toggle">
-                        チャット画面に要約ボタンを表示する
+                        <input type="checkbox" id="name-mask-toggle">
+                        名前マスキングを有効にする
                     </label>
-                    <label for="summary-model-name">要約用モデル名:</label>
-                    <select id="summary-model-name" aria-label="要約用モデル名">
-                        <option value="gemini-2.5-flash">gemini-2.5-flash (推奨・無料枠あり)</option>
-                        <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite (無料枠あり・軽量)</option>
-                        <option value="gemini-2.5-pro">gemini-2.5-pro (高品質)</option>
-                        <optgroup label="Claude (Anthropic・APIキー必要)">
-                            <option value="claude-haiku-4-5-20251001">claude-haiku-4.5 (推奨・軽量/安価)</option>
-                            <option value="claude-sonnet-4-6">claude-sonnet-4.6 (高品質)</option>
-                            <option value="claude-opus-4-7">claude-opus-4.7 (最高品質・高価)</option>
-                        </optgroup>
-                        <optgroup label="DeepSeek (APIキー必要)">
-                            <option value="deepseek-v4-pro">deepseek-v4-pro</option>
-                            <option value="deepseek-chat">deepseek-chat (V3)</option>
-                            <option value="deepseek-reasoner">deepseek-reasoner (R1)</option>
-                        </optgroup>
-                        <optgroup label="旧バージョン">
-                            <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-                            <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite</option>
-                        </optgroup>
-                        <optgroup label="プレビュー版">
-                            <option value="gemini-2.5-flash-preview-09-2025">gemini-2.5-flash-preview-09-2025</option>
-                            <option value="gemini-2.5-flash-lite-preview-09-2025">gemini-2.5-flash-lite-preview-09-2025</option>
-                            <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
-                        </optgroup>
-                        <optgroup label="ユーザー指定" id="summary-user-models">
-                        </optgroup>
-                    </select>
-                    <label for="summary-system-prompt">要約実行時のシステムプロンプト:</label>
-                    <textarea id="summary-system-prompt" placeholder="要約を実行するAIへの指示を入力します。" aria-label="要約実行時のシステムプロンプト"></textarea>
+                    <div style="margin-top: 12px;">
+                        <label for="name-mask-text">置換リスト（1行に1組「本名,別名」）:</label>
+                        <textarea id="name-mask-text" rows="4" placeholder="佐藤花子,A&#10;田中太郎,主人公&#10;タマ,愛猫" style="width:100%;box-sizing:border-box;"></textarea>
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            区切りは「,」「、」「→」が使えます。別名を空にするとその名前は削除されます。長い名前から優先して置換します。
+                        </p>
+                    </div>
                 </div>
 
                 <div class="settings-group">
