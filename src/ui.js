@@ -1,11 +1,12 @@
 // uiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
+import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_HISTORY_EXCERPTS, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
-import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from './utils/tts.js';
+import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
 import { dbUtils } from './db.js';
 import { elements } from './dom-elements.js';
 import { htmlUtils } from './utils/html.js';
+import { searchChats } from './utils/search.js';
 import { state } from './state.js';
 
 /**
@@ -744,7 +745,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await speak(textToSpeak, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             audio,
@@ -788,7 +789,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         await saveSpeech(textToSave, {
                             baseUrl: state.settings.ttsServerUrl,
                             voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                            caption: state.settings.ttsCaption,
+                            caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                             speed: state.settings.ttsSpeed,
                             speakerScale: state.settings.ttsSpeakerScale,
                             filename: createTtsFilename(messageDiv.dataset.turn),
@@ -929,24 +930,91 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         }
     },
 
+    /**
+     * 検索でヒットしたメッセージを目立たせ、最初のヒットまでスクロールする。
+     * ハイライトは renderChatMessages が中身を作り直すときに自然に消える。
+     * @param {number[]} indices state.currentMessages 上のインデックス
+     * @returns {boolean} 1件でもハイライトできたか
+     */
+    highlightSearchHits(indices) {
+        if (!Array.isArray(indices) || indices.length === 0) return false;
+        let firstHitElement = null;
+        indices.forEach(index => {
+            const messageElement = elements.messageContainer.querySelector(`.message[data-index="${index}"]`);
+            if (!messageElement) return;
+            messageElement.classList.add('search-hit');
+            if (!firstHitElement) firstHitElement = messageElement;
+        });
+        if (!firstHitElement) return false;
+        // レイアウト確定後でないと位置がずれるため1フレーム待つ
+        requestAnimationFrame(() => firstHitElement.scrollIntoView({ block: 'center' }));
+        return true;
+    },
+
+    // 履歴の検索結果ヒット1件を表示する要素を作る
+    createHistoryExcerptElement(hit) {
+        const row = document.createElement('div');
+        row.className = 'history-item-excerpt';
+
+        const roleEl = document.createElement('span');
+        roleEl.className = 'history-item-excerpt-role';
+        roleEl.textContent = hit.role === 'user' ? 'あなた' : 'AI';
+        row.appendChild(roleEl);
+
+        const textEl = document.createElement('span');
+        textEl.className = 'history-item-excerpt-text';
+        if (hit.excerpt.truncatedHead) textEl.appendChild(document.createTextNode('…'));
+        textEl.appendChild(document.createTextNode(hit.excerpt.before));
+        if (hit.excerpt.match) {
+            const mark = document.createElement('mark');
+            mark.textContent = hit.excerpt.match;
+            textEl.appendChild(mark);
+        }
+        textEl.appendChild(document.createTextNode(hit.excerpt.after));
+        if (hit.excerpt.truncatedTail) textEl.appendChild(document.createTextNode('…'));
+        row.appendChild(textEl);
+
+        return row;
+    },
+
+    // 検索結果の件数表示を更新する (results が null なら検索していない状態)
+    updateHistorySearchSummary(results, totalChats) {
+        const summaryEl = elements.historySearchSummary;
+        elements.historySearchClearBtn?.classList.toggle('hidden', !state.historySearchQuery.trim());
+        if (!summaryEl) return;
+        if (!results) {
+            summaryEl.textContent = '';
+            summaryEl.classList.add('hidden');
+            return;
+        }
+        const hitCount = results.reduce((sum, result) => sum + result.hitCount, 0);
+        summaryEl.textContent = `${totalChats}件中 ${results.length}件のチャットがヒット (メッセージ ${hitCount}件)`;
+        summaryEl.classList.remove('hidden');
+    },
+
     // 履歴リストをレンダリング
     async renderHistoryList() {
         try {
-            const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
+            const allChats = (await dbUtils.getAllChats(state.settings.historySortOrder)) || [];
             elements.historyList.querySelectorAll('.history-item:not(.js-history-item-template)').forEach(item => item.remove());
 
             const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-            let oldChatsCount = 0;
+            // 一括削除の対象数は検索の絞り込みに影響されないよう、常に全件から数える
+            const oldChatsCount = allChats.filter(chat => chat.updatedAt < sevenDaysAgo).length;
 
-            if (chats && chats.length > 0) {
+            // 検索語があればタイトル・本文で絞り込む
+            const searchResults = state.historySearchQuery.trim() ? searchChats(allChats, state.historySearchQuery) : null;
+            const resultByChatId = searchResults ? new Map(searchResults.map(result => [result.chat.id, result])) : null;
+            const chats = searchResults ? searchResults.map(result => result.chat) : allChats;
+            this.updateHistorySearchSummary(searchResults, allChats.length);
+
+            if (chats.length > 0) {
                 elements.noHistoryMessage.classList.add('hidden');
                 const sortOrderText = state.settings.historySortOrder === 'createdAt' ? '作成順' : '更新順';
                 elements.historyTitle.textContent = `履歴一覧 (${sortOrderText})`;
 
                 chats.forEach(chat => {
-                    if (chat.updatedAt < sevenDaysAgo) {
-                        oldChatsCount++;
-                    }
+                    const searchResult = resultByChatId ? resultByChatId.get(chat.id) : null;
 
                     const li = elements.historyItemTemplate.cloneNode(true);
                     li.classList.remove('js-history-item-template');
@@ -970,13 +1038,28 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
                         li.querySelector('.history-item-stats').style.display = 'none';
                     }
 
+                    // 検索中はヒット箇所の抜粋を出す (多すぎると一覧が埋まるので上限を設ける)
+                    if (searchResult && searchResult.hits.length > 0) {
+                        const excerptsEl = li.querySelector('.js-history-excerpts');
+                        const shown = searchResult.hits.slice(0, MAX_HISTORY_EXCERPTS);
+                        shown.forEach(hit => excerptsEl.appendChild(this.createHistoryExcerptElement(hit)));
+                        if (searchResult.hits.length > shown.length) {
+                            const moreEl = document.createElement('div');
+                            moreEl.className = 'history-item-excerpt-more';
+                            moreEl.textContent = `ほか${searchResult.hits.length - shown.length}件のヒット`;
+                            excerptsEl.appendChild(moreEl);
+                        }
+                        excerptsEl.classList.remove('hidden');
+                    }
+
                     li.querySelector('.created-date').textContent = `作成: ${this.formatDate(chat.createdAt)}`;
                     li.querySelector('.updated-date').textContent = `更新: ${this.formatDate(chat.updatedAt)}`;
 
                     li.onclick = async (event) => {
                         if (!event.target.closest('.history-item-actions button')) {
+                            const highlightMessageIndices = searchResult ? searchResult.hits.map(hit => hit.index) : [];
                             const screenTransitionPromise = uiUtils.showScreen('chat');
-                            const loadChatPromise = appLogic.loadChat(chat.id);
+                            const loadChatPromise = appLogic.loadChat(chat.id, { highlightMessageIndices });
                             await Promise.all([screenTransitionPromise, loadChatPromise]);
                         }
                     };
@@ -987,6 +1070,13 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
 
                     elements.historyList.appendChild(li);
                 });
+            } else if (searchResults) {
+                // 検索でヒットしなかっただけなので、DBの状態には触れずに案内だけ出す
+                elements.noHistoryMessage.classList.remove('hidden');
+                elements.historyTitle.textContent = '履歴一覧';
+                const pEl = elements.noHistoryMessage.querySelector('p') || elements.noHistoryMessage;
+                pEl.textContent = '検索に一致するチャットはありません。';
+                document.getElementById('restore-from-cloud-btn')?.classList.add('hidden');
             } else {
                 elements.noHistoryMessage.classList.remove('hidden');
                 elements.historyTitle.textContent = '履歴一覧';
@@ -1204,6 +1294,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || '';
         if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
         if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || '';
+        this.updateTtsStylePresetOptions();
         if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? '';
         if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? '';
         if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
@@ -1454,6 +1545,8 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             chat.style.transform = pos.history.chat;
             historyEl.style.transform = pos.history.history;
             settings.style.transform = pos.history.settings;
+            // 画面を離れている間に検索語が変わることはないが、入力欄と状態を必ず一致させる
+            if (elements.historySearchInput) elements.historySearchInput.value = state.historySearchQuery;
             this.renderHistoryList();
           } else if (screenName === 'settings') {
 
@@ -1707,6 +1800,90 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.modelWarningMessage.classList.toggle('hidden', !isNanoBanana);
         this.updateAnthropicEffortOptions();
     },
+    // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
+    updateTtsStylePresetOptions() {
+        const select = elements.ttsStyleNameSelect;
+        if (!select) return;
+        const presets = parseStylePresets(state.settings.ttsStylePresets);
+        const saved = state.settings.ttsStyleName || '';
+        select.innerHTML = '';
+        const none = document.createElement('option');
+        none.value = '';
+        none.textContent = '指定なし';
+        select.appendChild(none);
+        for (const preset of presets) {
+            const option = document.createElement('option');
+            option.value = preset.name;
+            option.textContent = preset.name;
+            option.title = preset.caption;
+            select.appendChild(option);
+        }
+        // 保存済みの選択が削除されていた場合は「指定なし」に戻す
+        if (saved && presets.some((p) => p.name === saved)) {
+            select.value = saved;
+        } else {
+            select.value = '';
+            if (saved) this._saveTtsStyleSetting('ttsStyleName', '');
+        }
+        this.loadTtsStyleIntoForm();
+    },
+
+    // プルダウンで選ばれているスタイルを編集フォームに読み込む。
+    loadTtsStyleIntoForm() {
+        const nameInput = elements.ttsStyleNameInput;
+        const captionInput = elements.ttsStyleCaptionInput;
+        if (!nameInput || !captionInput) return;
+        const selected = elements.ttsStyleNameSelect ? elements.ttsStyleNameSelect.value : '';
+        if (!selected) {
+            nameInput.value = '';
+            captionInput.value = '';
+            return;
+        }
+        const hit = parseStylePresets(state.settings.ttsStylePresets).find((p) => p.name === selected);
+        nameInput.value = hit ? hit.name : '';
+        captionInput.value = hit ? hit.caption : '';
+    },
+
+    /** @private TTS関連の設定を1件保存する（プロファイルにも反映）。 */
+    _saveTtsStyleSetting(key, value) {
+        state.settings[key] = value;
+        if (state.activeProfile) {
+            state.activeProfile.settings[key] = value;
+            dbUtils.updateProfile(state.activeProfile).catch((e) =>
+                console.error('[TTS] スタイル設定の保存に失敗:', e)
+            );
+            appLogic.markAsDirtyAndSchedulePush('structural');
+        }
+    },
+
+    // 編集フォームの内容でプリセットを追加・更新する。
+    async saveTtsStylePreset() {
+        const name = (elements.ttsStyleNameInput?.value || '').trim();
+        const caption = (elements.ttsStyleCaptionInput?.value || '').trim();
+        if (!name) { await this.showCustomAlert('スタイル名を入力してください。'); return; }
+        if (!caption) { await this.showCustomAlert('指示を入力してください。'); return; }
+        const presets = upsertStylePreset(parseStylePresets(state.settings.ttsStylePresets), name, caption);
+        this._saveTtsStyleSetting('ttsStylePresets', serializeStylePresets(presets));
+        // 保存したスタイルをそのまま選択状態にする
+        this._saveTtsStyleSetting('ttsStyleName', name);
+        this.updateTtsStylePresetOptions();
+    },
+
+    // 編集フォームに入っている名前のプリセットを削除する。
+    async deleteTtsStylePreset() {
+        const name = (elements.ttsStyleNameInput?.value || '').trim();
+        if (!name) { await this.showCustomAlert('削除するスタイル名を入力（またはプルダウンで選択）してください。'); return; }
+        const before = parseStylePresets(state.settings.ttsStylePresets);
+        if (!before.some((p) => p.name === name)) {
+            await this.showCustomAlert(`「${name}」は登録されていません。`);
+            return;
+        }
+        if (!(await this.showCustomConfirm(`スタイル「${name}」を削除しますか？`))) return;
+        this._saveTtsStyleSetting('ttsStylePresets', serializeStylePresets(removeStylePreset(before, name)));
+        this._saveTtsStyleSetting('ttsStyleName', '');
+        this.updateTtsStylePresetOptions();
+    },
+
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
         const sel = elements.anthropicEffortSelect;

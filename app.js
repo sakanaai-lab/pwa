@@ -1579,6 +1579,9 @@ ${relationship_context}`;
       historyTitle: document.getElementById("history-title"),
       noHistoryMessage: document.getElementById("no-history-message"),
       historyItemTemplate: document.querySelector(".js-history-item-template"),
+      historySearchInput: document.getElementById("history-search-input"),
+      historySearchClearBtn: document.getElementById("history-search-clear-btn"),
+      historySearchSummary: document.getElementById("history-search-summary"),
       themeColorMeta: document.getElementById("theme-color-meta"),
       systemPromptArea: document.getElementById("system-prompt-area"),
       systemPromptDetails: document.getElementById("system-prompt-details"),
@@ -1756,6 +1759,11 @@ ${relationship_context}`;
       ttsServerUrlInput: document.getElementById("tts-server-url"),
       ttsVoiceIdInput: document.getElementById("tts-voice-id"),
       ttsCaptionTextarea: document.getElementById("tts-caption"),
+      ttsStyleNameSelect: document.getElementById("tts-style-name"),
+      ttsStyleNameInput: document.getElementById("tts-style-input-name"),
+      ttsStyleCaptionInput: document.getElementById("tts-style-input-caption"),
+      ttsStyleSaveBtn: document.getElementById("tts-style-save-btn"),
+      ttsStyleDeleteBtn: document.getElementById("tts-style-delete-btn"),
       ttsSpeedInput: document.getElementById("tts-speed"),
       ttsSpeakerScaleInput: document.getElementById("tts-speaker-scale"),
       ttsUseSelectionToggle: document.getElementById("tts-use-selection"),
@@ -1866,6 +1874,8 @@ ${relationship_context}`;
   var DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   var CHAT_TITLE_LENGTH = 15;
   var TEXTAREA_MAX_HEIGHT = 120;
+  var MAX_HISTORY_EXCERPTS = 3;
+  var HISTORY_SEARCH_DEBOUNCE_MS = 200;
   var GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/";
   var ZAI_API_BASE_URL = "https://api.z.ai/api/paas/v4/chat/completions";
   var OPENROUTER_API_BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -2000,6 +2010,14 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.39": [
+      "チャットログの全文検索を追加しました。履歴一覧の上部に検索ボックスがあり、タイトルだけでなく各メッセージの本文まで横断して絞り込めます。ヒットしたチャットにはヒット箇所の抜粋（前後の文つき）が並び、開くとその発言まで自動でスクロールして枠を付けて示します。",
+      "検索語を空白で区切ると、すべての語を含むチャットだけに絞り込みます（大文字小文字は区別しません）。検索は端末内のデータだけで行うため、外部への送信はありません。",
+      "設定画面の並び順を、よく触る順に整理しました。プロファイル → 基礎設定 → API/モデル設定 → パラメータ → メモリ機能 → 履歴の要約 → 音声読み上げ → アドバンスド → 名前マスキング → 校正 → データ同期 → ツール設定 → NovelAI → その他設定、の順です。項目の中身は変わっていません。"
+    ],
+    "1.38": [
+      "読み上げスタイルをプリセットから選べるようになりました。設定の「スタイルの登録・編集」で「スタイル名」（例：怒りモード）と「指示」（例：強い怒りを込めた、荒く低い口調。）を入力して保存すると、その名前が「読み上げスタイル」のプルダウンに並び、切り替えるだけで話し方を変えられます。プルダウンで選ぶと内容がフォームに読み込まれるので、そのまま編集・上書き・削除ができます。プリセットを選んでいないときは従来の自由入力欄が使われます。"
+    ],
     "1.37": [
       "設定画面の「基礎設定」をプロファイルの直下へ移動しました。メモリ機能・名前マスキング・音声読み上げより上に来るので、APIプロバイダーの切り替えがすぐ行えます。",
       "読み上げ・音声保存で「選択した範囲だけ」再生できるようになりました。メッセージ内の文字を選択してからボタンを押すと、その部分だけを読み上げます。選択していないときは従来どおり全文を読むので、普段の使い方は変わりません（設定でOFFにもできます）。"
@@ -2127,6 +2145,8 @@ ${relationship_context}`;
     profileIconUrls: /* @__PURE__ */ new Map(),
     videoUrlCache: /* @__PURE__ */ new Map(),
     imageUrlCache: /* @__PURE__ */ new Map(),
+    historySearchQuery: "",
+    // 履歴画面の検索語（一時的な表示状態なので保存しない）
     settings: {
       apiProvider: "gemini",
       apiKey: "",
@@ -2204,7 +2224,11 @@ ${relationship_context}`;
       ttsVoiceId: "hanako",
       // TTS音声ID
       ttsCaption: "",
-      // 話し方・感情の指定（空なら送らない）
+      // 話し方・感情の自由入力（空なら送らない）
+      ttsStylePresets: "",
+      // スタイルのプリセット定義（1行に「名前,指示」）
+      ttsStyleName: "",
+      // 選択中のプリセット名（空なら自由入力を使う）
       ttsSpeed: null,
       // 話す速さ 0.25〜4.0（未設定なら送らない）
       ttsSpeakerScale: null,
@@ -2622,6 +2646,76 @@ Reason: [NGの場合の理由]`,
     ]);
   }
   __name(cacheKey, "cacheKey");
+  function normalizePresets(list) {
+    const presets = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const item of list) {
+      if (!item || typeof item !== "object") continue;
+      const name = typeof item.name === "string" ? item.name.trim() : "";
+      const caption = typeof item.caption === "string" ? item.caption.trim() : "";
+      if (!name || !caption || seen.has(name)) continue;
+      seen.add(name);
+      presets.push({ name, caption });
+    }
+    return presets;
+  }
+  __name(normalizePresets, "normalizePresets");
+  function parseLegacyPresetLines(text) {
+    const presets = [];
+    for (const line of text.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const m = trimmed.match(/^([^,、:：]+)[,、:：]([\s\S]*)$/);
+      if (!m) continue;
+      presets.push({ name: m[1], caption: m[2] });
+    }
+    return normalizePresets(presets);
+  }
+  __name(parseLegacyPresetLines, "parseLegacyPresetLines");
+  function parseStylePresets(stored) {
+    if (Array.isArray(stored)) return normalizePresets(stored);
+    if (!stored || typeof stored !== "string") return [];
+    const trimmed = stored.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith("[")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return normalizePresets(parsed);
+      } catch {
+      }
+    }
+    return parseLegacyPresetLines(trimmed);
+  }
+  __name(parseStylePresets, "parseStylePresets");
+  function serializeStylePresets(presets) {
+    return JSON.stringify(normalizePresets(Array.isArray(presets) ? presets : []));
+  }
+  __name(serializeStylePresets, "serializeStylePresets");
+  function upsertStylePreset(presets, name, caption) {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    const trimmedCaption = typeof caption === "string" ? caption.trim() : "";
+    if (!trimmedName || !trimmedCaption) return normalizePresets(presets || []);
+    const list = normalizePresets(presets || []);
+    const at = list.findIndex((p) => p.name === trimmedName);
+    if (at >= 0) list[at] = { name: trimmedName, caption: trimmedCaption };
+    else list.push({ name: trimmedName, caption: trimmedCaption });
+    return list;
+  }
+  __name(upsertStylePreset, "upsertStylePreset");
+  function removeStylePreset(presets, name) {
+    const trimmedName = typeof name === "string" ? name.trim() : "";
+    return normalizePresets(presets || []).filter((p) => p.name !== trimmedName);
+  }
+  __name(removeStylePreset, "removeStylePreset");
+  function resolveTtsCaption(presetsText, selectedName, freeText) {
+    const name = typeof selectedName === "string" ? selectedName.trim() : "";
+    if (name) {
+      const hit = parseStylePresets(presetsText).find((p) => p.name === name);
+      if (hit) return hit.caption;
+    }
+    return typeof freeText === "string" ? freeText : "";
+  }
+  __name(resolveTtsCaption, "resolveTtsCaption");
   function pickSpeechText(fullText, selectedText, useSelection) {
     if (!useSelection) return fullText;
     const selected = typeof selectedText === "string" ? selectedText.trim() : "";
@@ -2819,6 +2913,108 @@ Reason: [NGの場合の理由]`,
       return DOMPurify.sanitize(rawHtml, { ADD_ATTR: ["target"] });
     }
   };
+
+  // src/utils/search.js
+  var EXCERPT_RADIUS = 30;
+  function parseSearchQuery(query) {
+    if (typeof query !== "string") return [];
+    const terms = query.trim().split(/[\s\u3000]+/).filter(Boolean).map((term) => term.toLowerCase());
+    return Array.from(new Set(terms));
+  }
+  __name(parseSearchQuery, "parseSearchQuery");
+  function collectSearchableMessages(messages) {
+    if (!Array.isArray(messages)) return [];
+    const found = [];
+    const processedGroupIds = /* @__PURE__ */ new Set();
+    messages.forEach((message, index) => {
+      if (!message || message.isHidden || message.role === "tool") return;
+      if (message.isCascaded && message.siblingGroupId) {
+        if (processedGroupIds.has(message.siblingGroupId)) return;
+        processedGroupIds.add(message.siblingGroupId);
+        const siblings = [];
+        messages.forEach((sibling, siblingIndex) => {
+          if (sibling && !sibling.isHidden && sibling.siblingGroupId === message.siblingGroupId) {
+            siblings.push({ message: sibling, index: siblingIndex });
+          }
+        });
+        const selected = siblings.find((s) => s.message.isSelected) || siblings[siblings.length - 1];
+        if (selected) found.push(selected);
+        return;
+      }
+      found.push({ message, index });
+    });
+    return found;
+  }
+  __name(collectSearchableMessages, "collectSearchableMessages");
+  function collapseWhitespace(text) {
+    return text.replace(/\s+/g, " ");
+  }
+  __name(collapseWhitespace, "collapseWhitespace");
+  function buildExcerpt(text, terms, radius = EXCERPT_RADIUS) {
+    const source = typeof text === "string" ? text : "";
+    const lower = source.toLowerCase();
+    let at = -1;
+    let matchLength = 0;
+    for (const term of terms || []) {
+      const index = lower.indexOf(term);
+      if (index !== -1 && (at === -1 || index < at)) {
+        at = index;
+        matchLength = term.length;
+      }
+    }
+    if (at === -1) {
+      const head = source.slice(0, radius * 2);
+      return {
+        before: "",
+        match: "",
+        after: collapseWhitespace(head),
+        truncatedHead: false,
+        truncatedTail: source.length > head.length
+      };
+    }
+    const start = Math.max(0, at - radius);
+    const end = Math.min(source.length, at + matchLength + radius);
+    return {
+      before: collapseWhitespace(source.slice(start, at)),
+      match: source.slice(at, at + matchLength),
+      after: collapseWhitespace(source.slice(at + matchLength, end)),
+      truncatedHead: start > 0,
+      truncatedTail: end < source.length
+    };
+  }
+  __name(buildExcerpt, "buildExcerpt");
+  function searchChat(chat, terms) {
+    if (!chat || !Array.isArray(terms) || terms.length === 0) return null;
+    const title = typeof chat.title === "string" ? chat.title : "";
+    const lowerTitle = title.toLowerCase();
+    const foundTerms = new Set(terms.filter((term) => lowerTitle.includes(term)));
+    const titleHit = foundTerms.size > 0;
+    const hits = [];
+    for (const { message, index } of collectSearchableMessages(chat.messages)) {
+      const content = typeof message.content === "string" ? message.content : "";
+      if (!content) continue;
+      const lower = content.toLowerCase();
+      const matched = terms.filter((term) => lower.includes(term));
+      if (matched.length === 0) continue;
+      matched.forEach((term) => foundTerms.add(term));
+      hits.push({ index, role: message.role, excerpt: buildExcerpt(content, matched) });
+    }
+    if (foundTerms.size !== terms.length) return null;
+    if (!titleHit && hits.length === 0) return null;
+    return { chat, titleHit, hits, hitCount: hits.length };
+  }
+  __name(searchChat, "searchChat");
+  function searchChats(chats, query) {
+    const terms = parseSearchQuery(query);
+    if (terms.length === 0 || !Array.isArray(chats)) return [];
+    const results = [];
+    for (const chat of chats) {
+      const result = searchChat(chat, terms);
+      if (result) results.push(result);
+    }
+    return results;
+  }
+  __name(searchChats, "searchChats");
 
   // src/ui.js
   function getSelectionTextWithin(container) {
@@ -3470,7 +3666,7 @@ Reason: [NGの場合の理由]`,
                 await speak(textToSpeak, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                  caption: state.settings.ttsCaption,
+                  caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                   speed: state.settings.ttsSpeed,
                   speakerScale: state.settings.ttsSpeakerScale,
                   audio
@@ -3512,7 +3708,7 @@ ${error.message}`);
                 await saveSpeech(textToSave, {
                   baseUrl: state.settings.ttsServerUrl,
                   voice: state.settings.ttsVoiceId || DEFAULT_TTS_VOICE,
-                  caption: state.settings.ttsCaption,
+                  caption: resolveTtsCaption(state.settings.ttsStylePresets, state.settings.ttsStyleName, state.settings.ttsCaption),
                   speed: state.settings.ttsSpeed,
                   speakerScale: state.settings.ttsSpeakerScale,
                   filename: createTtsFilename(messageDiv.dataset.turn)
@@ -3638,21 +3834,78 @@ ${error.message}`);
         return `${String(d.getFullYear()).slice(-2)}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
       }
     },
+    /**
+     * 検索でヒットしたメッセージを目立たせ、最初のヒットまでスクロールする。
+     * ハイライトは renderChatMessages が中身を作り直すときに自然に消える。
+     * @param {number[]} indices state.currentMessages 上のインデックス
+     * @returns {boolean} 1件でもハイライトできたか
+     */
+    highlightSearchHits(indices) {
+      if (!Array.isArray(indices) || indices.length === 0) return false;
+      let firstHitElement = null;
+      indices.forEach((index) => {
+        const messageElement = elements.messageContainer.querySelector(`.message[data-index="${index}"]`);
+        if (!messageElement) return;
+        messageElement.classList.add("search-hit");
+        if (!firstHitElement) firstHitElement = messageElement;
+      });
+      if (!firstHitElement) return false;
+      requestAnimationFrame(() => firstHitElement.scrollIntoView({ block: "center" }));
+      return true;
+    },
+    // 履歴の検索結果ヒット1件を表示する要素を作る
+    createHistoryExcerptElement(hit) {
+      const row = document.createElement("div");
+      row.className = "history-item-excerpt";
+      const roleEl = document.createElement("span");
+      roleEl.className = "history-item-excerpt-role";
+      roleEl.textContent = hit.role === "user" ? "あなた" : "AI";
+      row.appendChild(roleEl);
+      const textEl = document.createElement("span");
+      textEl.className = "history-item-excerpt-text";
+      if (hit.excerpt.truncatedHead) textEl.appendChild(document.createTextNode("…"));
+      textEl.appendChild(document.createTextNode(hit.excerpt.before));
+      if (hit.excerpt.match) {
+        const mark = document.createElement("mark");
+        mark.textContent = hit.excerpt.match;
+        textEl.appendChild(mark);
+      }
+      textEl.appendChild(document.createTextNode(hit.excerpt.after));
+      if (hit.excerpt.truncatedTail) textEl.appendChild(document.createTextNode("…"));
+      row.appendChild(textEl);
+      return row;
+    },
+    // 検索結果の件数表示を更新する (results が null なら検索していない状態)
+    updateHistorySearchSummary(results, totalChats) {
+      const summaryEl = elements.historySearchSummary;
+      elements.historySearchClearBtn?.classList.toggle("hidden", !state.historySearchQuery.trim());
+      if (!summaryEl) return;
+      if (!results) {
+        summaryEl.textContent = "";
+        summaryEl.classList.add("hidden");
+        return;
+      }
+      const hitCount = results.reduce((sum, result) => sum + result.hitCount, 0);
+      summaryEl.textContent = `${totalChats}件中 ${results.length}件のチャットがヒット (メッセージ ${hitCount}件)`;
+      summaryEl.classList.remove("hidden");
+    },
     // 履歴リストをレンダリング
     async renderHistoryList() {
       try {
-        const chats = await dbUtils.getAllChats(state.settings.historySortOrder);
+        const allChats = await dbUtils.getAllChats(state.settings.historySortOrder) || [];
         elements.historyList.querySelectorAll(".history-item:not(.js-history-item-template)").forEach((item) => item.remove());
         const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1e3;
-        let oldChatsCount = 0;
-        if (chats && chats.length > 0) {
+        const oldChatsCount = allChats.filter((chat) => chat.updatedAt < sevenDaysAgo).length;
+        const searchResults = state.historySearchQuery.trim() ? searchChats(allChats, state.historySearchQuery) : null;
+        const resultByChatId = searchResults ? new Map(searchResults.map((result) => [result.chat.id, result])) : null;
+        const chats = searchResults ? searchResults.map((result) => result.chat) : allChats;
+        this.updateHistorySearchSummary(searchResults, allChats.length);
+        if (chats.length > 0) {
           elements.noHistoryMessage.classList.add("hidden");
           const sortOrderText = state.settings.historySortOrder === "createdAt" ? "作成順" : "更新順";
           elements.historyTitle.textContent = `履歴一覧 (${sortOrderText})`;
           chats.forEach((chat) => {
-            if (chat.updatedAt < sevenDaysAgo) {
-              oldChatsCount++;
-            }
+            const searchResult = resultByChatId ? resultByChatId.get(chat.id) : null;
             const li = elements.historyItemTemplate.cloneNode(true);
             li.classList.remove("js-history-item-template");
             li.dataset.chatId = chat.id;
@@ -3670,12 +3923,25 @@ ${error.message}`);
             } else {
               li.querySelector(".history-item-stats").style.display = "none";
             }
+            if (searchResult && searchResult.hits.length > 0) {
+              const excerptsEl = li.querySelector(".js-history-excerpts");
+              const shown = searchResult.hits.slice(0, MAX_HISTORY_EXCERPTS);
+              shown.forEach((hit) => excerptsEl.appendChild(this.createHistoryExcerptElement(hit)));
+              if (searchResult.hits.length > shown.length) {
+                const moreEl = document.createElement("div");
+                moreEl.className = "history-item-excerpt-more";
+                moreEl.textContent = `ほか${searchResult.hits.length - shown.length}件のヒット`;
+                excerptsEl.appendChild(moreEl);
+              }
+              excerptsEl.classList.remove("hidden");
+            }
             li.querySelector(".created-date").textContent = `作成: ${this.formatDate(chat.createdAt)}`;
             li.querySelector(".updated-date").textContent = `更新: ${this.formatDate(chat.updatedAt)}`;
             li.onclick = async (event) => {
               if (!event.target.closest(".history-item-actions button")) {
+                const highlightMessageIndices = searchResult ? searchResult.hits.map((hit) => hit.index) : [];
                 const screenTransitionPromise = uiUtils.showScreen("chat");
-                const loadChatPromise = appLogic.loadChat(chat.id);
+                const loadChatPromise = appLogic.loadChat(chat.id, { highlightMessageIndices });
                 await Promise.all([screenTransitionPromise, loadChatPromise]);
               }
             };
@@ -3697,6 +3963,12 @@ ${error.message}`);
             };
             elements.historyList.appendChild(li);
           });
+        } else if (searchResults) {
+          elements.noHistoryMessage.classList.remove("hidden");
+          elements.historyTitle.textContent = "履歴一覧";
+          const pEl = elements.noHistoryMessage.querySelector("p") || elements.noHistoryMessage;
+          pEl.textContent = "検索に一致するチャットはありません。";
+          document.getElementById("restore-from-cloud-btn")?.classList.add("hidden");
         } else {
           elements.noHistoryMessage.classList.remove("hidden");
           elements.historyTitle.textContent = "履歴一覧";
@@ -3889,6 +4161,7 @@ ${error.message}`);
       if (elements.ttsServerUrlInput) elements.ttsServerUrlInput.value = state.settings.ttsServerUrl || "";
       if (elements.ttsVoiceIdInput) elements.ttsVoiceIdInput.value = state.settings.ttsVoiceId ?? DEFAULT_TTS_VOICE;
       if (elements.ttsCaptionTextarea) elements.ttsCaptionTextarea.value = state.settings.ttsCaption || "";
+      this.updateTtsStylePresetOptions();
       if (elements.ttsSpeedInput) elements.ttsSpeedInput.value = state.settings.ttsSpeed ?? "";
       if (elements.ttsSpeakerScaleInput) elements.ttsSpeakerScaleInput.value = state.settings.ttsSpeakerScale ?? "";
       if (elements.ttsUseSelectionToggle) elements.ttsUseSelectionToggle.checked = state.settings.ttsUseSelection !== false;
@@ -4102,6 +4375,7 @@ ${error.message}`);
           chat.style.transform = pos.history.chat;
           historyEl.style.transform = pos.history.history;
           settings.style.transform = pos.history.settings;
+          if (elements.historySearchInput) elements.historySearchInput.value = state.historySearchQuery;
           this.renderHistoryList();
         } else if (screenName === "settings") {
           chat.style.transform = pos.settings.chat;
@@ -4310,6 +4584,92 @@ ${error.message}`);
       const isNanoBanana = selectedModel === "gemini-2.5-flash-image-preview";
       elements.modelWarningMessage.classList.toggle("hidden", !isNanoBanana);
       this.updateAnthropicEffortOptions();
+    },
+    // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
+    updateTtsStylePresetOptions() {
+      const select = elements.ttsStyleNameSelect;
+      if (!select) return;
+      const presets = parseStylePresets(state.settings.ttsStylePresets);
+      const saved = state.settings.ttsStyleName || "";
+      select.innerHTML = "";
+      const none = document.createElement("option");
+      none.value = "";
+      none.textContent = "指定なし";
+      select.appendChild(none);
+      for (const preset of presets) {
+        const option = document.createElement("option");
+        option.value = preset.name;
+        option.textContent = preset.name;
+        option.title = preset.caption;
+        select.appendChild(option);
+      }
+      if (saved && presets.some((p) => p.name === saved)) {
+        select.value = saved;
+      } else {
+        select.value = "";
+        if (saved) this._saveTtsStyleSetting("ttsStyleName", "");
+      }
+      this.loadTtsStyleIntoForm();
+    },
+    // プルダウンで選ばれているスタイルを編集フォームに読み込む。
+    loadTtsStyleIntoForm() {
+      const nameInput = elements.ttsStyleNameInput;
+      const captionInput = elements.ttsStyleCaptionInput;
+      if (!nameInput || !captionInput) return;
+      const selected = elements.ttsStyleNameSelect ? elements.ttsStyleNameSelect.value : "";
+      if (!selected) {
+        nameInput.value = "";
+        captionInput.value = "";
+        return;
+      }
+      const hit = parseStylePresets(state.settings.ttsStylePresets).find((p) => p.name === selected);
+      nameInput.value = hit ? hit.name : "";
+      captionInput.value = hit ? hit.caption : "";
+    },
+    /** @private TTS関連の設定を1件保存する（プロファイルにも反映）。 */
+    _saveTtsStyleSetting(key, value) {
+      state.settings[key] = value;
+      if (state.activeProfile) {
+        state.activeProfile.settings[key] = value;
+        dbUtils.updateProfile(state.activeProfile).catch(
+          (e) => console.error("[TTS] スタイル設定の保存に失敗:", e)
+        );
+        appLogic.markAsDirtyAndSchedulePush("structural");
+      }
+    },
+    // 編集フォームの内容でプリセットを追加・更新する。
+    async saveTtsStylePreset() {
+      const name = (elements.ttsStyleNameInput?.value || "").trim();
+      const caption = (elements.ttsStyleCaptionInput?.value || "").trim();
+      if (!name) {
+        await this.showCustomAlert("スタイル名を入力してください。");
+        return;
+      }
+      if (!caption) {
+        await this.showCustomAlert("指示を入力してください。");
+        return;
+      }
+      const presets = upsertStylePreset(parseStylePresets(state.settings.ttsStylePresets), name, caption);
+      this._saveTtsStyleSetting("ttsStylePresets", serializeStylePresets(presets));
+      this._saveTtsStyleSetting("ttsStyleName", name);
+      this.updateTtsStylePresetOptions();
+    },
+    // 編集フォームに入っている名前のプリセットを削除する。
+    async deleteTtsStylePreset() {
+      const name = (elements.ttsStyleNameInput?.value || "").trim();
+      if (!name) {
+        await this.showCustomAlert("削除するスタイル名を入力（またはプルダウンで選択）してください。");
+        return;
+      }
+      const before = parseStylePresets(state.settings.ttsStylePresets);
+      if (!before.some((p) => p.name === name)) {
+        await this.showCustomAlert(`「${name}」は登録されていません。`);
+        return;
+      }
+      if (!await this.showCustomConfirm(`スタイル「${name}」を削除しますか？`)) return;
+      this._saveTtsStyleSetting("ttsStylePresets", serializeStylePresets(removeStylePreset(before, name)));
+      this._saveTtsStyleSetting("ttsStyleName", "");
+      this.updateTtsStylePresetOptions();
     },
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
@@ -5731,6 +6091,7 @@ ${error.message}`);
         ttsServerUrl: { element: elements.ttsServerUrlInput, event: "input" },
         ttsVoiceId: { element: elements.ttsVoiceIdInput, event: "input" },
         ttsCaption: { element: elements.ttsCaptionTextarea, event: "input" },
+        ttsStyleName: { element: elements.ttsStyleNameSelect, event: "change", onUpdate: /* @__PURE__ */ __name(() => uiUtils.loadTtsStyleIntoForm(), "onUpdate") },
         ttsSpeed: { element: elements.ttsSpeedInput, event: "input" },
         ttsSpeakerScale: { element: elements.ttsSpeakerScaleInput, event: "input" },
         ttsUseSelection: { element: elements.ttsUseSelectionToggle, event: "change" },
@@ -5870,6 +6231,23 @@ ${error.message}`);
       }
       elements.memoryToggleBtn.addEventListener("click", () => this.toggleChatMemory());
       elements.manageMemoryBtn.addEventListener("click", () => this.openMemoryManagementDialog());
+      elements.ttsStyleSaveBtn?.addEventListener("click", () => uiUtils.saveTtsStylePreset());
+      elements.ttsStyleDeleteBtn?.addEventListener("click", () => uiUtils.deleteTtsStylePreset());
+      let historySearchTimer = null;
+      elements.historySearchInput?.addEventListener("input", () => {
+        clearTimeout(historySearchTimer);
+        historySearchTimer = setTimeout(() => {
+          state.historySearchQuery = elements.historySearchInput.value;
+          uiUtils.renderHistoryList();
+        }, HISTORY_SEARCH_DEBOUNCE_MS);
+      });
+      elements.historySearchClearBtn?.addEventListener("click", () => {
+        clearTimeout(historySearchTimer);
+        elements.historySearchInput.value = "";
+        state.historySearchQuery = "";
+        uiUtils.renderHistoryList();
+        elements.historySearchInput.focus();
+      });
       elements.closeMemoryDialogBtn.addEventListener("click", () => elements.memoryManagementDialog.close());
       elements.addMemoryBtn.addEventListener("click", () => this.addMemoryItem());
       elements.deleteAllMemoryBtn.addEventListener("click", () => this.confirmDeleteAllMemory());
@@ -7699,7 +8077,8 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
       state.currentStyleProfiles = {};
     },
     // app.js の appLogic オブジェクト内
-    async loadChat(id) {
+    // options.highlightMessageIndices: 履歴検索から開いたときのヒット位置
+    async loadChat(id, options = {}) {
       state.pendingCascadeResponses = null;
       const loadChatStartTime = performance.now();
       state.syncMessageCounter = 0;
@@ -7766,7 +8145,9 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
           const renderStartTime = performance.now();
           uiUtils.renderChatMessages();
           const renderEndTime = performance.now();
-          this.scrollToBottom();
+          if (!uiUtils.highlightSearchHits(options.highlightMessageIndices)) {
+            this.scrollToBottom();
+          }
           elements.userInput.value = "";
           uiUtils.adjustTextareaHeight();
           uiUtils.setSendingState(false);

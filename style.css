@@ -2691,6 +2691,110 @@ body.dark-mode .header-delete-button:disabled {
     font-size: 14px;
 }
 
+/* --- 履歴の全文検索 --- */
+.history-search {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin-bottom: 10px;
+    background-color: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--border-radius-md);
+}
+
+.history-search-icon {
+    font-size: 20px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.history-search input[type="search"] {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 4px 0;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.history-search input[type="search"]:focus {
+    outline: none;
+}
+
+.history-search-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.history-search-clear .material-symbols-outlined {
+    font-size: 18px;
+}
+
+.history-search-summary {
+    margin: 0 0 10px 2px;
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.history-item-excerpts {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.history-item-excerpt {
+    display: flex;
+    gap: 6px;
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    min-width: 0;
+}
+
+.history-item-excerpt-role {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.history-item-excerpt-text {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.history-item-excerpt mark {
+    padding: 0 1px;
+    border-radius: 2px;
+    background-color: rgba(255, 213, 79, 0.5);
+    color: inherit;
+}
+
+body.dark-mode .history-item-excerpt mark {
+    background-color: rgba(255, 213, 79, 0.28);
+}
+
+.history-item-excerpt-more {
+    font-size: 10px;
+    color: var(--text-secondary);
+    opacity: 0.8;
+}
+
+/* 検索から開いたチャットで、ヒットしたメッセージを示す */
+.message.search-hit {
+    outline: 2px solid var(--text-link);
+    outline-offset: 3px;
+    border-radius: var(--border-radius-md);
+}
+
 /* --- User Attachment Preview --- */
 .attachment-details .attachment-list {
     display: flex;
