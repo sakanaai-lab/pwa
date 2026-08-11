@@ -636,19 +636,113 @@
                     </p>
                 </div>
 
-                <div class="settings-group" id="novelai-settings">
-                    <h3>NovelAI設定</h3>
-                    <p style="font-size:12px;color:var(--text-secondary);margin-top:-10px;margin-bottom:15px;">
-                        Function Callingで「絵を描いて」と言うとNovelAIでアニメ調画像を生成します。
+                <div class="settings-group">
+                   <h3>アドバンスド</h3>
+                   <label class="checkbox-label" style="margin-bottom: 10px;">
+                       <input type="checkbox" id="dummy-enabled-toggle">
+                       ダミープロンプトを有効にする
+                   </label>
+                   <label for="dummy-user">ダミー User プロンプト (送信時のみ追加):</label>
+                   <textarea id="dummy-user" placeholder="API送信直前に user ロールとして履歴末尾に追加されます" aria-label="ダミー User プロンプト"></textarea>
+                   <div style="margin-left: 15px; margin-top: -5px; margin-bottom: 10px;">
+                    <label class="checkbox-label" style="font-size: 12px;">
+                        <input type="checkbox" id="apply-dummy-to-proofread">
+                        校正時にも適用する
+                    </label>
+                    <label class="checkbox-label" style="font-size: 12px;">
+                        <input type="checkbox" id="apply-dummy-to-translate">
+                        思考プロセス翻訳時にも適用する
+                    </label>
+                    </div>
+                   <label for="dummy-model">ダミー Model プロンプト (送信時のみ追加):</label>
+                   <textarea id="dummy-model" placeholder="API送信直前に model ロールとして履歴最末尾に追加されます" aria-label="ダミー Model プロンプト"></textarea>
+
+                   <label class="checkbox-label">
+                       <input type="checkbox" id="reverse-dummy-order">
+                       ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える
+                   </label>
+                   <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                       ※チェック時、API送信時に（User→ダミーModel→ダミーUser）の順序で追加されます。
+                   </p>
+
+                   <label class="checkbox-label">
+                       <input type="checkbox" id="concat-dummy-model">
+                       ダミーモデルと回答を連結
+                   </label>
+                   <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                       ※チェック時、モデル応答の先頭に上記ダミーModelの内容を付与。
+                   </p>
+
+                   <label class="checkbox-label" style="margin-top: 15px;">
+                    <input type="checkbox" id="enable-auto-retry">
+                    APIエラー/ブロック時に自動でリトライする
+                    </label>
+                    <div id="auto-retry-options">
+                        <label for="max-retries">リトライ上限回数:</label>
+                        <input type="number" id="max-retries" step="1" min="0" placeholder="例: 5">
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                            ※ 0に設定するとリトライしません。
+                        </p>
+
+                        <label class="checkbox-label" style="margin-top: 15px;">
+                            <input type="checkbox" id="use-fixed-retry-delay">
+                            固定待機時間でリトライする
+                        </label>
+
+                        <div id="fixed-retry-delay-container" class="hidden">
+                            <label for="fixed-retry-delay-seconds">待機時間 (秒):</label>
+                            <input type="number" id="fixed-retry-delay-seconds" step="1" min="0" placeholder="例: 15">
+                        </div>
+
+                        <div id="max-backoff-delay-container">
+                             <label for="max-backoff-delay-seconds">指数バックオフの最大待機時間 (秒):</label>
+                             <input type="number" id="max-backoff-delay-seconds" step="1" min="0" placeholder="例: 60">
+                             <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                                 ※ リトライ毎に倍増する待機時間の上限を設定します。短いネットワークエラーは即座に、長いエラーには優しく対応します。
+                             </p>
+                        </div>
+
+                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="enable-api-timeout">
+                                APIタイムアウトを有効化
+                            </label>
+                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
+                                API呼び出しが指定秒数を超えてもレスポンスが返らない場合、自動的に中断して再試行します。<br>
+                                <strong>推奨：Function Calling使用時は有効化（90秒）</strong>
+                            </p>
+                            
+                            <div id="api-timeout-options" style="margin-left: 1.5rem;">
+                                <label for="api-timeout-seconds">タイムアウト秒数:</label>
+                                <input type="number" id="api-timeout-seconds" min="30" max="600" step="10" value="90">
+                                <span style="margin-left: 0.25rem; color: var(--text-secondary);">秒</span>
+                                <p style="font-size: 11px; color: var(--text-secondary); margin-top: 5px; margin-bottom: 10px; line-height: 1.4;">
+                                    推奨値：<br>
+                                    • Function Calling使用時: 90秒<br>
+                                    • 通常使用時: 120秒<br>
+                                    • 無効化したい場合: チェックを外す
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3>名前マスキング（画像保存用）</h3>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
+                        会話を<strong>画像保存・コピー</strong>するときだけ、登録した名前を別名に置き換えます。画面表示・API送信・保存データには影響しません（元のまま）。SNSへの共有前に本名を伏せたいときに使えます。
                     </p>
-                    <label for="novelai-api-key">APIトークン:</label>
-                    <input type="password" id="novelai-api-key" placeholder="eyJ..." autocomplete="new-password">
-                    <label for="novelai-model" style="margin-top:15px;">モデル:</label>
-                    <select id="novelai-model">
-                        <option value="nai-diffusion-4-5-curated">V4.5 Curated（推奨）</option>
-                        <option value="nai-diffusion-4-5-full">V4.5 Full</option>
-                        <option value="nai-diffusion-3">V3</option>
-                    </select>
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="name-mask-toggle">
+                        名前マスキングを有効にする
+                    </label>
+                    <div style="margin-top: 12px;">
+                        <label for="name-mask-text">置換リスト（1行に1組「本名,別名」）:</label>
+                        <textarea id="name-mask-text" rows="4" placeholder="佐藤花子,A&#10;田中太郎,主人公&#10;タマ,愛猫" style="width:100%;box-sizing:border-box;"></textarea>
+                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
+                            区切りは「,」「、」「→」が使えます。別名を空にするとその名前は削除されます。長い名前から優先して置換します。
+                        </p>
+                    </div>
                 </div>
 
                 <div class="settings-group">
@@ -753,97 +847,6 @@
                     </div>
                 </div>
 
-                <div class="settings-group">
-                   <h3>アドバンスド</h3>
-                   <label class="checkbox-label" style="margin-bottom: 10px;">
-                       <input type="checkbox" id="dummy-enabled-toggle">
-                       ダミープロンプトを有効にする
-                   </label>
-                   <label for="dummy-user">ダミー User プロンプト (送信時のみ追加):</label>
-                   <textarea id="dummy-user" placeholder="API送信直前に user ロールとして履歴末尾に追加されます" aria-label="ダミー User プロンプト"></textarea>
-                   <div style="margin-left: 15px; margin-top: -5px; margin-bottom: 10px;">
-                    <label class="checkbox-label" style="font-size: 12px;">
-                        <input type="checkbox" id="apply-dummy-to-proofread">
-                        校正時にも適用する
-                    </label>
-                    <label class="checkbox-label" style="font-size: 12px;">
-                        <input type="checkbox" id="apply-dummy-to-translate">
-                        思考プロセス翻訳時にも適用する
-                    </label>
-                    </div>
-                   <label for="dummy-model">ダミー Model プロンプト (送信時のみ追加):</label>
-                   <textarea id="dummy-model" placeholder="API送信直前に model ロールとして履歴最末尾に追加されます" aria-label="ダミー Model プロンプト"></textarea>
-
-                   <label class="checkbox-label">
-                       <input type="checkbox" id="reverse-dummy-order">
-                       ダミーUserプロンプトとダミーModelプロンプトの順序を入れ替える
-                   </label>
-                   <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                       ※チェック時、API送信時に（User→ダミーModel→ダミーUser）の順序で追加されます。
-                   </p>
-
-                   <label class="checkbox-label">
-                       <input type="checkbox" id="concat-dummy-model">
-                       ダミーモデルと回答を連結
-                   </label>
-                   <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                       ※チェック時、モデル応答の先頭に上記ダミーModelの内容を付与。
-                   </p>
-
-                   <label class="checkbox-label" style="margin-top: 15px;">
-                    <input type="checkbox" id="enable-auto-retry">
-                    APIエラー/ブロック時に自動でリトライする
-                    </label>
-                    <div id="auto-retry-options">
-                        <label for="max-retries">リトライ上限回数:</label>
-                        <input type="number" id="max-retries" step="1" min="0" placeholder="例: 5">
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                            ※ 0に設定するとリトライしません。
-                        </p>
-
-                        <label class="checkbox-label" style="margin-top: 15px;">
-                            <input type="checkbox" id="use-fixed-retry-delay">
-                            固定待機時間でリトライする
-                        </label>
-
-                        <div id="fixed-retry-delay-container" class="hidden">
-                            <label for="fixed-retry-delay-seconds">待機時間 (秒):</label>
-                            <input type="number" id="fixed-retry-delay-seconds" step="1" min="0" placeholder="例: 15">
-                        </div>
-
-                        <div id="max-backoff-delay-container">
-                             <label for="max-backoff-delay-seconds">指数バックオフの最大待機時間 (秒):</label>
-                             <input type="number" id="max-backoff-delay-seconds" step="1" min="0" placeholder="例: 60">
-                             <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                                 ※ リトライ毎に倍増する待機時間の上限を設定します。短いネットワークエラーは即座に、長いエラーには優しく対応します。
-                             </p>
-                        </div>
-
-                        <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-color);">
-                            <label class="checkbox-label">
-                                <input type="checkbox" id="enable-api-timeout">
-                                APIタイムアウトを有効化
-                            </label>
-                            <p style="font-size: 11px; color: var(--text-secondary); margin-top: -5px; margin-bottom: 10px;">
-                                API呼び出しが指定秒数を超えてもレスポンスが返らない場合、自動的に中断して再試行します。<br>
-                                <strong>推奨：Function Calling使用時は有効化（90秒）</strong>
-                            </p>
-                            
-                            <div id="api-timeout-options" style="margin-left: 1.5rem;">
-                                <label for="api-timeout-seconds">タイムアウト秒数:</label>
-                                <input type="number" id="api-timeout-seconds" min="30" max="600" step="10" value="90">
-                                <span style="margin-left: 0.25rem; color: var(--text-secondary);">秒</span>
-                                <p style="font-size: 11px; color: var(--text-secondary); margin-top: 5px; margin-bottom: 10px; line-height: 1.4;">
-                                    推奨値：<br>
-                                    • Function Calling使用時: 90秒<br>
-                                    • 通常使用時: 120秒<br>
-                                    • 無効化したい場合: チェックを外す
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <div id="gemini-grounding-param" class="settings-group">
                     <h3>ツール設定 (Gemini)</h3>
                     <p style="font-size: 12px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
@@ -879,22 +882,19 @@
                     </p>
                 </div>
 
-                <div class="settings-group">
-                    <h3>名前マスキング（画像保存用）</h3>
-                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: -10px; margin-bottom: 15px;">
-                        会話を<strong>画像保存・コピー</strong>するときだけ、登録した名前を別名に置き換えます。画面表示・API送信・保存データには影響しません（元のまま）。SNSへの共有前に本名を伏せたいときに使えます。
+                <div class="settings-group" id="novelai-settings">
+                    <h3>NovelAI設定</h3>
+                    <p style="font-size:12px;color:var(--text-secondary);margin-top:-10px;margin-bottom:15px;">
+                        Function Callingで「絵を描いて」と言うとNovelAIでアニメ調画像を生成します。
                     </p>
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="name-mask-toggle">
-                        名前マスキングを有効にする
-                    </label>
-                    <div style="margin-top: 12px;">
-                        <label for="name-mask-text">置換リスト（1行に1組「本名,別名」）:</label>
-                        <textarea id="name-mask-text" rows="4" placeholder="佐藤花子,A&#10;田中太郎,主人公&#10;タマ,愛猫" style="width:100%;box-sizing:border-box;"></textarea>
-                        <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            区切りは「,」「、」「→」が使えます。別名を空にするとその名前は削除されます。長い名前から優先して置換します。
-                        </p>
-                    </div>
+                    <label for="novelai-api-key">APIトークン:</label>
+                    <input type="password" id="novelai-api-key" placeholder="eyJ..." autocomplete="new-password">
+                    <label for="novelai-model" style="margin-top:15px;">モデル:</label>
+                    <select id="novelai-model">
+                        <option value="nai-diffusion-4-5-curated">V4.5 Curated（推奨）</option>
+                        <option value="nai-diffusion-4-5-full">V4.5 Full</option>
+                        <option value="nai-diffusion-3">V3</option>
+                    </select>
                 </div>
 
                 <div class="settings-group">
