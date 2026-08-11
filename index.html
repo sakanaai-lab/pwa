@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0" />
     <!-- CSSファイルを外部から読み込む -->
-    <link rel="stylesheet" href="style.css?v=1.25.45">
+    <link rel="stylesheet" href="style.css?v=1.25.55">
     <link rel="stylesheet" href="prism.css" />
     <script src="marked.js" defer></script>
     <!-- DOMPurify: AI出力/インポート由来HTMLのサニタイズ（XSS対策）。marked の後に読み込む -->
@@ -148,6 +148,12 @@
                 <input type="file" id="import-history-input" accept=".txt,text/plain" class="hidden"> <!-- インポート用ファイル入力 -->
             </header>
             <main class="main-content">
+                <div class="history-search">
+                    <span class="material-symbols-outlined history-search-icon">search</span>
+                    <input type="search" id="history-search-input" placeholder="タイトル・本文を検索" autocomplete="off">
+                    <button id="history-search-clear-btn" class="history-search-clear hidden" type="button" title="検索をクリア"><span class="material-symbols-outlined">close</span></button>
+                </div>
+                <p id="history-search-summary" class="history-search-summary hidden"></p>
                 <ul id="history-list" class="history-list">
                     <!-- 履歴アイテムはここに読み込まれる -->
                     <li class="js-history-item-template history-item">
@@ -158,6 +164,7 @@
                                 <span class="stat-item js-stat-assets" title="合計アセット数"><span class="material-symbols-outlined">perm_media</span>-</span>
                                 <span class="stat-item js-stat-size" title="合計アセット容量"><span class="material-symbols-outlined">database</span>-</span>
                             </div>
+                            <div class="history-item-excerpts js-history-excerpts hidden"></div>
                         </div>
                         <div class="history-item-bottom-row">
                             <div class="history-item-dates">

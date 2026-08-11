@@ -18,6 +18,8 @@ export const DEFAULT_FONT_FAMILY =
     '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'; // デフォルトフォント
 export const CHAT_TITLE_LENGTH = 15;
 export const TEXTAREA_MAX_HEIGHT = 120;
+export const MAX_HISTORY_EXCERPTS = 3; // 履歴検索で1チャットあたりに表示する抜粋の上限
+export const HISTORY_SEARCH_DEBOUNCE_MS = 200;
 export const GEMINI_API_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models/';
 export const ZAI_API_BASE_URL = 'https://api.z.ai/api/paas/v4/chat/completions';
 export const OPENROUTER_API_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -175,6 +177,10 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    '1.39': [
+        'チャットログの全文検索を追加しました。履歴一覧の上部に検索ボックスがあり、タイトルだけでなく各メッセージの本文まで横断して絞り込めます。ヒットしたチャットにはヒット箇所の抜粋（前後の文つき）が並び、開くとその発言まで自動でスクロールして枠を付けて示します。',
+        '検索語を空白で区切ると、すべての語を含むチャットだけに絞り込みます（大文字小文字は区別しません）。検索は端末内のデータだけで行うため、外部への送信はありません。',
+    ],
     '1.38': [
         '読み上げスタイルをプリセットから選べるようになりました。設定の「スタイルの登録・編集」で「スタイル名」（例：怒りモード）と「指示」（例：強い怒りを込めた、荒く低い口調。）を入力して保存すると、その名前が「読み上げスタイル」のプルダウンに並び、切り替えるだけで話し方を変えられます。プルダウンで選ぶと内容がフォームに読み込まれるので、そのまま編集・上書き・削除ができます。プリセットを選んでいないときは従来の自由入力欄が使われます。',
     ],
