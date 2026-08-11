@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, pickSpeechText, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
+import { normalizeTtsBaseUrl, buildSpeechRequest, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from '../src/utils/tts.js';
 
 describe('normalizeTtsBaseUrl', () => {
     it('前後の空白を除去する', () => {
@@ -138,5 +138,130 @@ describe('pickSpeechText', () => {
 
     it('選択の前後の空白は取り除く', () => {
         expect(pickSpeechText('全文', '  ここだけ  ', true)).toBe('ここだけ');
+    });
+});
+
+describe('parseStylePresets', () => {
+    it('JSON配列を読む', () => {
+        const json = JSON.stringify([{ name: '通常', caption: '自然に' }]);
+        expect(parseStylePresets(json)).toEqual([{ name: '通常', caption: '自然に' }]);
+    });
+
+    it('配列をそのまま渡しても読む', () => {
+        expect(parseStylePresets([{ name: '通常', caption: '自然に' }])).toEqual([
+            { name: '通常', caption: '自然に' },
+        ]);
+    });
+
+    it('名前・指示が欠けた要素は無視する', () => {
+        const json = JSON.stringify([
+            { name: '通常', caption: '自然に' },
+            { name: '', caption: '指示だけ' },
+            { name: '名前だけ', caption: '' },
+            null,
+        ]);
+        expect(parseStylePresets(json)).toEqual([{ name: '通常', caption: '自然に' }]);
+    });
+
+    it('同じ名前は先に出たものを使う', () => {
+        const json = JSON.stringify([
+            { name: '通常', caption: '古い' },
+            { name: '通常', caption: '新しい' },
+        ]);
+        expect(parseStylePresets(json)).toEqual([{ name: '通常', caption: '古い' }]);
+    });
+
+    // 旧形式（1行に「名前,指示」）で保存されていても読めるようにしてある
+    it('旧形式の行区切りも読める', () => {
+        expect(parseStylePresets('通常,自然に\n怒り,荒く')).toEqual([
+            { name: '通常', caption: '自然に' },
+            { name: '怒り', caption: '荒く' },
+        ]);
+    });
+
+    it('旧形式では指示に含まれる「、」で切らない', () => {
+        expect(parseStylePresets('怒り,強い怒りを込めた、荒い口調')).toEqual([
+            { name: '怒り', caption: '強い怒りを込めた、荒い口調' },
+        ]);
+    });
+
+    it('壊れたJSONでも落ちない', () => {
+        expect(parseStylePresets('[{壊れて')).toEqual([]);
+    });
+
+    it('空・非文字列は空配列', () => {
+        expect(parseStylePresets('')).toEqual([]);
+        expect(parseStylePresets(null)).toEqual([]);
+    });
+});
+
+describe('upsertStylePreset / removeStylePreset / serializeStylePresets', () => {
+    const base = [{ name: '通常', caption: '自然に' }];
+
+    it('新しい名前なら末尾に追加する', () => {
+        expect(upsertStylePreset(base, '怒り', '荒く')).toEqual([
+            { name: '通常', caption: '自然に' },
+            { name: '怒り', caption: '荒く' },
+        ]);
+    });
+
+    it('同じ名前なら指示を上書きする（順序は保つ）', () => {
+        const out = upsertStylePreset([...base, { name: '怒り', caption: '荒く' }], '通常', 'とても自然に');
+        expect(out).toEqual([
+            { name: '通常', caption: 'とても自然に' },
+            { name: '怒り', caption: '荒く' },
+        ]);
+    });
+
+    it('名前や指示が空なら何も追加しない', () => {
+        expect(upsertStylePreset(base, '', '指示')).toEqual(base);
+        expect(upsertStylePreset(base, '名前', '')).toEqual(base);
+    });
+
+    it('前後の空白は取り除いて登録する', () => {
+        expect(upsertStylePreset([], '  怒り  ', '  荒く  ')).toEqual([{ name: '怒り', caption: '荒く' }]);
+    });
+
+    it('指定した名前を削除する', () => {
+        expect(removeStylePreset([...base, { name: '怒り', caption: '荒く' }], '怒り')).toEqual(base);
+    });
+
+    it('存在しない名前の削除は何も変えない', () => {
+        expect(removeStylePreset(base, '無い名前')).toEqual(base);
+    });
+
+    it('保存用の文字列に変換して読み戻せる', () => {
+        const text = serializeStylePresets(base);
+        expect(parseStylePresets(text)).toEqual(base);
+    });
+
+    it('配列でないものを渡しても空として扱う', () => {
+        expect(serializeStylePresets(null)).toBe('[]');
+        expect(removeStylePreset(null, 'x')).toEqual([]);
+    });
+});
+
+describe('resolveTtsCaption', () => {
+    const presets = serializeStylePresets([
+        { name: '通常', caption: '自然な話し方' },
+        { name: '怒りモード', caption: '強い怒りを込めた、荒い口調' },
+    ]);
+
+    it('選択中のプリセットの指示を返す', () => {
+        expect(resolveTtsCaption(presets, '怒りモード', '自由入力')).toBe('強い怒りを込めた、荒い口調');
+    });
+
+    it('プリセット未選択なら自由入力を使う', () => {
+        expect(resolveTtsCaption(presets, '', '自由入力')).toBe('自由入力');
+    });
+
+    // 回帰: プリセットを削除したあとも古い選択名が残っていると空になりかねない
+    it('選択名が定義に無ければ自由入力へ落とす', () => {
+        expect(resolveTtsCaption(presets, '存在しない名前', '自由入力')).toBe('自由入力');
+    });
+
+    it('どちらも無ければ空文字（＝指定なし）', () => {
+        expect(resolveTtsCaption('', '', '')).toBe('');
+        expect(resolveTtsCaption(null, null, null)).toBe('');
     });
 });
