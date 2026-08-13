@@ -26,9 +26,47 @@ export const MODEL_PRICING = {
     'deepseek-v4-pro':   { in: 0.66,  out: 1.98, cw5m: 0.66,  cw1h: 0.66,  cr: 0.022,    peakMul: 2 },
     'deepseek-v4-flash': { in: 0.22,  out: 0.66, cw5m: 0.22,  cw1h: 0.22,  cr: 0.007,    peakMul: 2 },
     'deepseek-':         { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
-    // xAI Grok。プロンプトが longCtxThreshold 以上のリクエストは単価が longCtxMul 倍になる。
-    // https://docs.x.ai/developers/pricing
-    'grok-4-6': { in: 2, out: 6, cw5m: 2, cw1h: 2, cr: 0.50, longCtxThreshold: 200_000, longCtxMul: 2 },
+
+    // 以下は cw5m/cw1h を持たない。キャッシュ書き込みに別料金が無く、通常入力と同額のため
+    // （calcMessageCost が in にフォールバックする）。
+    // longCtx があるモデルは、プロンプトが threshold 以上のとき単価がそちらへ切り替わる。
+
+    // xAI Grok — https://docs.x.ai/developers/pricing
+    'grok-4-6': { in: 2, out: 6, cr: 0.50, longCtx: { threshold: 200_000, in: 4, out: 12, cr: 1 } },
+
+    // OpenAI — https://developers.openai.com/api/docs/pricing
+    // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
+    'gpt-5-6-sol':   { in: 5,    out: 30,   cr: 0.50 },
+    'gpt-5-6-terra': { in: 2,    out: 12,   cr: 0.20 },
+    'gpt-5-6-luna':  { in: 0.20, out: 1.20, cr: 0.02 },
+    'gpt-5-5-pro':   { in: 30,   out: 180,  cr: 30 },    // キャッシュ割引の提供なし
+    'gpt-5-5':       { in: 5,    out: 30,   cr: 0.50 },
+    'gpt-5-4-mini':  { in: 0.75, out: 4.50, cr: 0.075 },
+    'gpt-5-4-nano':  { in: 0.20, out: 1.25, cr: 0.02 },
+    'gpt-5-4-pro':   { in: 30,   out: 180,  cr: 30 },    // 同上
+    'gpt-5-4':       { in: 2.50, out: 15,   cr: 0.25 },
+    'gpt-5-2':       { in: 1.75, out: 14,   cr: 0.175 },
+    'gpt-5-1':       { in: 1.25, out: 10,   cr: 0.125 },
+    'gpt-5-mini':    { in: 0.25, out: 2,    cr: 0.025 },
+    'gpt-5':         { in: 1.25, out: 10,   cr: 0.125 },
+    'gpt-4-1-mini':  { in: 0.40, out: 1.60, cr: 0.10 },
+    'gpt-4-1-nano':  { in: 0.10, out: 0.40, cr: 0.025 },
+    'gpt-4-1':       { in: 2,    out: 8,    cr: 0.50 },
+    'o4-mini':       { in: 1.10, out: 4.40, cr: 0.275 },
+    'o3-mini':       { in: 1.10, out: 4.40, cr: 0.55 },
+    'o3-pro':        { in: 20,   out: 80,   cr: 20 },    // 同上
+    'o3':            { in: 2,    out: 8,    cr: 0.50 },
+
+    // Google Gemini — https://ai.google.dev/gemini-api/docs/pricing
+    // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
+    'gemini-3-6-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
+    'gemini-3-5-flash-lite': { in: 0.30, out: 2.50, cr: 0.03 },
+    'gemini-3-5-flash':      { in: 1.50, out: 9,    cr: 0.15 },
+    'gemini-3-1-flash-lite': { in: 0.25, out: 1.50, cr: 0.025 },
+    // 2.5 Pro は 200k 超で入力2倍・出力1.5倍と倍率が異なるため、上位段の単価をそのまま持つ
+    'gemini-2-5-pro':        { in: 1.25, out: 10,   cr: 0.125, longCtx: { threshold: 200_000, in: 2.50, out: 15, cr: 0.25 } },
+    'gemini-2-5-flash-lite': { in: 0.10, out: 0.40, cr: 0.01 },
+    'gemini-2-5-flash':      { in: 0.30, out: 2.50, cr: 0.03 },
 };
 
 // DeepSeek V4 の値上げ時刻（2026-08-16 16:00 UTC = 日本時間 8/17 01:00）。
@@ -59,27 +97,28 @@ export function normalizeModelName(modelName) {
 }
 
 /**
- * モデル名から単価を引く。前方一致なので長いキーから順に並べてある。
- * 直接APIの名前で引けなければ、OpenRouter形式として正規化して引き直す。
+ * モデル名から単価を引く。料金表のキーはすべて正規化済みの表記なので、
+ * 引く側も必ず正規化してから前方一致させる。
+ * 生の名前のまま引くと 'gpt-5.6-sol' が（'gpt-5-6-sol' ではなく）'gpt-5' に
+ * 先に一致してしまうため、正規化を挟むこと自体が正しさの条件になっている。
  * @param {string} modelName
  * @param {number} [timestamp] メッセージの生成時刻(epoch ms)。値上げ前後の切り替えに使う
  * @returns {object|null} 単価。該当が無ければ null
  */
 export function getPricing(modelName, timestamp) {
     if (!modelName) return null;
-    const isOld = !timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT; // 時刻無しは改定前の古いデータ
-    const lookup = (m) => {
-        if (isOld) {
-            for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
-                if (m.startsWith(key)) return price;
-            }
-        }
-        for (const [key, price] of Object.entries(MODEL_PRICING)) {
+    const m = normalizeModelName(modelName);
+    if (!m) return null;
+    // 時刻を持たないのは改定前の古いデータなので、旧料金として扱う
+    if (!timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT) {
+        for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
             if (m.startsWith(key)) return price;
         }
-        return null;
-    };
-    return lookup(modelName.toLowerCase()) || lookup(normalizeModelName(modelName));
+    }
+    for (const [key, price] of Object.entries(MODEL_PRICING)) {
+        if (m.startsWith(key)) return price;
+    }
+    return null;
 }
 
 /**

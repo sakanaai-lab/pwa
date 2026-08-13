@@ -620,7 +620,7 @@ export const memoryMethods = {
         const hasOpenRouter = summary.byModel.some(m => m.model.includes('/'));
         const notes = [
             '※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。',
-            summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（現在 Claude・DeepSeek・Grok 4.6 のみ金額を計算します）。' : null,
+            summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（Claude / GPT / Gemini / DeepSeek / Grok 4.6 の最近のモデルに対応）。' : null,
             hasOpenRouter ? '※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。' : null,
         ].filter(Boolean);
 

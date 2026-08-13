@@ -1995,6 +1995,7 @@ ${relationship_context}`;
   ];
   var DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
   var XAI_MODELS = [
+    { value: "grok-4.6", label: "Grok 4.6" },
     { value: "grok-4", label: "Grok 4" },
     { value: "grok-3", label: "Grok 3" },
     { value: "grok-3-mini", label: "Grok 3 Mini" },
@@ -2018,9 +2019,11 @@ ${relationship_context}`;
     "1.41": [
       "全チャットを横断した使用量サマリーを追加しました。ⓘ（会話の統計）の「全チャットの使用量」ボタンから開けます。今月／先月／過去30日／全期間で切り替えられ、推定コスト・メッセージ数・入出力トークンの合計と、モデル別の内訳が見られます。DeepSeekはピーク時間帯にかかった分も別途表示します。",
       "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。正確な請求額は各社の使用量ページ（同じくⓘから開けます）でご確認ください。",
-      "※ 金額を計算できるのは料金表を持つモデル（Claude・DeepSeek・Grok 4.6）だけです。それ以外のモデルはトークン数のみ表示し、金額欄は「—」になります。",
+      "※ 金額を計算できるのは料金表を持つモデル（Claude / GPT-5系・4.1系・o3系 / Gemini 3.x・2.5系 / DeepSeek / Grok 4.6）だけです。それ以外のモデルはトークン数のみ表示し、金額欄は「—」になります。",
       "OpenRouter経由のモデルも金額を計算できるようにしました（モデル名が「anthropic/claude-opus-5」のような形でも判別します）。提供元の単価での概算なので、クレジット購入時の手数料ぶん実際の請求は少し高くなります。",
-      "Grok 4.6 の料金に対応しました。プロンプトが20万トークン以上になると単価が2倍になる仕様も反映しています。"
+      "Grok 4.6・GPT（5系/4.1系/o3系）・Gemini（3.x/2.5系）の料金に対応しました。長いプロンプトで単価が変わる仕様も反映しています（Grok 4.6 は20万トークン以上で2倍、Gemini 2.5 Pro は20万トークン超で入力2倍・出力1.5倍）。",
+      "モデル選択に Grok 4.6 を追加しました。",
+      "GPT・Gemini のキャッシュヒット分を、キャッシュ用の安い単価で計算するようにしました（これまでは通常入力として多めに見積もっていました）。"
     ],
     "1.40": [
       "DeepSeek V4 の料金改定（2026年8月16日 16:00 UTC＝日本時間8月17日 1:00）に対応しました。ⓘ の推定コストが新料金で計算されます。V4-Pro は入力$0.66／出力$1.98／キャッシュヒット$0.022、V4-Flash は入力$0.22／出力$0.66／キャッシュヒット$0.007（いずれも100万トークンあたり・オフピーク）です。改定前と比べて出力が約2.3倍、入力が約1.5倍になります。",
@@ -8979,8 +8982,9 @@ AI: ${firstModelContent}`;
         promptTokenCount: openAIResponse.usage.prompt_tokens,
         candidatesTokenCount: openAIResponse.usage.completion_tokens,
         totalTokenCount: openAIResponse.usage.total_tokens,
-        // DeepSeek はキャッシュヒット入力トークンを返すので、コスト計算の精度向上に取り込む
-        ...openAIResponse.usage.prompt_cache_hit_tokens != null ? { cacheReadInputTokens: openAIResponse.usage.prompt_cache_hit_tokens } : {}
+        // キャッシュヒット入力トークンを返すプロバイダーは、コスト計算の精度向上に取り込む
+        // （DeepSeek は prompt_cache_hit_tokens、OpenAI は prompt_tokens_details.cached_tokens）
+        ...openAIResponse.usage.prompt_cache_hit_tokens != null ? { cacheReadInputTokens: openAIResponse.usage.prompt_cache_hit_tokens } : openAIResponse.usage.prompt_tokens_details?.cached_tokens != null ? { cacheReadInputTokens: openAIResponse.usage.prompt_tokens_details.cached_tokens } : {}
       } : void 0;
       return {
         candidates,
@@ -13258,9 +13262,46 @@ ${msg}`);
     "deepseek-v4-pro": { in: 0.66, out: 1.98, cw5m: 0.66, cw1h: 0.66, cr: 0.022, peakMul: 2 },
     "deepseek-v4-flash": { in: 0.22, out: 0.66, cw5m: 0.22, cw1h: 0.22, cr: 7e-3, peakMul: 2 },
     "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
-    // xAI Grok。プロンプトが longCtxThreshold 以上のリクエストは単価が longCtxMul 倍になる。
-    // https://docs.x.ai/developers/pricing
-    "grok-4-6": { in: 2, out: 6, cw5m: 2, cw1h: 2, cr: 0.5, longCtxThreshold: 2e5, longCtxMul: 2 }
+    // 以下は cw5m/cw1h を持たない。キャッシュ書き込みに別料金が無く、通常入力と同額のため
+    // （calcMessageCost が in にフォールバックする）。
+    // longCtx があるモデルは、プロンプトが threshold 以上のとき単価がそちらへ切り替わる。
+    // xAI Grok — https://docs.x.ai/developers/pricing
+    "grok-4-6": { in: 2, out: 6, cr: 0.5, longCtx: { threshold: 2e5, in: 4, out: 12, cr: 1 } },
+    // OpenAI — https://developers.openai.com/api/docs/pricing
+    // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
+    "gpt-5-6-sol": { in: 5, out: 30, cr: 0.5 },
+    "gpt-5-6-terra": { in: 2, out: 12, cr: 0.2 },
+    "gpt-5-6-luna": { in: 0.2, out: 1.2, cr: 0.02 },
+    "gpt-5-5-pro": { in: 30, out: 180, cr: 30 },
+    // キャッシュ割引の提供なし
+    "gpt-5-5": { in: 5, out: 30, cr: 0.5 },
+    "gpt-5-4-mini": { in: 0.75, out: 4.5, cr: 0.075 },
+    "gpt-5-4-nano": { in: 0.2, out: 1.25, cr: 0.02 },
+    "gpt-5-4-pro": { in: 30, out: 180, cr: 30 },
+    // 同上
+    "gpt-5-4": { in: 2.5, out: 15, cr: 0.25 },
+    "gpt-5-2": { in: 1.75, out: 14, cr: 0.175 },
+    "gpt-5-1": { in: 1.25, out: 10, cr: 0.125 },
+    "gpt-5-mini": { in: 0.25, out: 2, cr: 0.025 },
+    "gpt-5": { in: 1.25, out: 10, cr: 0.125 },
+    "gpt-4-1-mini": { in: 0.4, out: 1.6, cr: 0.1 },
+    "gpt-4-1-nano": { in: 0.1, out: 0.4, cr: 0.025 },
+    "gpt-4-1": { in: 2, out: 8, cr: 0.5 },
+    "o4-mini": { in: 1.1, out: 4.4, cr: 0.275 },
+    "o3-mini": { in: 1.1, out: 4.4, cr: 0.55 },
+    "o3-pro": { in: 20, out: 80, cr: 20 },
+    // 同上
+    "o3": { in: 2, out: 8, cr: 0.5 },
+    // Google Gemini — https://ai.google.dev/gemini-api/docs/pricing
+    // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
+    "gemini-3-6-flash": { in: 1.5, out: 7.5, cr: 0.15 },
+    "gemini-3-5-flash-lite": { in: 0.3, out: 2.5, cr: 0.03 },
+    "gemini-3-5-flash": { in: 1.5, out: 9, cr: 0.15 },
+    "gemini-3-1-flash-lite": { in: 0.25, out: 1.5, cr: 0.025 },
+    // 2.5 Pro は 200k 超で入力2倍・出力1.5倍と倍率が異なるため、上位段の単価をそのまま持つ
+    "gemini-2-5-pro": { in: 1.25, out: 10, cr: 0.125, longCtx: { threshold: 2e5, in: 2.5, out: 15, cr: 0.25 } },
+    "gemini-2-5-flash-lite": { in: 0.1, out: 0.4, cr: 0.01 },
+    "gemini-2-5-flash": { in: 0.3, out: 2.5, cr: 0.03 }
   };
   var DEEPSEEK_V4_PRICE_CHANGE_AT = Date.UTC(2026, 7, 16, 16, 0, 0);
   var MODEL_PRICING_BEFORE_V4_CHANGE = {
@@ -13274,19 +13315,17 @@ ${msg}`);
   __name(normalizeModelName, "normalizeModelName");
   function getPricing(modelName, timestamp) {
     if (!modelName) return null;
-    const isOld = !timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT;
-    const lookup = /* @__PURE__ */ __name((m) => {
-      if (isOld) {
-        for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
-          if (m.startsWith(key)) return price;
-        }
-      }
-      for (const [key, price] of Object.entries(MODEL_PRICING)) {
+    const m = normalizeModelName(modelName);
+    if (!m) return null;
+    if (!timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT) {
+      for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
         if (m.startsWith(key)) return price;
       }
-      return null;
-    }, "lookup");
-    return lookup(modelName.toLowerCase()) || lookup(normalizeModelName(modelName));
+    }
+    for (const [key, price] of Object.entries(MODEL_PRICING)) {
+      if (m.startsWith(key)) return price;
+    }
+    return null;
   }
   __name(getPricing, "getPricing");
   function isDeepSeekPeak(timestamp) {
@@ -13321,16 +13360,17 @@ ${msg}`);
     if (!pricing) return null;
     const u = msg.usageMetadata || {};
     const prompt = u.promptTokenCount || 0;
-    const cr = u.cacheReadInputTokens || 0;
+    const cr = u.cacheReadInputTokens ?? u.cachedContentTokenCount ?? 0;
     const cw = u.cacheCreationInputTokens || 0;
     const cw5m = u.cacheCreation5mInputTokens ?? cw;
     const cw1h = u.cacheCreation1hInputTokens || 0;
     const out = u.candidatesTokenCount || 0;
     const regular = Math.max(0, prompt - cr - cw);
-    let mul = 1;
-    if (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) mul *= pricing.peakMul;
-    if (pricing.longCtxMul && prompt >= pricing.longCtxThreshold) mul *= pricing.longCtxMul;
-    return mul * (regular * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1e6;
+    const rate = pricing.longCtx && prompt >= pricing.longCtx.threshold ? { ...pricing, ...pricing.longCtx } : pricing;
+    const cwRate5m = rate.cw5m ?? rate.in;
+    const cwRate1h = rate.cw1h ?? rate.in;
+    const mul = pricing.peakMul && isDeepSeekPeak(msg.timestamp) ? pricing.peakMul : 1;
+    return mul * (regular * rate.in + cw5m * cwRate5m + cw1h * cwRate1h + cr * rate.cr + out * rate.out) / 1e6;
   }
   __name(calcMessageCost, "calcMessageCost");
   function summarizeUsage(chats, period = {}) {
@@ -13881,7 +13921,7 @@ ${flagContent}`);
       const hasOpenRouter = summary.byModel.some((m) => m.model.includes("/"));
       const notes = [
         "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。",
-        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在 Claude・DeepSeek・Grok 4.6 のみ金額を計算します）。" : null,
+        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（Claude / GPT / Gemini / DeepSeek / Grok 4.6 の最近のモデルに対応）。" : null,
         hasOpenRouter ? "※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。" : null
       ].filter(Boolean);
       elements.usageSummaryContent.innerHTML = rows.map(([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`).join("") + (modelRows ? `<div class="usage-model-title">モデル別</div>${modelRows}` : '<div class="usage-model-title">この期間の記録はありません</div>') + `<div class="usage-notes">${notes.join("<br>")}</div>`;

@@ -32,17 +32,25 @@ export function calcMessageCost(msg) {
     if (!pricing) return null;
     const u = msg.usageMetadata || {};
     const prompt = u.promptTokenCount || 0;
-    const cr = u.cacheReadInputTokens || 0;
+    // cachedContentTokenCount は Gemini がキャッシュヒット分を返すときのフィールド名
+    const cr = u.cacheReadInputTokens ?? u.cachedContentTokenCount ?? 0;
     const cw = u.cacheCreationInputTokens || 0;
     const cw5m = u.cacheCreation5mInputTokens ?? cw;
     const cw1h = u.cacheCreation1hInputTokens || 0;
     const out = u.candidatesTokenCount || 0;
     const regular = Math.max(0, prompt - cr - cw);
-    // DeepSeekのピーク時間帯、Grokの長コンテキストはいずれも単価が倍になる
-    let mul = 1;
-    if (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) mul *= pricing.peakMul;
-    if (pricing.longCtxMul && prompt >= pricing.longCtxThreshold) mul *= pricing.longCtxMul;
-    return mul * (regular * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1_000_000;
+
+    // 長いプロンプトで単価が変わるモデル（Grok 4.6 / Gemini 2.5 Pro）は上位段の単価に差し替える
+    const rate = (pricing.longCtx && prompt >= pricing.longCtx.threshold)
+        ? { ...pricing, ...pricing.longCtx }
+        : pricing;
+    // キャッシュ書き込みに別料金が無いモデルは通常入力と同額で計算する
+    const cwRate5m = rate.cw5m ?? rate.in;
+    const cwRate1h = rate.cw1h ?? rate.in;
+    // DeepSeek はピーク時間帯に単価が倍になる
+    const mul = (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) ? pricing.peakMul : 1;
+
+    return mul * (regular * rate.in + cw5m * cwRate5m + cw1h * cwRate1h + cr * rate.cr + out * rate.out) / 1_000_000;
 }
 
 /**

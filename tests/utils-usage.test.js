@@ -65,7 +65,7 @@ describe('calcMessageCost', () => {
     });
 
     it('料金表に無いモデルは null', () => {
-        expect(calcMessageCost(msg({ modelName: 'gemini-2.5-pro' }))).toBeNull();
+        expect(calcMessageCost(msg({ modelName: 'mistral-large-latest' }))).toBeNull();
         expect(calcMessageCost(msg({ modelName: '' }))).toBeNull();
     });
 
@@ -84,6 +84,30 @@ describe('calcMessageCost', () => {
             usageMetadata: { promptTokenCount: 200_000, candidatesTokenCount: 1000 },
         }));
         expect(cost).toBeCloseTo(2 * (200_000 * 2 + 1000 * 6) / 1e6, 10);
+    });
+
+    it('Gemini 2.5 Proは200k以上で入力2倍・出力1.5倍になる', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'gemini-2.5-pro',
+            usageMetadata: { promptTokenCount: 200_000, candidatesTokenCount: 1000 },
+        }));
+        expect(cost).toBeCloseTo((200_000 * 2.50 + 1000 * 15) / 1e6, 10);
+    });
+
+    it('Geminiのキャッシュヒット（cachedContentTokenCount）を安い単価で計算する', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'gemini-2.5-flash',
+            usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 0, cachedContentTokenCount: 800 },
+        }));
+        expect(cost).toBeCloseTo((200 * 0.30 + 800 * 0.03) / 1e6, 10);
+    });
+
+    it('キャッシュ書込に別料金の無いモデルは通常入力と同額で計算する', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'gpt-5',
+            usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 0, cacheCreationInputTokens: 400 },
+        }));
+        expect(cost).toBeCloseTo(1000 * 1.25 / 1e6, 10);
     });
 
     it('Grokの長コンテキスト倍率はOpenRouter経由でも効く', () => {
@@ -115,12 +139,12 @@ describe('calcMessageCost', () => {
 describe('summarizeUsage', () => {
     const chats = [
         { id: 1, messages: [msg(), msg({ modelName: 'claude-opus-5' })] },
-        { id: 2, messages: [msg({ modelName: 'gemini-2.5-pro' })] },
+        { id: 2, messages: [msg({ modelName: 'mistral-large-latest' })] },
     ];
 
     it('モデルごとにまとめる', () => {
         const r = summarizeUsage(chats);
-        expect(r.byModel.map(m => m.model).sort()).toEqual(['claude-opus-5', 'deepseek-v4-pro', 'gemini-2.5-pro']);
+        expect(r.byModel.map(m => m.model).sort()).toEqual(['claude-opus-5', 'deepseek-v4-pro', 'mistral-large-latest']);
         expect(r.totalMessages).toBe(3);
         expect(r.totalInput).toBe(3000);
         expect(r.totalOutput).toBe(3000);
@@ -136,10 +160,10 @@ describe('summarizeUsage', () => {
     // 料金表に無いモデルもトークンは数えるが、金額には混ぜない
     it('料金不明のモデルはトークンだけ数えてフラグを立てる', () => {
         const r = summarizeUsage(chats);
-        const gemini = r.byModel.find(m => m.model === 'gemini-2.5-pro');
-        expect(gemini.priced).toBe(false);
-        expect(gemini.cost).toBe(0);
-        expect(gemini.input).toBe(1000);
+        const unpriced = r.byModel.find(m => m.model === 'mistral-large-latest');
+        expect(unpriced.priced).toBe(false);
+        expect(unpriced.cost).toBe(0);
+        expect(unpriced.input).toBe(1000);
         expect(r.hasUnpriced).toBe(true);
     });
 
@@ -152,7 +176,7 @@ describe('summarizeUsage', () => {
     it('金額の大きい順に並び、料金不明は末尾', () => {
         const r = summarizeUsage(chats);
         expect(r.byModel[0].model).toBe('claude-opus-5'); // $0.030 > $0.00264
-        expect(r.byModel[r.byModel.length - 1].model).toBe('gemini-2.5-pro');
+        expect(r.byModel[r.byModel.length - 1].model).toBe('mistral-large-latest');
     });
 
     it('ピーク時間帯にかかった分を別途集計する', () => {

@@ -22,7 +22,7 @@ describe('getPricing', () => {
     });
 
     it('知らないモデルは null', () => {
-        expect(getPricing('gemini-2.5-pro', AFTER)).toBeNull();
+        expect(getPricing('mistral-large-latest', AFTER)).toBeNull();
         expect(getPricing('', AFTER)).toBeNull();
         expect(getPricing(undefined, AFTER)).toBeNull();
     });
@@ -110,7 +110,7 @@ describe('getPricing — OpenRouter経由', () => {
     });
 
     it('料金表に無いモデルは接頭辞を外しても null', () => {
-        expect(getPricing('google/gemini-2.5-pro', AFTER)).toBeNull();
+        expect(getPricing('google/gemma-3-27b-it', AFTER)).toBeNull();
         expect(getPricing('meta-llama/llama-3.3-70b-instruct', AFTER)).toBeNull();
     });
 });
@@ -122,15 +122,55 @@ describe('getPricing — Grok', () => {
         expect(getPricing('x-ai/grok-4.6', AFTER)).toMatchObject({ in: 2, out: 6, cr: 0.5 });
     });
 
-    it('長コンテキストの倍率を持つ（200k以上で2倍）', () => {
-        const p = getPricing('grok-4.6', AFTER);
-        expect(p.longCtxThreshold).toBe(200000);
-        expect(p.longCtxMul).toBe(2);
+    it('200k以上の上位段の単価を持つ', () => {
+        expect(getPricing('grok-4.6', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 4, out: 12, cr: 1 });
     });
 
     it('4.6以外のGrokは料金表に無い', () => {
         expect(getPricing('grok-4', AFTER)).toBeNull();
         expect(getPricing('grok-3-mini', AFTER)).toBeNull();
+    });
+});
+
+describe('getPricing — OpenAI / Gemini', () => {
+    it('GPT-5系を引ける', () => {
+        expect(getPricing('gpt-5.6-sol', AFTER)).toMatchObject({ in: 5, out: 30, cr: 0.5 });
+        expect(getPricing('gpt-5.4-mini', AFTER)).toMatchObject({ in: 0.75, out: 4.5 });
+        expect(getPricing('gpt-5', AFTER)).toMatchObject({ in: 1.25, out: 10 });
+    });
+
+    // 前方一致なので、具体的なキーを先に置かないと 'gpt-5' が先に当たってしまう
+    it('より具体的なキーが優先される', () => {
+        expect(getPricing('gpt-5-mini', AFTER).in).toBe(0.25);
+        expect(getPricing('gpt-5.5-pro', AFTER).in).toBe(30);
+        expect(getPricing('gpt-5.5', AFTER).in).toBe(5);
+        expect(getPricing('gpt-4.1-nano', AFTER).in).toBe(0.10);
+        expect(getPricing('gpt-4.1', AFTER).in).toBe(2);
+        expect(getPricing('o3-mini', AFTER).in).toBe(1.10);
+        expect(getPricing('o3', AFTER).in).toBe(2);
+    });
+
+    it('Geminiを引ける', () => {
+        expect(getPricing('gemini-3.6-flash', AFTER)).toMatchObject({ in: 1.50, out: 7.50, cr: 0.15 });
+        expect(getPricing('gemini-2.5-pro', AFTER)).toMatchObject({ in: 1.25, out: 10 });
+    });
+
+    // 'gemini-2-5-flash-lite' は 'gemini-2-5-flash' で始まるため順序が効く
+    it('flash-lite が flash より優先される', () => {
+        expect(getPricing('gemini-2.5-flash-lite', AFTER).in).toBe(0.10);
+        expect(getPricing('gemini-2.5-flash', AFTER).in).toBe(0.30);
+        expect(getPricing('gemini-3.5-flash-lite', AFTER).in).toBe(0.30);
+        expect(getPricing('gemini-3.5-flash', AFTER).in).toBe(1.50);
+    });
+
+    it('Gemini 2.5 Pro は上位段で入力2倍・出力1.5倍', () => {
+        expect(getPricing('gemini-2.5-pro', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 2.50, out: 15, cr: 0.25 });
+    });
+
+    it('日付サフィックス付きやOpenRouter経由でも引ける', () => {
+        expect(getPricing('gemini-2.5-flash-preview-09-2025', AFTER).in).toBe(0.30);
+        expect(getPricing('openai/gpt-5.4', AFTER).in).toBe(2.50);
+        expect(getPricing('google/gemini-2.5-pro', AFTER).in).toBe(1.25);
     });
 });
 
