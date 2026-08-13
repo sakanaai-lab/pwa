@@ -16,6 +16,8 @@ import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
 import { getPricing, isDeepSeekPeak } from '../utils/pricing.js';
+import { getUsageRange, summarizeUsage } from '../utils/usage.js';
+import { htmlUtils } from '../utils/html.js';
 
 // Gemini のセーフティ設定（全カテゴリ BLOCK_NONE）。要約・メモリ学習で共通利用。
 const GEMINI_SAFETY_OFF = [
@@ -579,6 +581,54 @@ export const memoryMethods = {
         ).join('') + linksHtml;
 
         uiUtils.showCustomDialog(elements.chatStatsDialog, elements.chatStatsCloseBtn);
+    },
+
+
+    // 全チャットを横断した使用量サマリー。プロジェクトの絞り込みに関係なく全件を対象にする。
+    async showUsageSummary(range = 'thisMonth') {
+        elements.usageRangeTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.range === range));
+        elements.usageSummaryContent.innerHTML = '<div class="stats-row"><span class="stats-label">集計中...</span></div>';
+        if (!elements.usageSummaryDialog.open) {
+            uiUtils.showCustomDialog(elements.usageSummaryDialog, elements.usageSummaryCloseBtn);
+        }
+
+        let chats;
+        try {
+            const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+            chats = await getAllUnfiltered();
+        } catch (error) {
+            console.error('使用量の集計に失敗:', error);
+            elements.usageSummaryContent.innerHTML = '<div class="stats-row"><span class="stats-label">履歴の読み込みに失敗しました。</span></div>';
+            return;
+        }
+
+        const summary = summarizeUsage(chats, getUsageRange(range, Date.now()));
+        const toK = n => n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
+        const cost = n => `$${n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(2)}`;
+
+        const rows = [
+            ['推定コスト合計', cost(summary.totalCost)],
+            summary.peakCost > 0 ? ['　うちピーク時間帯', cost(summary.peakCost)] : null,
+            ['メッセージ数', `${summary.totalMessages.toLocaleString()} 件`],
+            ['入力トークン', toK(summary.totalInput)],
+            ['出力トークン', toK(summary.totalOutput)],
+        ].filter(Boolean);
+
+        const modelRows = summary.byModel.map(m =>
+            `<div class="stats-row"><span class="stats-label">${htmlUtils.escapeHtml(m.model)}`
+            + `<span class="usage-model-sub">${m.messages}件 / 入${toK(m.input)} 出${toK(m.output)}</span></span>`
+            + `<span class="stats-value">${m.priced ? cost(m.cost) : '—'}</span></div>`
+        ).join('');
+
+        const notes = [
+            '※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。',
+            summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。' : null,
+        ].filter(Boolean);
+
+        elements.usageSummaryContent.innerHTML =
+            rows.map(([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`).join('')
+            + (modelRows ? `<div class="usage-model-title">モデル別</div>${modelRows}` : '<div class="usage-model-title">この期間の記録はありません</div>')
+            + `<div class="usage-notes">${notes.join('<br>')}</div>`;
     },
 
 

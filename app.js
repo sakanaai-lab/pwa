@@ -1779,6 +1779,11 @@ ${relationship_context}`;
       chatStatsDialog: document.getElementById("chatStatsDialog"),
       chatStatsContent: document.getElementById("chat-stats-content"),
       chatStatsCloseBtn: document.getElementById("chat-stats-close-btn"),
+      usageSummaryOpenBtn: document.getElementById("usage-summary-open-btn"),
+      usageSummaryDialog: document.getElementById("usageSummaryDialog"),
+      usageSummaryContent: document.getElementById("usage-summary-content"),
+      usageSummaryCloseBtn: document.getElementById("usage-summary-close-btn"),
+      usageRangeTabs: document.querySelectorAll(".usage-range-tab"),
       summarizeHistoryBtn: document.getElementById("summarize-history-btn"),
       summaryModelNameSelect: document.getElementById("summary-model-name"),
       summarySystemPromptTextarea: document.getElementById("summary-system-prompt"),
@@ -2010,6 +2015,11 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.41": [
+      "全チャットを横断した使用量サマリーを追加しました。ⓘ（会話の統計）の「全チャットの使用量」ボタンから開けます。今月／先月／過去30日／全期間で切り替えられ、推定コスト・メッセージ数・入出力トークンの合計と、モデル別の内訳が見られます。DeepSeekはピーク時間帯にかかった分も別途表示します。",
+      "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。正確な請求額は各社の使用量ページ（同じくⓘから開けます）でご確認ください。",
+      "※ 金額を計算できるのは料金表を持つモデル（Claude と DeepSeek）だけです。それ以外のモデルはトークン数のみ表示し、金額欄は「—」になります。"
+    ],
     "1.40": [
       "DeepSeek V4 の料金改定（2026年8月16日 16:00 UTC＝日本時間8月17日 1:00）に対応しました。ⓘ の推定コストが新料金で計算されます。V4-Pro は入力$0.66／出力$1.98／キャッシュヒット$0.022、V4-Flash は入力$0.22／出力$0.66／キャッシュヒット$0.007（いずれも100万トークンあたり・オフピーク）です。改定前と比べて出力が約2.3倍、入力が約1.5倍になります。",
       "改定前に送ったメッセージは、これまでどおり旧料金で計算します。過去のチャットの推定コストが後から跳ね上がって見えることはありません。",
@@ -6451,6 +6461,13 @@ ${error.message}`);
         this.applyFloatingPanelBehavior();
       });
       elements.chatStatsBtn.addEventListener("click", () => this.showChatStats());
+      elements.usageSummaryOpenBtn?.addEventListener("click", () => {
+        elements.chatStatsDialog.close();
+        this.showUsageSummary("thisMonth");
+      });
+      elements.usageRangeTabs?.forEach((tab) => {
+        tab.addEventListener("click", () => this.showUsageSummary(tab.dataset.range));
+      });
       elements.chatStatsCloseBtn.addEventListener("click", () => elements.chatStatsDialog.close());
       elements.summarizeHistoryBtn.addEventListener("click", () => this.startSummaryProcess());
       elements.summaryCancelBtn.addEventListener("click", () => elements.summaryDialog.close("cancel"));
@@ -13266,6 +13283,84 @@ ${msg}`);
   }
   __name(isDeepSeekPeak, "isDeepSeekPeak");
 
+  // src/utils/usage.js
+  function getUsageRange(range, now) {
+    const base = new Date(now);
+    switch (range) {
+      case "thisMonth": {
+        const from = new Date(base.getFullYear(), base.getMonth(), 1).getTime();
+        return { from, to: Infinity };
+      }
+      case "lastMonth": {
+        const from = new Date(base.getFullYear(), base.getMonth() - 1, 1).getTime();
+        const to = new Date(base.getFullYear(), base.getMonth(), 1).getTime();
+        return { from, to };
+      }
+      case "last30d":
+        return { from: now - 30 * 24 * 60 * 60 * 1e3, to: Infinity };
+      default:
+        return { from: -Infinity, to: Infinity };
+    }
+  }
+  __name(getUsageRange, "getUsageRange");
+  function calcMessageCost(msg) {
+    const pricing = getPricing(msg?.modelName, msg?.timestamp);
+    if (!pricing) return null;
+    const u = msg.usageMetadata || {};
+    const cr = u.cacheReadInputTokens || 0;
+    const cw = u.cacheCreationInputTokens || 0;
+    const cw5m = u.cacheCreation5mInputTokens ?? cw;
+    const cw1h = u.cacheCreation1hInputTokens || 0;
+    const out = u.candidatesTokenCount || 0;
+    const regular = Math.max(0, (u.promptTokenCount || 0) - cr - cw);
+    const mul = pricing.peakMul && isDeepSeekPeak(msg.timestamp) ? pricing.peakMul : 1;
+    return mul * (regular * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1e6;
+  }
+  __name(calcMessageCost, "calcMessageCost");
+  function summarizeUsage(chats, period = {}) {
+    const from = period.from ?? -Infinity;
+    const to = period.to ?? Infinity;
+    const models = /* @__PURE__ */ new Map();
+    let totalCost = 0, totalInput = 0, totalOutput = 0, totalMessages = 0;
+    let hasUnpriced = false;
+    let peakCost = 0;
+    for (const chat of Array.isArray(chats) ? chats : []) {
+      for (const msg of chat?.messages || []) {
+        if (!msg || !msg.usageMetadata) continue;
+        const ts = msg.timestamp;
+        if (!ts ? from !== -Infinity : ts < from || ts >= to) continue;
+        const u = msg.usageMetadata;
+        const input = u.promptTokenCount || 0;
+        const output = u.candidatesTokenCount || 0;
+        const name = msg.modelName || "(不明)";
+        const cost = calcMessageCost(msg);
+        const entry = models.get(name) || { model: name, messages: 0, input: 0, output: 0, cost: 0, priced: false };
+        entry.messages += 1;
+        entry.input += input;
+        entry.output += output;
+        if (cost === null) {
+          hasUnpriced = true;
+        } else {
+          entry.priced = true;
+          entry.cost += cost;
+          totalCost += cost;
+          if (isDeepSeekPeak(ts) && getPricing(name, ts)?.peakMul) peakCost += cost;
+        }
+        models.set(name, entry);
+        totalMessages += 1;
+        totalInput += input;
+        totalOutput += output;
+      }
+    }
+    const byModel = [...models.values()].sort((a, b) => {
+      if (a.priced !== b.priced) return a.priced ? -1 : 1;
+      if (a.priced) return b.cost - a.cost;
+      return b.input + b.output - (a.input + a.output);
+    });
+    return { byModel, totalCost, totalInput, totalOutput, totalMessages, hasUnpriced, peakCost };
+  }
+  __name(summarizeUsage, "summarizeUsage");
+
   // src/app-logic/memory.js
   var GEMINI_SAFETY_OFF = [
     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -13741,6 +13836,41 @@ ${flagContent}`);
         ([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`
       ).join("") + linksHtml;
       uiUtils.showCustomDialog(elements.chatStatsDialog, elements.chatStatsCloseBtn);
+    },
+    // 全チャットを横断した使用量サマリー。プロジェクトの絞り込みに関係なく全件を対象にする。
+    async showUsageSummary(range = "thisMonth") {
+      elements.usageRangeTabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.range === range));
+      elements.usageSummaryContent.innerHTML = '<div class="stats-row"><span class="stats-label">集計中...</span></div>';
+      if (!elements.usageSummaryDialog.open) {
+        uiUtils.showCustomDialog(elements.usageSummaryDialog, elements.usageSummaryCloseBtn);
+      }
+      let chats;
+      try {
+        const getAllUnfiltered = window.dbUtils.getAllChatsUnfiltered || dbUtils.getAllChats.bind(dbUtils);
+        chats = await getAllUnfiltered();
+      } catch (error) {
+        console.error("使用量の集計に失敗:", error);
+        elements.usageSummaryContent.innerHTML = '<div class="stats-row"><span class="stats-label">履歴の読み込みに失敗しました。</span></div>';
+        return;
+      }
+      const summary = summarizeUsage(chats, getUsageRange(range, Date.now()));
+      const toK = /* @__PURE__ */ __name((n) => n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n), "toK");
+      const cost = /* @__PURE__ */ __name((n) => `$${n < 0.01 && n > 0 ? n.toFixed(4) : n.toFixed(2)}`, "cost");
+      const rows = [
+        ["推定コスト合計", cost(summary.totalCost)],
+        summary.peakCost > 0 ? ["　うちピーク時間帯", cost(summary.peakCost)] : null,
+        ["メッセージ数", `${summary.totalMessages.toLocaleString()} 件`],
+        ["入力トークン", toK(summary.totalInput)],
+        ["出力トークン", toK(summary.totalOutput)]
+      ].filter(Boolean);
+      const modelRows = summary.byModel.map(
+        (m) => `<div class="stats-row"><span class="stats-label">${htmlUtils.escapeHtml(m.model)}<span class="usage-model-sub">${m.messages}件 / 入${toK(m.input)} 出${toK(m.output)}</span></span><span class="stats-value">${m.priced ? cost(m.cost) : "—"}</span></div>`
+      ).join("");
+      const notes = [
+        "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。",
+        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。" : null
+      ].filter(Boolean);
+      elements.usageSummaryContent.innerHTML = rows.map(([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`).join("") + (modelRows ? `<div class="usage-model-title">モデル別</div>${modelRows}` : '<div class="usage-model-title">この期間の記録はありません</div>') + `<div class="usage-notes">${notes.join("<br>")}</div>`;
     },
     async startSummaryProcess() {
       if (state.isSending || state.editingMessageIndex !== null || state.isEditingSystemPrompt) {
