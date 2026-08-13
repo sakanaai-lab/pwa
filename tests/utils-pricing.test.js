@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPricing, isDeepSeekPeak, DEEPSEEK_V4_PRICE_CHANGE_AT } from '../src/utils/pricing.js';
+import { getPricing, isDeepSeekPeak, normalizeModelName, DEEPSEEK_V4_PRICE_CHANGE_AT } from '../src/utils/pricing.js';
 
 const BEFORE = DEEPSEEK_V4_PRICE_CHANGE_AT - 1;
 const AFTER = DEEPSEEK_V4_PRICE_CHANGE_AT;
@@ -22,7 +22,7 @@ describe('getPricing', () => {
     });
 
     it('知らないモデルは null', () => {
-        expect(getPricing('gemini-2.5-pro', AFTER)).toBeNull();
+        expect(getPricing('mistral-large-latest', AFTER)).toBeNull();
         expect(getPricing('', AFTER)).toBeNull();
         expect(getPricing(undefined, AFTER)).toBeNull();
     });
@@ -66,6 +66,111 @@ describe('getPricing — DeepSeek V4の値上げ（2026-08-16 16:00 UTC）', () 
         const flash = getPricing('deepseek-v4-flash', AFTER).out / getPricing('deepseek-v4-flash', BEFORE).out;
         expect(pro).toBeCloseTo(2.276, 3);
         expect(flash).toBeCloseTo(2.357, 3);
+    });
+});
+
+describe('normalizeModelName', () => {
+    it('ベンダー接頭辞を外す', () => {
+        expect(normalizeModelName('anthropic/claude-opus-5')).toBe('claude-opus-5');
+        expect(normalizeModelName('deepseek/deepseek-v4-pro')).toBe('deepseek-v4-pro');
+    });
+
+    it('バリアント指定（:free など）を外す', () => {
+        expect(normalizeModelName('deepseek/deepseek-chat:free')).toBe('deepseek-chat');
+    });
+
+    it('バージョンのドットをハイフンに直す', () => {
+        expect(normalizeModelName('anthropic/claude-opus-4.5')).toBe('claude-opus-4-5');
+    });
+
+    it('直接APIの名前はそのまま（小文字化のみ）', () => {
+        expect(normalizeModelName('claude-haiku-4-5-20251001')).toBe('claude-haiku-4-5-20251001');
+    });
+
+    it('非文字列は空文字', () => {
+        expect(normalizeModelName(null)).toBe('');
+    });
+});
+
+describe('getPricing — OpenRouter経由', () => {
+    // 回帰: ベンダー接頭辞つきの名前だと前方一致せず、金額が出せなかった
+    it('ベンダー接頭辞つきでも単価を引ける', () => {
+        expect(getPricing('anthropic/claude-opus-5', AFTER).out).toBe(25);
+        expect(getPricing('deepseek/deepseek-v4-pro', AFTER).out).toBe(1.98);
+    });
+
+    it('ドット区切りのバージョンでも引ける', () => {
+        expect(getPricing('anthropic/claude-opus-4.5', AFTER).in).toBe(5);
+        expect(getPricing('anthropic/claude-sonnet-4.5:beta', AFTER).in).toBe(3);
+    });
+
+    it('OpenRouter経由でも値上げの前後を正しく切り替える', () => {
+        expect(getPricing('deepseek/deepseek-v4-pro', BEFORE).out).toBe(0.87);
+        expect(getPricing('deepseek/deepseek-v4-pro', AFTER).out).toBe(1.98);
+    });
+
+    it('料金表に無いモデルは接頭辞を外しても null', () => {
+        expect(getPricing('google/gemma-3-27b-it', AFTER)).toBeNull();
+        expect(getPricing('meta-llama/llama-3.3-70b-instruct', AFTER)).toBeNull();
+    });
+});
+
+describe('getPricing — Grok', () => {
+    // xAI は 'grok-4.6'、OpenRouter は 'x-ai/grok-4.6' の形で来る
+    it('直接APIでもOpenRouter経由でも引ける', () => {
+        expect(getPricing('grok-4.6', AFTER)).toMatchObject({ in: 2, out: 6, cr: 0.5 });
+        expect(getPricing('x-ai/grok-4.6', AFTER)).toMatchObject({ in: 2, out: 6, cr: 0.5 });
+    });
+
+    it('200k以上の上位段の単価を持つ', () => {
+        expect(getPricing('grok-4.6', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 4, out: 12, cr: 1 });
+    });
+
+    it('4.6以外のGrokは料金表に無い', () => {
+        expect(getPricing('grok-4', AFTER)).toBeNull();
+        expect(getPricing('grok-3-mini', AFTER)).toBeNull();
+    });
+});
+
+describe('getPricing — OpenAI / Gemini', () => {
+    it('GPT-5系を引ける', () => {
+        expect(getPricing('gpt-5.6-sol', AFTER)).toMatchObject({ in: 5, out: 30, cr: 0.5 });
+        expect(getPricing('gpt-5.4-mini', AFTER)).toMatchObject({ in: 0.75, out: 4.5 });
+        expect(getPricing('gpt-5', AFTER)).toMatchObject({ in: 1.25, out: 10 });
+    });
+
+    // 前方一致なので、具体的なキーを先に置かないと 'gpt-5' が先に当たってしまう
+    it('より具体的なキーが優先される', () => {
+        expect(getPricing('gpt-5-mini', AFTER).in).toBe(0.25);
+        expect(getPricing('gpt-5.5-pro', AFTER).in).toBe(30);
+        expect(getPricing('gpt-5.5', AFTER).in).toBe(5);
+        expect(getPricing('gpt-4.1-nano', AFTER).in).toBe(0.10);
+        expect(getPricing('gpt-4.1', AFTER).in).toBe(2);
+        expect(getPricing('o3-mini', AFTER).in).toBe(1.10);
+        expect(getPricing('o3', AFTER).in).toBe(2);
+    });
+
+    it('Geminiを引ける', () => {
+        expect(getPricing('gemini-3.6-flash', AFTER)).toMatchObject({ in: 1.50, out: 7.50, cr: 0.15 });
+        expect(getPricing('gemini-2.5-pro', AFTER)).toMatchObject({ in: 1.25, out: 10 });
+    });
+
+    // 'gemini-2-5-flash-lite' は 'gemini-2-5-flash' で始まるため順序が効く
+    it('flash-lite が flash より優先される', () => {
+        expect(getPricing('gemini-2.5-flash-lite', AFTER).in).toBe(0.10);
+        expect(getPricing('gemini-2.5-flash', AFTER).in).toBe(0.30);
+        expect(getPricing('gemini-3.5-flash-lite', AFTER).in).toBe(0.30);
+        expect(getPricing('gemini-3.5-flash', AFTER).in).toBe(1.50);
+    });
+
+    it('Gemini 2.5 Pro は上位段で入力2倍・出力1.5倍', () => {
+        expect(getPricing('gemini-2.5-pro', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 2.50, out: 15, cr: 0.25 });
+    });
+
+    it('日付サフィックス付きやOpenRouter経由でも引ける', () => {
+        expect(getPricing('gemini-2.5-flash-preview-09-2025', AFTER).in).toBe(0.30);
+        expect(getPricing('openai/gpt-5.4', AFTER).in).toBe(2.50);
+        expect(getPricing('google/gemini-2.5-pro', AFTER).in).toBe(1.25);
     });
 });
 

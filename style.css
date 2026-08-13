@@ -1790,6 +1790,15 @@ body.dark-mode .stats-row { border-bottom-color: var(--border-color); }
 .stats-link { font-size: 0.82rem; padding: 4px 10px; border: 1px solid var(--border-color); border-radius: 14px; color: var(--text-link); text-decoration: none; white-space: nowrap; transition: background-color 0.15s; }
 .stats-link:hover { background-color: var(--bubble-model-bg); }
 
+/* 使用量サマリー（全チャット横断）ダイアログ */
+.usage-range-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.usage-range-tab { font-size: 0.82rem; padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 14px; background: transparent; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.usage-range-tab.active { border-color: var(--text-link); color: var(--text-link); font-weight: 600; }
+.usage-model-title { font-size: 0.8rem; color: var(--text-secondary); margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--border-color); }
+.usage-model-sub { display: block; font-size: 0.72rem; opacity: 0.75; margin-top: 2px; }
+.usage-summary-content .stats-label, #usage-summary-content .stats-label { white-space: normal; }
+.usage-notes { margin-top: 12px; font-size: 0.72rem; line-height: 1.6; color: var(--text-secondary); }
+
 .summary-stats {
     font-size: 0.8rem;
     color: var(--text-secondary);
