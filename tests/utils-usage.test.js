@@ -68,6 +68,48 @@ describe('calcMessageCost', () => {
         expect(calcMessageCost(msg({ modelName: 'gemini-2.5-pro' }))).toBeNull();
         expect(calcMessageCost(msg({ modelName: '' }))).toBeNull();
     });
+
+    // Grok 4.6 はプロンプトが200k以上だと単価が2倍になる
+    it('Grokは200k未満なら通常単価', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'grok-4.6',
+            usageMetadata: { promptTokenCount: 199_999, candidatesTokenCount: 1000 },
+        }));
+        expect(cost).toBeCloseTo((199_999 * 2 + 1000 * 6) / 1e6, 10);
+    });
+
+    it('Grokは200k以上だと2倍になる', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'grok-4.6',
+            usageMetadata: { promptTokenCount: 200_000, candidatesTokenCount: 1000 },
+        }));
+        expect(cost).toBeCloseTo(2 * (200_000 * 2 + 1000 * 6) / 1e6, 10);
+    });
+
+    it('Grokの長コンテキスト倍率はOpenRouter経由でも効く', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'x-ai/grok-4.6',
+            usageMetadata: { promptTokenCount: 300_000, candidatesTokenCount: 0 },
+        }));
+        expect(cost).toBeCloseTo(2 * (300_000 * 2) / 1e6, 10);
+    });
+
+    it('長コンテキストでもキャッシュヒット分は安い単価のまま2倍される', () => {
+        const cost = calcMessageCost(msg({
+            modelName: 'grok-4.6',
+            usageMetadata: { promptTokenCount: 250_000, candidatesTokenCount: 0, cacheReadInputTokens: 200_000 },
+        }));
+        expect(cost).toBeCloseTo(2 * (50_000 * 2 + 200_000 * 0.5) / 1e6, 10);
+    });
+
+    // DeepSeekのピーク倍率とGrokの長コンテキスト倍率が混線しないこと
+    it('Grokにはピーク倍率がかからない', () => {
+        const peak = calcMessageCost(msg({ modelName: 'grok-4.6', timestamp: AFTER_PEAK,
+            usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 1000 } }));
+        const off = calcMessageCost(msg({ modelName: 'grok-4.6', timestamp: AFTER_OFFPEAK,
+            usageMetadata: { promptTokenCount: 1000, candidatesTokenCount: 1000 } }));
+        expect(peak).toBe(off);
+    });
 });
 
 describe('summarizeUsage', () => {

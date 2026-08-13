@@ -2018,7 +2018,9 @@ ${relationship_context}`;
     "1.41": [
       "全チャットを横断した使用量サマリーを追加しました。ⓘ（会話の統計）の「全チャットの使用量」ボタンから開けます。今月／先月／過去30日／全期間で切り替えられ、推定コスト・メッセージ数・入出力トークンの合計と、モデル別の内訳が見られます。DeepSeekはピーク時間帯にかかった分も別途表示します。",
       "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。正確な請求額は各社の使用量ページ（同じくⓘから開けます）でご確認ください。",
-      "※ 金額を計算できるのは料金表を持つモデル（Claude と DeepSeek）だけです。それ以外のモデルはトークン数のみ表示し、金額欄は「—」になります。"
+      "※ 金額を計算できるのは料金表を持つモデル（Claude・DeepSeek・Grok 4.6）だけです。それ以外のモデルはトークン数のみ表示し、金額欄は「—」になります。",
+      "OpenRouter経由のモデルも金額を計算できるようにしました（モデル名が「anthropic/claude-opus-5」のような形でも判別します）。提供元の単価での概算なので、クレジット購入時の手数料ぶん実際の請求は少し高くなります。",
+      "Grok 4.6 の料金に対応しました。プロンプトが20万トークン以上になると単価が2倍になる仕様も反映しています。"
     ],
     "1.40": [
       "DeepSeek V4 の料金改定（2026年8月16日 16:00 UTC＝日本時間8月17日 1:00）に対応しました。ⓘ の推定コストが新料金で計算されます。V4-Pro は入力$0.66／出力$1.98／キャッシュヒット$0.022、V4-Flash は入力$0.22／出力$0.66／キャッシュヒット$0.007（いずれも100万トークンあたり・オフピーク）です。改定前と比べて出力が約2.3倍、入力が約1.5倍になります。",
@@ -13255,7 +13257,10 @@ ${msg}`);
     "deepseek-chat": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
     "deepseek-v4-pro": { in: 0.66, out: 1.98, cw5m: 0.66, cw1h: 0.66, cr: 0.022, peakMul: 2 },
     "deepseek-v4-flash": { in: 0.22, out: 0.66, cw5m: 0.22, cw1h: 0.22, cr: 7e-3, peakMul: 2 },
-    "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 }
+    "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
+    // xAI Grok。プロンプトが longCtxThreshold 以上のリクエストは単価が longCtxMul 倍になる。
+    // https://docs.x.ai/developers/pricing
+    "grok-4-6": { in: 2, out: 6, cw5m: 2, cw1h: 2, cr: 0.5, longCtxThreshold: 2e5, longCtxMul: 2 }
   };
   var DEEPSEEK_V4_PRICE_CHANGE_AT = Date.UTC(2026, 7, 16, 16, 0, 0);
   var MODEL_PRICING_BEFORE_V4_CHANGE = {
@@ -13315,13 +13320,16 @@ ${msg}`);
     const pricing = getPricing(msg?.modelName, msg?.timestamp);
     if (!pricing) return null;
     const u = msg.usageMetadata || {};
+    const prompt = u.promptTokenCount || 0;
     const cr = u.cacheReadInputTokens || 0;
     const cw = u.cacheCreationInputTokens || 0;
     const cw5m = u.cacheCreation5mInputTokens ?? cw;
     const cw1h = u.cacheCreation1hInputTokens || 0;
     const out = u.candidatesTokenCount || 0;
-    const regular = Math.max(0, (u.promptTokenCount || 0) - cr - cw);
-    const mul = pricing.peakMul && isDeepSeekPeak(msg.timestamp) ? pricing.peakMul : 1;
+    const regular = Math.max(0, prompt - cr - cw);
+    let mul = 1;
+    if (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) mul *= pricing.peakMul;
+    if (pricing.longCtxMul && prompt >= pricing.longCtxThreshold) mul *= pricing.longCtxMul;
     return mul * (regular * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1e6;
   }
   __name(calcMessageCost, "calcMessageCost");
@@ -13797,12 +13805,9 @@ ${flagContent}`);
         if (!u) continue;
         const cr = u.cacheReadInputTokens || 0;
         const cw = u.cacheCreationInputTokens || 0;
-        const cw5m = u.cacheCreation5mInputTokens ?? cw;
-        const cw1h = u.cacheCreation1hInputTokens || 0;
         const out = u.candidatesTokenCount || 0;
         const total = u.totalTokenCount || 0;
         const inp = u.promptTokenCount || 0;
-        const regular = inp - cr - cw;
         totalTokens += total;
         totalInput += inp;
         totalOutput += out;
@@ -13811,11 +13816,10 @@ ${flagContent}`);
         const modelName = msg.modelName || "";
         const displayModel = modelName || state.settings.modelName || "";
         if (displayModel) modelsUsed.add(displayModel);
-        const pricing = getPricing(modelName, msg.timestamp);
-        if (pricing) {
+        const cost = calcMessageCost(msg);
+        if (cost !== null) {
           hasCost = true;
-          const mul = pricing.peakMul && isDeepSeekPeak(msg.timestamp) ? pricing.peakMul : 1;
-          totalCost += mul * (Math.max(0, regular) * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1e6;
+          totalCost += cost;
         }
       }
       const sizeKb = (new TextEncoder().encode(JSON.stringify(state.currentMessages)).byteLength / 1024).toFixed(2);
@@ -13877,7 +13881,7 @@ ${flagContent}`);
       const hasOpenRouter = summary.byModel.some((m) => m.model.includes("/"));
       const notes = [
         "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。",
-        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。" : null,
+        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在 Claude・DeepSeek・Grok 4.6 のみ金額を計算します）。" : null,
         hasOpenRouter ? "※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。" : null
       ].filter(Boolean);
       elements.usageSummaryContent.innerHTML = rows.map(([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`).join("") + (modelRows ? `<div class="usage-model-title">モデル別</div>${modelRows}` : '<div class="usage-model-title">この期間の記録はありません</div>') + `<div class="usage-notes">${notes.join("<br>")}</div>`;

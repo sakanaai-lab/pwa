@@ -26,6 +26,9 @@ export const MODEL_PRICING = {
     'deepseek-v4-pro':   { in: 0.66,  out: 1.98, cw5m: 0.66,  cw1h: 0.66,  cr: 0.022,    peakMul: 2 },
     'deepseek-v4-flash': { in: 0.22,  out: 0.66, cw5m: 0.22,  cw1h: 0.22,  cr: 0.007,    peakMul: 2 },
     'deepseek-':         { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
+    // xAI Grok。プロンプトが longCtxThreshold 以上のリクエストは単価が longCtxMul 倍になる。
+    // https://docs.x.ai/developers/pricing
+    'grok-4-6': { in: 2, out: 6, cw5m: 2, cw1h: 2, cr: 0.50, longCtxThreshold: 200_000, longCtxMul: 2 },
 };
 
 // DeepSeek V4 の値上げ時刻（2026-08-16 16:00 UTC = 日本時間 8/17 01:00）。

@@ -115,6 +115,25 @@ describe('getPricing — OpenRouter経由', () => {
     });
 });
 
+describe('getPricing — Grok', () => {
+    // xAI は 'grok-4.6'、OpenRouter は 'x-ai/grok-4.6' の形で来る
+    it('直接APIでもOpenRouter経由でも引ける', () => {
+        expect(getPricing('grok-4.6', AFTER)).toMatchObject({ in: 2, out: 6, cr: 0.5 });
+        expect(getPricing('x-ai/grok-4.6', AFTER)).toMatchObject({ in: 2, out: 6, cr: 0.5 });
+    });
+
+    it('長コンテキストの倍率を持つ（200k以上で2倍）', () => {
+        const p = getPricing('grok-4.6', AFTER);
+        expect(p.longCtxThreshold).toBe(200000);
+        expect(p.longCtxMul).toBe(2);
+    });
+
+    it('4.6以外のGrokは料金表に無い', () => {
+        expect(getPricing('grok-4', AFTER)).toBeNull();
+        expect(getPricing('grok-3-mini', AFTER)).toBeNull();
+    });
+});
+
 describe('isDeepSeekPeak', () => {
     const at = (utcHour) => Date.UTC(2026, 7, 20, utcHour, 30, 0);
 

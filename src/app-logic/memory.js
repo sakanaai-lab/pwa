@@ -15,8 +15,7 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
-import { getPricing, isDeepSeekPeak } from '../utils/pricing.js';
-import { getUsageRange, summarizeUsage } from '../utils/usage.js';
+import { calcMessageCost, getUsageRange, summarizeUsage } from '../utils/usage.js';
 import { htmlUtils } from '../utils/html.js';
 
 // Gemini のセーフティ設定（全カテゴリ BLOCK_NONE）。要約・メモリ学習で共通利用。
@@ -522,12 +521,9 @@ export const memoryMethods = {
             if (!u) continue;
             const cr = u.cacheReadInputTokens || 0;
             const cw = u.cacheCreationInputTokens || 0;
-            const cw5m = u.cacheCreation5mInputTokens ?? cw;
-            const cw1h = u.cacheCreation1hInputTokens || 0;
             const out = u.candidatesTokenCount || 0;
             const total = u.totalTokenCount || 0;
             const inp = (u.promptTokenCount || 0);
-            const regular = inp - cr - cw;
 
             totalTokens += total;
             totalInput += inp;
@@ -538,11 +534,11 @@ export const memoryMethods = {
             const modelName = msg.modelName || '';
             const displayModel = modelName || state.settings.modelName || '';
             if (displayModel) modelsUsed.add(displayModel);
-            const pricing = getPricing(modelName, msg.timestamp);
-            if (pricing) {
+            // 全チャットの集計と同じ計算を使う（二重実装だと片方だけ古くなるため）
+            const cost = calcMessageCost(msg);
+            if (cost !== null) {
                 hasCost = true;
-                const mul = (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) ? pricing.peakMul : 1;
-                totalCost += mul * (Math.max(0, regular) * pricing.in + cw5m * pricing.cw5m + cw1h * pricing.cw1h + cr * pricing.cr + out * pricing.out) / 1_000_000;
+                totalCost += cost;
             }
         }
 
@@ -624,7 +620,7 @@ export const memoryMethods = {
         const hasOpenRouter = summary.byModel.some(m => m.model.includes('/'));
         const notes = [
             '※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。',
-            summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。' : null,
+            summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（現在 Claude・DeepSeek・Grok 4.6 のみ金額を計算します）。' : null,
             hasOpenRouter ? '※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。' : null,
         ].filter(Boolean);
 
