@@ -1508,6 +1508,8 @@ export const lifecycleMethods = {
         elements.usageRangeTabs?.forEach(tab => {
             tab.addEventListener('click', () => this.showUsageSummary(tab.dataset.range));
         });
+        // showCustomDialog はフォーカスを当てるだけなので、閉じる処理は自前で配線する
+        elements.usageSummaryCloseBtn?.addEventListener('click', () => elements.usageSummaryDialog.close());
         elements.chatStatsCloseBtn.addEventListener('click', () => elements.chatStatsDialog.close());
 
         // --- History Summary ---

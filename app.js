@@ -6474,6 +6474,7 @@ ${error.message}`);
       elements.usageRangeTabs?.forEach((tab) => {
         tab.addEventListener("click", () => this.showUsageSummary(tab.dataset.range));
       });
+      elements.usageSummaryCloseBtn?.addEventListener("click", () => elements.usageSummaryDialog.close());
       elements.chatStatsCloseBtn.addEventListener("click", () => elements.chatStatsDialog.close());
       elements.summarizeHistoryBtn.addEventListener("click", () => this.startSummaryProcess());
       elements.summaryCancelBtn.addEventListener("click", () => elements.summaryDialog.close("cancel"));
