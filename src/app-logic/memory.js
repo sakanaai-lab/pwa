@@ -15,6 +15,7 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
+import { getPricing, isDeepSeekPeak } from '../utils/pricing.js';
 
 // Gemini のセーフティ設定（全カテゴリ BLOCK_NONE）。要約・メモリ学習で共通利用。
 const GEMINI_SAFETY_OFF = [
@@ -507,48 +508,6 @@ export const memoryMethods = {
 
 
     showChatStats() {
-        // 料金テーブル（USD / 100万トークン）。in=入力, out=出力, cw=キャッシュ書込, cr=キャッシュ読込(ヒット)。
-        const MODEL_PRICING = {
-            // Claude 5系 / 4系 (claude-opus-5, claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
-            'claude-opus-5':   { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-opus-4-8': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-opus-4-7': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-opus-4-6': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-opus-4-5': { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-opus-4-1': { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
-            'claude-opus-4':   { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
-            'claude-sonnet-4': { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
-            'claude-haiku-4':  { in: 1,    out: 5,   cw5m: 1.25,  cw1h: 2,    cr: 0.10 },
-            // Claude 3系 (旧モデル)
-            'claude-opus-3':   { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },
-            'claude-opus':     { in: 5,    out: 25,  cw5m: 6.25,  cw1h: 10,   cr: 0.50 },
-            'claude-sonnet':   { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
-            'claude-haiku':    { in: 0.80, out: 4,   cw5m: 1.00,  cw1h: 1.60, cr: 0.08 },
-            // DeepSeek（標準料金。in=キャッシュミス入力, cr=キャッシュヒット入力）。価格は「通常（オフピーク）」基準。
-            // peakMul があるモデルは、ピーク時間帯のメッセージのみ料金を peakMul 倍にする。
-            // ピーク時間帯(UTC): 01:00-04:00 / 06:00-10:00 （日本時間 10:00-13:00 / 15:00-19:00）。
-            'deepseek-reasoner': { in: 0.55,  out: 2.19, cw5m: 0.55,  cw1h: 0.55,  cr: 0.14 },
-            'deepseek-chat':     { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
-            'deepseek-v4-pro':   { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 0.003625, peakMul: 2 },
-            'deepseek-v4-flash': { in: 0.14,  out: 0.28, cw5m: 0.14,  cw1h: 0.14,  cr: 0.0028,   peakMul: 2 },
-            'deepseek-':         { in: 0.27,  out: 1.10, cw5m: 0.27,  cw1h: 0.27,  cr: 0.07 },
-        };
-        const getPricing = (modelName) => {
-            if (!modelName) return null;
-            const m = modelName.toLowerCase();
-            for (const [key, price] of Object.entries(MODEL_PRICING)) {
-                if (m.startsWith(key)) return price;
-            }
-            return null;
-        };
-        // DeepSeek のピーク時間帯判定（UTC 01:00-04:00 / 06:00-10:00 = 日本時間 10-13時 / 15-19時）。
-        // タイムゾーンに依存しないよう UTC 時刻で判定する。timestamp はモデル応答生成時刻(epoch ms)。
-        const isDeepSeekPeak = (timestamp) => {
-            if (!timestamp) return false;
-            const h = new Date(timestamp).getUTCHours();
-            return (h >= 1 && h < 4) || (h >= 6 && h < 10);
-        };
-
         const msgs = state.currentMessages.filter(m => !m.isHidden);
         let totalTokens = 0, totalInput = 0, totalOutput = 0;
         let totalCacheRead = 0, totalCacheWrite = 0;
@@ -577,7 +536,7 @@ export const memoryMethods = {
             const modelName = msg.modelName || '';
             const displayModel = modelName || state.settings.modelName || '';
             if (displayModel) modelsUsed.add(displayModel);
-            const pricing = getPricing(modelName);
+            const pricing = getPricing(modelName, msg.timestamp);
             if (pricing) {
                 hasCost = true;
                 const mul = (pricing.peakMul && isDeepSeekPeak(msg.timestamp)) ? pricing.peakMul : 1;
