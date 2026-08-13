@@ -62,6 +62,8 @@ export const MODEL_PRICING = {
     'gemini-3-6-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-5-flash-lite': { in: 0.30, out: 2.50, cr: 0.03 },
     'gemini-3-5-flash':      { in: 1.50, out: 9,    cr: 0.15 },
+    // 3.1 Pro も 200k 超で単価が上がる（入力2倍・出力1.5倍・キャッシュ2倍）
+    'gemini-3-1-pro':        { in: 2,    out: 12,   cr: 0.20,  longCtx: { threshold: 200_000, in: 4, out: 18, cr: 0.40 } },
     'gemini-3-1-flash-lite': { in: 0.25, out: 1.50, cr: 0.025 },
     // 2.5 Pro は 200k 超で入力2倍・出力1.5倍と倍率が異なるため、上位段の単価をそのまま持つ
     'gemini-2-5-pro':        { in: 1.25, out: 10,   cr: 0.125, longCtx: { threshold: 200_000, in: 2.50, out: 15, cr: 0.25 } },
