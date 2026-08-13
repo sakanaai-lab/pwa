@@ -1500,6 +1500,14 @@ export const lifecycleMethods = {
 
         // --- Chat Stats ---
         elements.chatStatsBtn.addEventListener('click', () => this.showChatStats());
+        // 全チャット横断の使用量サマリー
+        elements.usageSummaryOpenBtn?.addEventListener('click', () => {
+            elements.chatStatsDialog.close();
+            this.showUsageSummary('thisMonth');
+        });
+        elements.usageRangeTabs?.forEach(tab => {
+            tab.addEventListener('click', () => this.showUsageSummary(tab.dataset.range));
+        });
         elements.chatStatsCloseBtn.addEventListener('click', () => elements.chatStatsDialog.close());
 
         // --- History Summary ---
