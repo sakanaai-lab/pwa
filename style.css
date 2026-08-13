@@ -1792,8 +1792,12 @@ body.dark-mode .stats-row { border-bottom-color: var(--border-color); }
 
 /* 使用量サマリー（全チャット横断）ダイアログ */
 .usage-range-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-.usage-range-tab { font-size: 0.82rem; padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 14px; background: transparent; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
-.usage-range-tab.active { border-color: var(--text-link); color: var(--text-link); font-weight: 600; }
+/* 選択中は塗りつぶし。グローバルの button:hover より詳細度を上げないと、
+   ホバー色で塗られたうえに同系色の文字色になって読めなくなる（iOSはタップ後もhoverが残る） */
+.usage-range-tab { font-size: 0.82rem; padding: 4px 12px; border: 1px solid var(--border-color); border-radius: 14px; background-color: transparent; color: var(--text-secondary); cursor: pointer; white-space: nowrap; text-transform: none; box-shadow: none; }
+.usage-range-tab:hover:not(:disabled) { background-color: var(--bg-tertiary); color: var(--text-primary); box-shadow: none; }
+.usage-range-tab.active,
+.usage-range-tab.active:hover:not(:disabled) { background-color: var(--bg-tertiary); border-color: var(--text-link); color: var(--text-primary); font-weight: 600; box-shadow: inset 0 0 0 1px var(--text-link); }
 .usage-model-title { font-size: 0.8rem; color: var(--text-secondary); margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--border-color); }
 .usage-model-sub { display: block; font-size: 0.72rem; opacity: 0.75; margin-top: 2px; }
 .usage-summary-content .stats-label, #usage-summary-content .stats-label { white-space: normal; }
