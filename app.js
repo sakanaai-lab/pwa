@@ -2010,6 +2010,11 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.40": [
+      "DeepSeek V4 の料金改定（2026年8月16日 16:00 UTC＝日本時間8月17日 1:00）に対応しました。ⓘ の推定コストが新料金で計算されます。V4-Pro は入力$0.66／出力$1.98／キャッシュヒット$0.022、V4-Flash は入力$0.22／出力$0.66／キャッシュヒット$0.007（いずれも100万トークンあたり・オフピーク）です。改定前と比べて出力が約2.3倍、入力が約1.5倍になります。",
+      "改定前に送ったメッセージは、これまでどおり旧料金で計算します。過去のチャットの推定コストが後から跳ね上がって見えることはありません。",
+      "※ ピーク時間帯（日本時間 10:00-13:00 / 15:00-19:00 は2倍）は改定後も変わりません。"
+    ],
     "1.39": [
       "チャットログの全文検索を追加しました。履歴一覧の上部に検索ボックスがあり、タイトルだけでなく各メッセージの本文まで横断して絞り込めます。ヒットしたチャットにはヒット箇所の抜粋（前後の文つき）が並び、開くとその発言まで自動でスクロールして枠を付けて示します。",
       "検索語を空白で区切ると、すべての語を含むチャットだけに絞り込みます（大文字小文字は区別しません）。検索は端末内のデータだけで行うため、外部への送信はありません。",
@@ -13209,6 +13214,58 @@ ${msg}`);
     }, "runQualityChecker")
   };
 
+  // src/utils/pricing.js
+  var MODEL_PRICING = {
+    // Claude 5系 / 4系 (claude-opus-5, claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
+    "claude-opus-5": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-opus-4-8": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-opus-4-7": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-opus-4-6": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-opus-4-5": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-opus-4-1": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
+    "claude-opus-4": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
+    "claude-sonnet-4": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
+    "claude-haiku-4": { in: 1, out: 5, cw5m: 1.25, cw1h: 2, cr: 0.1 },
+    // Claude 3系 (旧モデル)
+    "claude-opus-3": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
+    "claude-opus": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
+    "claude-sonnet": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
+    "claude-haiku": { in: 0.8, out: 4, cw5m: 1, cw1h: 1.6, cr: 0.08 },
+    // DeepSeek（in=キャッシュミス入力, cr=キャッシュヒット入力）。価格は「通常（オフピーク）」基準。
+    // peakMul があるモデルは、ピーク時間帯のメッセージのみ料金を peakMul 倍にする。
+    // V4系は 2026-08-16 の改定後の価格。
+    "deepseek-reasoner": { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
+    "deepseek-chat": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
+    "deepseek-v4-pro": { in: 0.66, out: 1.98, cw5m: 0.66, cw1h: 0.66, cr: 0.022, peakMul: 2 },
+    "deepseek-v4-flash": { in: 0.22, out: 0.66, cw5m: 0.22, cw1h: 0.22, cr: 7e-3, peakMul: 2 },
+    "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 }
+  };
+  var DEEPSEEK_V4_PRICE_CHANGE_AT = Date.UTC(2026, 7, 16, 16, 0, 0);
+  var MODEL_PRICING_BEFORE_V4_CHANGE = {
+    "deepseek-v4-pro": { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 3625e-6, peakMul: 2 },
+    "deepseek-v4-flash": { in: 0.14, out: 0.28, cw5m: 0.14, cw1h: 0.14, cr: 28e-4, peakMul: 2 }
+  };
+  function getPricing(modelName, timestamp) {
+    if (!modelName) return null;
+    const m = modelName.toLowerCase();
+    if (!timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT) {
+      for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
+        if (m.startsWith(key)) return price;
+      }
+    }
+    for (const [key, price] of Object.entries(MODEL_PRICING)) {
+      if (m.startsWith(key)) return price;
+    }
+    return null;
+  }
+  __name(getPricing, "getPricing");
+  function isDeepSeekPeak(timestamp) {
+    if (!timestamp) return false;
+    const h = new Date(timestamp).getUTCHours();
+    return h >= 1 && h < 4 || h >= 6 && h < 10;
+  }
+  __name(isDeepSeekPeak, "isDeepSeekPeak");
+
   // src/app-logic/memory.js
   var GEMINI_SAFETY_OFF = [
     { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -13626,44 +13683,6 @@ ${flagContent}`);
       elements.summarizeHistoryBtn.disabled = messageCount < 5;
     },
     showChatStats() {
-      const MODEL_PRICING = {
-        // Claude 5系 / 4系 (claude-opus-5, claude-opus-4-x, claude-sonnet-4-x, claude-haiku-4-x)
-        "claude-opus-5": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-opus-4-8": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-opus-4-7": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-opus-4-6": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-opus-4-5": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-opus-4-1": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
-        "claude-opus-4": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
-        "claude-sonnet-4": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
-        "claude-haiku-4": { in: 1, out: 5, cw5m: 1.25, cw1h: 2, cr: 0.1 },
-        // Claude 3系 (旧モデル)
-        "claude-opus-3": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
-        "claude-opus": { in: 5, out: 25, cw5m: 6.25, cw1h: 10, cr: 0.5 },
-        "claude-sonnet": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
-        "claude-haiku": { in: 0.8, out: 4, cw5m: 1, cw1h: 1.6, cr: 0.08 },
-        // DeepSeek（標準料金。in=キャッシュミス入力, cr=キャッシュヒット入力）。価格は「通常（オフピーク）」基準。
-        // peakMul があるモデルは、ピーク時間帯のメッセージのみ料金を peakMul 倍にする。
-        // ピーク時間帯(UTC): 01:00-04:00 / 06:00-10:00 （日本時間 10:00-13:00 / 15:00-19:00）。
-        "deepseek-reasoner": { in: 0.55, out: 2.19, cw5m: 0.55, cw1h: 0.55, cr: 0.14 },
-        "deepseek-chat": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 },
-        "deepseek-v4-pro": { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 3625e-6, peakMul: 2 },
-        "deepseek-v4-flash": { in: 0.14, out: 0.28, cw5m: 0.14, cw1h: 0.14, cr: 28e-4, peakMul: 2 },
-        "deepseek-": { in: 0.27, out: 1.1, cw5m: 0.27, cw1h: 0.27, cr: 0.07 }
-      };
-      const getPricing = /* @__PURE__ */ __name((modelName) => {
-        if (!modelName) return null;
-        const m = modelName.toLowerCase();
-        for (const [key, price] of Object.entries(MODEL_PRICING)) {
-          if (m.startsWith(key)) return price;
-        }
-        return null;
-      }, "getPricing");
-      const isDeepSeekPeak = /* @__PURE__ */ __name((timestamp) => {
-        if (!timestamp) return false;
-        const h = new Date(timestamp).getUTCHours();
-        return h >= 1 && h < 4 || h >= 6 && h < 10;
-      }, "isDeepSeekPeak");
       const msgs = state.currentMessages.filter((m) => !m.isHidden);
       let totalTokens = 0, totalInput = 0, totalOutput = 0;
       let totalCacheRead = 0, totalCacheWrite = 0;
@@ -13689,7 +13708,7 @@ ${flagContent}`);
         const modelName = msg.modelName || "";
         const displayModel = modelName || state.settings.modelName || "";
         if (displayModel) modelsUsed.add(displayModel);
-        const pricing = getPricing(modelName);
+        const pricing = getPricing(modelName, msg.timestamp);
         if (pricing) {
           hasCost = true;
           const mul = pricing.peakMul && isDeepSeekPeak(msg.timestamp) ? pricing.peakMul : 1;
