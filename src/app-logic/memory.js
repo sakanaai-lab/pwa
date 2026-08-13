@@ -620,9 +620,12 @@ export const memoryMethods = {
             + `<span class="stats-value">${m.priced ? cost(m.cost) : '—'}</span></div>`
         ).join('');
 
+        // OpenRouter経由のモデル名は 'anthropic/claude-...' のようにベンダー名がつく
+        const hasOpenRouter = summary.byModel.some(m => m.model.includes('/'));
         const notes = [
             '※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。',
             summary.hasUnpriced ? '※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。' : null,
+            hasOpenRouter ? '※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。' : null,
         ].filter(Boolean);
 
         elements.usageSummaryContent.innerHTML =

@@ -13262,18 +13262,26 @@ ${msg}`);
     "deepseek-v4-pro": { in: 0.435, out: 0.87, cw5m: 0.435, cw1h: 0.435, cr: 3625e-6, peakMul: 2 },
     "deepseek-v4-flash": { in: 0.14, out: 0.28, cw5m: 0.14, cw1h: 0.14, cr: 28e-4, peakMul: 2 }
   };
+  function normalizeModelName(modelName) {
+    if (typeof modelName !== "string") return "";
+    return modelName.toLowerCase().trim().replace(/^[^/]+\//, "").replace(/:.*$/, "").replace(/(\d)\.(\d)/g, "$1-$2");
+  }
+  __name(normalizeModelName, "normalizeModelName");
   function getPricing(modelName, timestamp) {
     if (!modelName) return null;
-    const m = modelName.toLowerCase();
-    if (!timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT) {
-      for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
+    const isOld = !timestamp || timestamp < DEEPSEEK_V4_PRICE_CHANGE_AT;
+    const lookup = /* @__PURE__ */ __name((m) => {
+      if (isOld) {
+        for (const [key, price] of Object.entries(MODEL_PRICING_BEFORE_V4_CHANGE)) {
+          if (m.startsWith(key)) return price;
+        }
+      }
+      for (const [key, price] of Object.entries(MODEL_PRICING)) {
         if (m.startsWith(key)) return price;
       }
-    }
-    for (const [key, price] of Object.entries(MODEL_PRICING)) {
-      if (m.startsWith(key)) return price;
-    }
-    return null;
+      return null;
+    }, "lookup");
+    return lookup(modelName.toLowerCase()) || lookup(normalizeModelName(modelName));
   }
   __name(getPricing, "getPricing");
   function isDeepSeekPeak(timestamp) {
@@ -13866,9 +13874,11 @@ ${flagContent}`);
       const modelRows = summary.byModel.map(
         (m) => `<div class="stats-row"><span class="stats-label">${htmlUtils.escapeHtml(m.model)}<span class="usage-model-sub">${m.messages}件 / 入${toK(m.input)} 出${toK(m.output)}</span></span><span class="stats-value">${m.priced ? cost(m.cost) : "—"}</span></div>`
       ).join("");
+      const hasOpenRouter = summary.byModel.some((m) => m.model.includes("/"));
       const notes = [
         "※ 端末内の履歴からの推定です。削除したチャットや、同期していない端末の分は含まれません。",
-        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。" : null
+        summary.hasUnpriced ? "※ 「—」は料金表を持たないモデルです（現在ClaudeとDeepSeekのみ金額を計算します）。" : null,
+        hasOpenRouter ? "※ OpenRouter経由は提供元の単価で概算しています。クレジット購入時の手数料ぶん、実際の請求は少し高くなります。" : null
       ].filter(Boolean);
       elements.usageSummaryContent.innerHTML = rows.map(([label, value]) => `<div class="stats-row"><span class="stats-label">${label}</span><span class="stats-value">${value}</span></div>`).join("") + (modelRows ? `<div class="usage-model-title">モデル別</div>${modelRows}` : '<div class="usage-model-title">この期間の記録はありません</div>') + `<div class="usage-notes">${notes.join("<br>")}</div>`;
     },

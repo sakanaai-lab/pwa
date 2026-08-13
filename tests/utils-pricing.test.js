@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPricing, isDeepSeekPeak, DEEPSEEK_V4_PRICE_CHANGE_AT } from '../src/utils/pricing.js';
+import { getPricing, isDeepSeekPeak, normalizeModelName, DEEPSEEK_V4_PRICE_CHANGE_AT } from '../src/utils/pricing.js';
 
 const BEFORE = DEEPSEEK_V4_PRICE_CHANGE_AT - 1;
 const AFTER = DEEPSEEK_V4_PRICE_CHANGE_AT;
@@ -66,6 +66,52 @@ describe('getPricing — DeepSeek V4の値上げ（2026-08-16 16:00 UTC）', () 
         const flash = getPricing('deepseek-v4-flash', AFTER).out / getPricing('deepseek-v4-flash', BEFORE).out;
         expect(pro).toBeCloseTo(2.276, 3);
         expect(flash).toBeCloseTo(2.357, 3);
+    });
+});
+
+describe('normalizeModelName', () => {
+    it('ベンダー接頭辞を外す', () => {
+        expect(normalizeModelName('anthropic/claude-opus-5')).toBe('claude-opus-5');
+        expect(normalizeModelName('deepseek/deepseek-v4-pro')).toBe('deepseek-v4-pro');
+    });
+
+    it('バリアント指定（:free など）を外す', () => {
+        expect(normalizeModelName('deepseek/deepseek-chat:free')).toBe('deepseek-chat');
+    });
+
+    it('バージョンのドットをハイフンに直す', () => {
+        expect(normalizeModelName('anthropic/claude-opus-4.5')).toBe('claude-opus-4-5');
+    });
+
+    it('直接APIの名前はそのまま（小文字化のみ）', () => {
+        expect(normalizeModelName('claude-haiku-4-5-20251001')).toBe('claude-haiku-4-5-20251001');
+    });
+
+    it('非文字列は空文字', () => {
+        expect(normalizeModelName(null)).toBe('');
+    });
+});
+
+describe('getPricing — OpenRouter経由', () => {
+    // 回帰: ベンダー接頭辞つきの名前だと前方一致せず、金額が出せなかった
+    it('ベンダー接頭辞つきでも単価を引ける', () => {
+        expect(getPricing('anthropic/claude-opus-5', AFTER).out).toBe(25);
+        expect(getPricing('deepseek/deepseek-v4-pro', AFTER).out).toBe(1.98);
+    });
+
+    it('ドット区切りのバージョンでも引ける', () => {
+        expect(getPricing('anthropic/claude-opus-4.5', AFTER).in).toBe(5);
+        expect(getPricing('anthropic/claude-sonnet-4.5:beta', AFTER).in).toBe(3);
+    });
+
+    it('OpenRouter経由でも値上げの前後を正しく切り替える', () => {
+        expect(getPricing('deepseek/deepseek-v4-pro', BEFORE).out).toBe(0.87);
+        expect(getPricing('deepseek/deepseek-v4-pro', AFTER).out).toBe(1.98);
+    });
+
+    it('料金表に無いモデルは接頭辞を外しても null', () => {
+        expect(getPricing('google/gemini-2.5-pro', AFTER)).toBeNull();
+        expect(getPricing('meta-llama/llama-3.3-70b-instruct', AFTER)).toBeNull();
     });
 });
 
