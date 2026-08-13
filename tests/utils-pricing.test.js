@@ -163,6 +163,13 @@ describe('getPricing — OpenAI / Gemini', () => {
         expect(getPricing('gemini-3.5-flash', AFTER).in).toBe(1.50);
     });
 
+    // アプリのモデル一覧では 'gemini-3.1-pro-preview' として選ぶ
+    it('Gemini 3.1 Pro を preview 付きの正式名で引ける', () => {
+        expect(getPricing('gemini-3.1-pro-preview', AFTER)).toMatchObject({ in: 2, out: 12, cr: 0.20 });
+        expect(getPricing('gemini-3.1-pro-preview-customtools', AFTER).in).toBe(2);
+        expect(getPricing('gemini-3.1-pro-preview', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 4, out: 18, cr: 0.40 });
+    });
+
     it('Gemini 2.5 Pro は上位段で入力2倍・出力1.5倍', () => {
         expect(getPricing('gemini-2.5-pro', AFTER).longCtx).toMatchObject({ threshold: 200000, in: 2.50, out: 15, cr: 0.25 });
     });
