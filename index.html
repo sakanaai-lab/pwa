@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,400,0,0" />
     <!-- CSSファイルを外部から読み込む -->
-    <link rel="stylesheet" href="style.css?v=1.25.64">
+    <link rel="stylesheet" href="style.css?v=1.25.65">
     <link rel="stylesheet" href="prism.css" />
     <script src="marked.js" defer></script>
     <!-- DOMPurify: AI出力/インポート由来HTMLのサニタイズ（XSS対策）。marked の後に読み込む -->
@@ -1240,12 +1240,14 @@
     
     <!-- プロジェクト管理ダイアログ -->
     <dialog id="projectManagementDialog" class="custom-dialog">
-        <div class="dialog-box" style="max-height: 75vh; overflow-y: auto; width: 460px; max-width: 100%;">
+        <div class="dialog-box" style="width: 460px; max-width: 100%;">
+            <!-- スクロールは中身側だけにする。箱ごとスクロールさせると、下へ送ったときに
+                 ヘッダーの✕が画面外へ流れて閉じられなくなるため -->
             <div class="dialog-header">
                 <h2>プロジェクト管理</h2>
                 <button type="button" class="dialog-close-btn" id="close-project-dialog-btn"><span class="material-symbols-outlined">close</span></button>
             </div>
-            <div class="dialog-content">
+            <div class="dialog-content" style="max-height: 65vh; overflow-y: auto; margin-bottom: 0;">
                 <div class="settings-group">
                     <label for="new-project-name">新規プロジェクト名</label>
                     <input type="text" id="new-project-name" placeholder="プロジェクト名を入力" class="dialog-input">
