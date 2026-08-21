@@ -2017,6 +2017,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.44": [
+      "プロジェクト管理の画面が崩れていたのを修正しました。この画面だけ他のダイアログと違うスタイルが当たっておらず、ブラウザ標準の見た目（黒い枠）のまま画面からはみ出し、スマホでは下の方が切れて見えない状態でした。",
+      "ナレッジのファイルを削除するときに確認を出すようにしました。編集ボタンのすぐ隣にあって押し間違えやすく、しかも元に戻せないためです。"
+    ],
     "1.43": [
       "【重要】ページが再読み込みされると、選んでいたモデルが既定のモデル（Claude Sonnet 4.6 など）に勝手に変わってしまう不具合を修正しました。タイムアウトなどで再読み込みが起きるたびに発生していたため、気づかないまま別のモデルで会話が続き、想定より料金がかかることがありました。",
       "※ モデルが変わるとプロンプトキャッシュも切れるため、Anthropic利用時は再読み込みのたびに履歴全体が再課金されていました。この修正で解消されます。",
@@ -15384,6 +15388,9 @@ ${pageText}
             const projectId = parseInt(btn.dataset.projectId, 10);
             const project = projectsCache.find((p) => p.id === projectId);
             if (!project) return;
+            const confirmed = await uiUtils.showCustomConfirm(`ナレッジ「${btn.dataset.fileName}」を削除しますか？
+この操作は元に戻せません。`);
+            if (!confirmed) return;
             project.knowledgeFiles = (project.knowledgeFiles || []).filter((f) => f.name !== btn.dataset.fileName);
             await window.dbUtils.updateProject(project);
             if (window.state.activeProjectId === projectId) {
