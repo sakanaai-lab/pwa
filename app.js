@@ -2017,6 +2017,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.48": [
+      "OpenRouterを選んでいるときだけ★お気に入りが効かず、チャット画面のモデル一覧に出てこない不具合を修正しました。OpenRouterは他と選択肢の作り方が違い、一覧を作り直すときに★のグループごと消えていたためです。",
+      "※ OpenRouterのモデルを一覧に出すには、設定の「OpenRouter 追加モデル (カンマ区切り)」にモデルIDを書いてください（モデル数が多いため自動取得はしていません）。書いたモデルは★で先頭に固定できます。"
+    ],
     "1.47": [
       "OpenRouter経由のモデルで思考プロセスが表示されない問題を修正しました。OpenRouterは思考を「reasoning」という項目で返すのに、アプリが「reasoning_content」（DeepSeek系の名前）しか見ていなかったため捨てられていました。あわせて、OpenRouterには思考を返すよう明示的に要求するようにしました（「Include Thoughts」がONのとき）。",
       "思考の長さは、Gemini・Claudeと同じ「Thinking Budget」の値をそのまま使います（空欄なら指定なし）。"
@@ -5490,6 +5494,34 @@ ${error.message}`);
       }
     },
     // プロバイダーに応じたモデルリストの更新
+    // ★ お気に入りモデルをドロップダウンの先頭に固定表示する（今の選択肢に有るものだけ）。
+    // ヘッダーのモデル選択にも innerHTML ミラーで反映されるため、実利用時もワンタップで選べる。
+    // OpenRouter は選択肢の作り方が違う（追加モデルのみ）ので、共通処理として切り出してある。
+    applyFavoriteModelsGroup(modelSelect) {
+      if (!modelSelect) return;
+      const stale = modelSelect.querySelector("#favorite-models-group");
+      if (stale) stale.remove();
+      const favorites = state.settings && Array.isArray(state.settings.favoriteModels) ? state.settings.favoriteModels : [];
+      if (favorites.length === 0) return;
+      const existingOptions = Array.from(modelSelect.querySelectorAll("option"));
+      const favGroup = document.createElement("optgroup");
+      favGroup.label = "★ お気に入り";
+      favGroup.id = "favorite-models-group";
+      favorites.forEach((favId) => {
+        const src = existingOptions.find((o) => o.value === favId);
+        if (!src) return;
+        const opt = document.createElement("option");
+        opt.value = favId;
+        opt.textContent = "★ " + src.textContent;
+        if (src.dataset.provider) opt.dataset.provider = src.dataset.provider;
+        if (src.dataset.userDefined) opt.dataset.userDefined = src.dataset.userDefined;
+        favGroup.appendChild(opt);
+      });
+      if (favGroup.children.length > 0) {
+        modelSelect.insertBefore(favGroup, modelSelect.firstChild);
+      }
+    },
+    // プロバイダーに応じたモデルリストの更新
     updateModelOptions(provider) {
       if (provider === "openrouter") {
         const orSelect = elements.modelNameSelect;
@@ -5498,6 +5530,7 @@ ${error.message}`);
             if (group.id !== "user-defined-models-group") group.remove();
           });
           Array.from(orSelect.querySelectorAll("option:not([data-user-defined])")).forEach((o) => o.remove());
+          this.applyFavoriteModelsGroup(orSelect);
         }
         if (elements.openrouterModelInput) {
           const currentModel = state.settings.modelName || DEFAULT_OPENROUTER_MODEL;
@@ -5585,25 +5618,7 @@ ${error.message}`);
           modelSelect.appendChild(fetchedGroup);
         }
       }
-      const favorites = state.settings && Array.isArray(state.settings.favoriteModels) ? state.settings.favoriteModels : [];
-      if (favorites.length > 0) {
-        const existingOptions = Array.from(modelSelect.querySelectorAll("option"));
-        const favGroup = document.createElement("optgroup");
-        favGroup.label = "★ お気に入り";
-        favGroup.id = "favorite-models-group";
-        favorites.forEach((favId) => {
-          const src = existingOptions.find((o) => o.value === favId);
-          if (!src) return;
-          const opt = document.createElement("option");
-          opt.value = favId;
-          opt.textContent = "★ " + src.textContent;
-          if (src.dataset.provider) opt.dataset.provider = src.dataset.provider;
-          favGroup.appendChild(opt);
-        });
-        if (favGroup.children.length > 0) {
-          modelSelect.insertBefore(favGroup, modelSelect.firstChild);
-        }
-      }
+      this.applyFavoriteModelsGroup(modelSelect);
       let defaultModel;
       if (provider === "zai") {
         defaultModel = DEFAULT_ZAI_MODEL;
