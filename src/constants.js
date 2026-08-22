@@ -179,6 +179,10 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 export const VERSION_HISTORY = {
+    '1.47': [
+        'OpenRouter経由のモデルで思考プロセスが表示されない問題を修正しました。OpenRouterは思考を「reasoning」という項目で返すのに、アプリが「reasoning_content」（DeepSeek系の名前）しか見ていなかったため捨てられていました。あわせて、OpenRouterには思考を返すよう明示的に要求するようにしました（「Include Thoughts」がONのとき）。',
+        '思考の長さは、Gemini・Claudeと同じ「Thinking Budget」の値をそのまま使います（空欄なら指定なし）。',
+    ],
     '1.46': [
         'プロジェクト管理で下へスクロールすると、閉じる（✕）ボタンが画面外へ流れて押せなくなっていたのを修正しました。タイトルと✕を上部に固定し、中身だけがスクロールするようにしています。',
     ],

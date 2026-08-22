@@ -119,11 +119,12 @@
 | Gemini 2.5 Pro / Gemini 3.x | Googleの思考機能（thinkingConfig） |
 | Claude Opus 4.6 / 4.7 / Sonnet 4.6 | Anthropic Adaptive Thinking |
 | DeepSeek-R1 / deepseek-reasoner | reasoning_content フィールド |
+| OpenRouter経由の推論モデル | reasoning フィールド（「Include Thoughts」ON時に自動要求） |
 | Groqのr1系モデルなど | `<think>` タグ |
 
 ## 設定方法
 
-### Gemini / DeepSeek / Groq の場合
+### Gemini / DeepSeek / Groq / OpenRouter の場合
 
 1. 設定画面の **「その他パラメータ」** セクションを開きます。
 2. **「Thinking Budget」** に数値を入力します（推奨：`1024`）。
@@ -541,6 +542,7 @@ AIの発言を音声で読み上げ、wavとして保存もできます。Google
 
 | 日付 | 内容 |
 |---|---|
+| **2026-08-22** | **OpenRouterで思考プロセスが表示されない問題を修正**：OpenRouterは思考を `reasoning` 項目で返すのに、アプリが `reasoning_content`（DeepSeek系の名前）しか見ておらず捨てていました。あわせて思考を返すよう明示的に要求するように（「Include Thoughts」ON時）。思考の長さは既存の「Thinking Budget」を流用します |
 | **2026-08-14** | **Gemini 3.7 Flash に対応**：モデル選択に追加。2026年12月31日までは半額（入力$0.75／出力$3.75）で、2027年1月1日から通常単価に戻ります。推定コストは送信日時に応じて自動で切り替わります。あわせて **Gemini 3.6 Flash の推定コストが2倍になっていた不具合を修正**（3.6 Flash も年内は半額のため） |
 | **2026-08-13** | **全チャット横断の使用量サマリーを追加**：ⓘ の「全チャットの使用量」から、今月／先月／過去30日／全期間の推定コストとモデル別の内訳を確認できます（DeepSeekはピーク時間帯の分も表示）。GPT・Gemini・Grok 4.6・OpenRouter経由のモデルの料金にも対応し、モデル選択に Grok 4.6 を追加 |
 | **2026-08-13** | **DeepSeek V4の料金改定に対応**：8/16 16:00 UTC（日本時間8/17 1:00）からの新料金でⓘの推定コストを計算します。改定前のメッセージは旧料金のまま計算するので、過去のチャットの金額は変わりません |
