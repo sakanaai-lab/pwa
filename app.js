@@ -2017,6 +2017,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.47": [
+      "OpenRouter経由のモデルで思考プロセスが表示されない問題を修正しました。OpenRouterは思考を「reasoning」という項目で返すのに、アプリが「reasoning_content」（DeepSeek系の名前）しか見ていなかったため捨てられていました。あわせて、OpenRouterには思考を返すよう明示的に要求するようにしました（「Include Thoughts」がONのとき）。",
+      "思考の長さは、Gemini・Claudeと同じ「Thinking Budget」の値をそのまま使います（空欄なら指定なし）。"
+    ],
     "1.46": [
       "プロジェクト管理で下へスクロールすると、閉じる（✕）ボタンが画面外へ流れて押せなくなっていたのを修正しました。タイトルと✕を上部に固定し、中身だけがスクロールするようにしています。"
     ],
@@ -8853,6 +8857,21 @@ AI: ${firstModelContent}`;
     }
   };
 
+  // src/utils/reasoning.js
+  function extractReasoningText(message) {
+    if (!message || typeof message !== "object") return "";
+    for (const key of ["reasoning_content", "reasoning"]) {
+      const v = message[key];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+    if (Array.isArray(message.reasoning_details)) {
+      const joined = message.reasoning_details.map((d) => d && typeof d === "object" ? d.text || d.summary || "" : "").filter((t) => typeof t === "string" && t.trim()).join("\n");
+      if (joined.trim()) return joined;
+    }
+    return "";
+  }
+  __name(extractReasoningText, "extractReasoningText");
+
   // src/api.js
   function extractSystemText(systemInstruction) {
     if (!systemInstruction) return null;
@@ -8976,8 +8995,9 @@ AI: ${firstModelContent}`;
         for (const choice of openAIResponse.choices) {
           const parts = [];
           const message = choice.message;
-          if (message.reasoning_content) {
-            parts.push({ text: message.reasoning_content, thought: true });
+          const reasoningText = extractReasoningText(message);
+          if (reasoningText) {
+            parts.push({ text: reasoningText, thought: true });
           }
           if (message.content) {
             if (typeof message.content === "string") {
@@ -9538,6 +9558,9 @@ AI: ${firstModelContent}`;
         if (generationConfig.topP !== void 0) {
           requestBody.top_p = generationConfig.topP;
         }
+      }
+      if (cfg.supportsReasoning && state.settings.includeThoughts) {
+        requestBody.reasoning = state.settings.thinkingBudget > 0 ? { enabled: true, max_tokens: state.settings.thinkingBudget } : { enabled: true };
       }
       if (state.settings.geminiEnableFunctionCalling && window.functionDeclarations) {
         const openAITools = [];
@@ -10196,6 +10219,7 @@ ${knowledgeText}`;
             getApiKey: /* @__PURE__ */ __name(() => state.settings.openrouterApiKey, "getApiKey"),
             missingKeyMessage: "OpenRouter APIキーが設定されていません。",
             extraHeaders: /* @__PURE__ */ __name(() => ({ "HTTP-Referer": window.location.origin, "X-Title": "Aquarium Chat" }), "extraHeaders"),
+            supportsReasoning: true,
             verboseError: true
           }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
         case "bedrock":
