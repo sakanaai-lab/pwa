@@ -16,6 +16,23 @@
  * @returns {{model: string, isFallback: boolean}}
  *   isFallback が true のときだけ、保存済みの設定を書き換えてよい
  */
+/**
+ * 「追加モデル」グループを選択肢の末尾へ移動する。
+ *
+ * index.html では #user-defined-models-group が静的に置かれているため、
+ * 何もしないと標準モデルより前（＝一覧の途中）に表示されてしまう。
+ * 既に select の子であっても appendChild で付け直して末尾へ送る。
+ * 呼び出し側はこの直後に「API取得モデル」グループを追加するので、
+ * 最終的な並びは 標準モデル → 追加モデル → API取得モデル になる。
+ *
+ * @param {Element} modelSelect モデル選択の select 要素
+ * @param {Element} [userDefinedGroup] 追加モデルの optgroup（無ければ何もしない）
+ */
+export function moveUserDefinedGroupToEnd(modelSelect, userDefinedGroup) {
+    if (!modelSelect || !userDefinedGroup) return;
+    modelSelect.appendChild(userDefinedGroup);
+}
+
 export function resolveSelectedModel({ savedModel, availableValues, lastUsed, defaultModel } = {}) {
     const values = Array.isArray(availableValues) ? availableValues : [];
     if (savedModel && values.includes(savedModel)) {

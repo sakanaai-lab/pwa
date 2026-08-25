@@ -2017,6 +2017,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.51": [
+      "モデル一覧で「追加モデル」が標準モデルより前（一覧の中途半端な位置）に出ていたのを直しました。これからは 標準モデル → 追加モデル → API取得モデル の順に並びます。",
+      "※ 表示位置が変わるだけで、選べるモデルや★お気に入りの並び（常に先頭）は変わりません。"
+    ],
     "1.50": [
       "GPT-5.6 Sol の値下げ（2026年8月21日）に対応しました。100万トークンあたり入力$5→$4（20%減）、出力$30→$20（33%減）、キャッシュヒット$0.50→$0.40 です。ⓘ の推定コストが新単価で計算されます。",
       "値下げ前に送ったメッセージは、これまでどおり当時の単価で計算します。過去のチャットの推定コストが後から下がって見えることはありません。",
@@ -5277,6 +5281,11 @@ ${error.message}`);
   };
 
   // src/utils/model-select.js
+  function moveUserDefinedGroupToEnd(modelSelect, userDefinedGroup) {
+    if (!modelSelect || !userDefinedGroup) return;
+    modelSelect.appendChild(userDefinedGroup);
+  }
+  __name(moveUserDefinedGroupToEnd, "moveUserDefinedGroupToEnd");
   function resolveSelectedModel({ savedModel, availableValues, lastUsed, defaultModel } = {}) {
     const values = Array.isArray(availableValues) ? availableValues : [];
     if (savedModel && values.includes(savedModel)) {
@@ -5603,9 +5612,7 @@ ${error.message}`);
           modelSelect.appendChild(option);
         }
       });
-      if (userDefinedGroup && userDefinedGroup.parentNode !== modelSelect) {
-        modelSelect.appendChild(userDefinedGroup);
-      }
+      moveUserDefinedGroupToEnd(modelSelect, userDefinedGroup);
       const standardValues = models.map((m) => m.value);
       if (userDefinedGroup) {
         userDefinedGroup.disabled = false;
