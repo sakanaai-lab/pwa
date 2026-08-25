@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { moveUserDefinedGroupToEnd, resolveSelectedModel } from '../src/utils/model-select.js';
+import { isImageGenerationModel, moveUserDefinedGroupToEnd, resolveSelectedModel } from '../src/utils/model-select.js';
 
 const ANTHROPIC = ['claude-opus-5', 'claude-opus-4-6', 'claude-sonnet-4-6'];
 
@@ -151,5 +151,37 @@ describe('moveUserDefinedGroupToEnd', () => {
         expect(() => moveUserDefinedGroupToEnd(sel, null)).not.toThrow();
         expect(() => moveUserDefinedGroupToEnd(null, null)).not.toThrow();
         expect(groupLabelsInOrder(sel)).toEqual(before);
+    });
+});
+
+describe('isImageGenerationModel', () => {
+    // 回帰: Nano Banana を名指ししていたため、後継の -image モデルを選ぶと
+    // 画像生成として扱われなかった
+    it('後継の画像生成モデルを認識する', () => {
+        for (const m of ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image']) {
+            expect(isImageGenerationModel(m)).toBe(true);
+        }
+    });
+
+    it('提供終了した Nano Banana も引き続き認識する（過去のチャットのため）', () => {
+        expect(isImageGenerationModel('gemini-2.5-flash-image-preview')).toBe(true);
+    });
+
+    it('imagen / image-generation 系も認識する', () => {
+        expect(isImageGenerationModel('imagen-4.0-generate-001')).toBe(true);
+        expect(isImageGenerationModel('gemini-2.0-flash-image-generation')).toBe(true);
+    });
+
+    it('テキストモデルは誤検知しない', () => {
+        for (const m of ['gemini-3.5-flash', 'gemini-2.5-pro', 'claude-opus-5', 'grok-4.6', 'openai/gpt-oss-120b']) {
+            expect(isImageGenerationModel(m)).toBe(false);
+        }
+    });
+
+    it('空・非文字列でも落ちない', () => {
+        expect(isImageGenerationModel('')).toBe(false);
+        expect(isImageGenerationModel(null)).toBe(false);
+        expect(isImageGenerationModel(undefined)).toBe(false);
+        expect(isImageGenerationModel(123)).toBe(false);
     });
 });

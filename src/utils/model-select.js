@@ -5,7 +5,7 @@
  *
  * 保存済みのモデル（settings.modelName）を最優先する。
  * DOMの現在値を優先すると、ページ再読み込み直後は index.html の静的な既定値
- * （gemini-2.0-flash）が入っているため「このプロバイダーには無い」と誤判定され、
+ * （gemini-2.5-pro）が入っているため「このプロバイダーには無い」と誤判定され、
  * 保存済みのモデルが既定値で上書きされてしまう。
  *
  * @param {object} params
@@ -16,6 +16,25 @@
  * @returns {{model: string, isFallback: boolean}}
  *   isFallback が true のときだけ、保存済みの設定を書き換えてよい
  */
+/**
+ * 画像生成モデルかどうかを判定する。
+ *
+ * 以前は 'gemini-2.5-flash-image-preview'（Nano Banana）だけを名指ししていたが、
+ * そのモデルは 2026-01-15 に提供終了し、後継は gemini-3.1-flash-image /
+ * gemini-3-pro-image のように「-image」で終わる名前になった。名指しのままだと
+ * 後継を選んでも通常のテキストモデル扱いになってしまうため、名前の形で判定する。
+ *
+ * @param {string} model モデルID
+ * @returns {boolean}
+ */
+export function isImageGenerationModel(model) {
+    if (typeof model !== 'string' || !model) return false;
+    const m = model.toLowerCase();
+    // '-image' で終わる / '-image-' を含む（例: -image-preview）
+    if (/(^|-)image(-|$)/.test(m)) return true;
+    return m.includes('image-generation') || m.includes('imagen');
+}
+
 /**
  * 「追加モデル」グループを選択肢の末尾へ移動する。
  *
