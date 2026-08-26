@@ -4,6 +4,7 @@ import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
+import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
 
 export const chatMethods = {
     // --- スワイプ処理ここまで ---
@@ -755,20 +756,16 @@ export const chatMethods = {
                 const apiKey = state.settings.apiKey;
                 if (!apiKey) return;
                 const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
-                const resp = await fetch(endpoint, {
+                const titleRequestBody = {
+                    contents: [{ role: 'user', parts: [{ text: titlePrompt }] }],
+                    generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+                    safetySettings: getGeminiSafetySettings()
+                };
+                // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
+                const resp = await fetchGeminiWithSafetyRetry(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ role: 'user', parts: [{ text: titlePrompt }] }],
-                        generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
-                        safetySettings: [
-                            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-                        ]
-                    })
-                });
+                    headers: { 'Content-Type': 'application/json' }
+                }, titleRequestBody);
                 if (resp.ok) {
                     const data = await resp.json();
                     title = data.candidates?.[0]?.content?.parts?.find(p => p.text && p.thought !== true)?.text?.trim();

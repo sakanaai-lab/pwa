@@ -2044,6 +2044,12 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
+    "1.53": [
+      "Gemini のセンシティブフィルターを、これまでの BLOCK_NONE から OFF に変更しました。BLOCK_NONE は「判定はした上で、確率に関わらず返す」という意味で、OFF は「フィルターそのものを止める」です。Gemini 2.5 / 3 系は既定が OFF なので、これまでは明示的に指定することでかえって厳しくなっていました。",
+      "OFF に対応していない古いモデルでは、エラーになった時点で自動的に BLOCK_NONE へ落として送り直します（1回だけ）。この切り替えは保存しないので、再読み込みするとまた OFF から試します。",
+      "チャット本体だけでなく、要約・メモリ学習・タイトル生成・校正・思考プロセスの翻訳など、Gemini を使うすべての箇所に同じ設定が入ります。",
+      "※ 児童安全に関わる内容など、中核的な危害への保護は設定に関係なく常にブロックされます（API側で固定されており、変更できません）。"
+    ],
     "1.52": [
       "提供が終了したモデルをモデル一覧から取り除き、各社の現行モデルに入れ替えました。Gemini は 2.0 Flash / 2.0 Flash-Lite と旧プレビュー版を外し、3.6 / 3.5 Flash・3.5 Flash-Lite・3.1 Flash-Lite・3 Flash（プレビュー）を追加しています。",
       "Groq と xAI は既定モデル自体が提供終了していて、選び直さないと最初のメッセージでエラーになる状態でした。Groq は GPT-OSS 120B、xAI は Grok 4.6 を既定にし、現行モデルへ入れ替えています。Claude と Bedrock も 3系（3.5 Sonnet / 3 Opus など）を外し、Sonnet 5 / Opus 4.6 / Haiku 4.5 などを追加しました。",
@@ -8164,6 +8170,58 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
     }
   };
 
+  // src/utils/safety.js
+  var GEMINI_ADJUSTABLE_HARM_CATEGORIES = [
+    "HARM_CATEGORY_HARASSMENT",
+    "HARM_CATEGORY_HATE_SPEECH",
+    "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+    "HARM_CATEGORY_DANGEROUS_CONTENT"
+  ];
+  var GEMINI_SAFETY_THRESHOLD_PRIMARY = "OFF";
+  var GEMINI_SAFETY_THRESHOLD_FALLBACK = "BLOCK_NONE";
+  var currentThreshold = GEMINI_SAFETY_THRESHOLD_PRIMARY;
+  function getGeminiSafetySettings() {
+    return GEMINI_ADJUSTABLE_HARM_CATEGORIES.map((category) => ({
+      category,
+      threshold: currentThreshold
+    }));
+  }
+  __name(getGeminiSafetySettings, "getGeminiSafetySettings");
+  function isSafetyThresholdRejection(errorData) {
+    const message = errorData?.error?.message;
+    if (typeof message !== "string" || !message) return false;
+    const m = message.toLowerCase();
+    const mentionsSafety = m.includes("safety_settings") || m.includes("safetysettings") || m.includes("harmblockthreshold") || m.includes("harm_category");
+    if (!mentionsSafety) return false;
+    return m.includes("threshold") || m.includes("off") || m.includes("invalid");
+  }
+  __name(isSafetyThresholdRejection, "isSafetyThresholdRejection");
+  function noteGeminiSafetyRejection(errorData) {
+    if (currentThreshold === GEMINI_SAFETY_THRESHOLD_FALLBACK) return false;
+    if (!isSafetyThresholdRejection(errorData)) return false;
+    currentThreshold = GEMINI_SAFETY_THRESHOLD_FALLBACK;
+    console.warn(
+      `[Safety] このモデルは threshold='${GEMINI_SAFETY_THRESHOLD_PRIMARY}' に非対応でした。'${GEMINI_SAFETY_THRESHOLD_FALLBACK}' で送り直します。`
+    );
+    return true;
+  }
+  __name(noteGeminiSafetyRejection, "noteGeminiSafetyRejection");
+  async function fetchGeminiWithSafetyRetry(endpoint, init, requestBody) {
+    const send = /* @__PURE__ */ __name(() => fetch(endpoint, { ...init, body: JSON.stringify(requestBody) }), "send");
+    const response = await send();
+    if (response.ok || response.status !== 400) return response;
+    let errorData = null;
+    try {
+      errorData = await response.clone().json();
+    } catch (e) {
+      return response;
+    }
+    if (!noteGeminiSafetyRejection(errorData)) return response;
+    requestBody.safetySettings = getGeminiSafetySettings();
+    return send();
+  }
+  __name(fetchGeminiWithSafetyRetry, "fetchGeminiWithSafetyRetry");
+
   // src/app-logic/chat.js
   var chatMethods = {
     // --- スワイプ処理ここまで ---
@@ -8834,20 +8892,15 @@ AI: ${firstModelContent}`;
           const apiKey = state.settings.apiKey;
           if (!apiKey) return;
           const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
-          const resp = await fetch(endpoint, {
+          const titleRequestBody = {
+            contents: [{ role: "user", parts: [{ text: titlePrompt }] }],
+            generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+            safetySettings: getGeminiSafetySettings()
+          };
+          const resp = await fetchGeminiWithSafetyRetry(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ role: "user", parts: [{ text: titlePrompt }] }],
-              generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
-              safetySettings: [
-                { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-                { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-              ]
-            })
-          });
+            headers: { "Content-Type": "application/json" }
+          }, titleRequestBody);
           if (resp.ok) {
             const data = await resp.json();
             title = data.candidates?.[0]?.content?.parts?.find((p) => p.text && p.thought !== true)?.text?.trim();
@@ -9372,20 +9425,10 @@ AI: ${firstModelContent}`;
       const requestBody = {
         contents: messagesForApi,
         ...Object.keys(finalGenerationConfig).length > 0 && { generationConfig: finalGenerationConfig },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
+        safetySettings: getGeminiSafetySettings()
       };
       if (isImageGenModel) {
-        requestBody.safetySettings = [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ];
+        requestBody.safetySettings = getGeminiSafetySettings();
       } else {
         if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0 && systemInstruction.parts[0].text) {
           const { _staticText, _dynamicText, ...cleanSystemInstruction } = systemInstruction;
@@ -9421,12 +9464,11 @@ AI: ${firstModelContent}`;
       try {
         const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Gemini API...`);
-        const response = await fetch(endpoint, {
+        const response = await fetchGeminiWithSafetyRetry(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify(requestBody),
           signal
-        });
+        }, requestBody);
         const receivedTimestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Gemini API. Status: ${response.status}`);
         if (!response.ok) {
@@ -9504,12 +9546,7 @@ AI: ${firstModelContent}`;
           contents: [{ role: "user", parts: [{ text: textToTranslate }] }],
           systemInstruction: { parts: [{ text: translationSystemPrompt }] },
           generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
-          safetySettings: [
-            { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-            { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-          ]
+          safetySettings: getGeminiSafetySettings()
         };
       }
       if (state.settings.dummyEnabled && state.settings.applyDummyToTranslate && state.settings.dummyUser) {
@@ -9546,7 +9583,11 @@ AI: ${firstModelContent}`;
           }
           const timeoutController = new AbortController();
           const timeoutId = setTimeout(() => timeoutController.abort(), 15e3);
-          const response = await fetch(endpoint, {
+          const response = !isDeepSeek ? await fetchGeminiWithSafetyRetry(endpoint, {
+            method: "POST",
+            headers: fetchHeaders,
+            signal: timeoutController.signal
+          }, requestBody) : await fetch(endpoint, {
             method: "POST",
             headers: fetchHeaders,
             body: JSON.stringify(requestBody),
@@ -10427,12 +10468,7 @@ ${knowledgeText}`;
         contents: [{ role: "user", parts: [{ text: textToProofread }] }],
         ...Object.keys(generationConfig).length > 0 && { generationConfig },
         ...systemInstruction && { systemInstruction },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-        ]
+        safetySettings: getGeminiSafetySettings()
       };
       if (state.settings.dummyEnabled && state.settings.applyDummyToProofread && state.settings.dummyUser) {
         requestBody.contents.push({
@@ -10469,12 +10505,11 @@ ${knowledgeText}`;
           } else {
             uiUtils.setLoadingIndicatorText(`校正処理${attempt}回目の再試行中...`);
           }
-          const response = await fetch(endpoint, {
+          const response = await fetchGeminiWithSafetyRetry(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-            body: JSON.stringify(requestBody),
             signal: state.abortController?.signal
-          });
+          }, requestBody);
           if (!response.ok) {
             let errorMsg = `校正APIエラー (${response.status}): ${response.statusText}`;
             try {
@@ -13591,12 +13626,6 @@ ${msg}`);
   __name(summarizeUsage, "summarizeUsage");
 
   // src/app-logic/memory.js
-  var GEMINI_SAFETY_OFF = [
-    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
-  ];
   function getOpenAICompatConfig(provider) {
     const keys = {
       openai: state.settings.openaiApiKey,
@@ -13650,7 +13679,7 @@ ${msg}`);
         contents: [{ role: "user", parts: [{ text: userContent }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
         generationConfig: { temperature, maxOutputTokens: maxTokens },
-        safetySettings: GEMINI_SAFETY_OFF
+        safetySettings: getGeminiSafetySettings()
       };
       parse = /* @__PURE__ */ __name((d) => d.candidates?.[0]?.content?.parts?.[0]?.text, "parse");
     } else {
@@ -13669,7 +13698,7 @@ ${msg}`);
       };
       parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
     }
-    const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+    const response = provider === "gemini" ? await fetchGeminiWithSafetyRetry(endpoint, { method: "POST", headers }, body) : await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);
