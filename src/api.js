@@ -5,6 +5,7 @@ import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { isImageGenerationModel } from './utils/model-select.js';
+import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from './utils/safety.js';
 import { state } from './state.js';
 import { uiUtils } from './ui.js';
 
@@ -549,21 +550,11 @@ export const apiUtils = {
         const requestBody = {
             contents: messagesForApi,
             ...(Object.keys(finalGenerationConfig).length > 0 && { generationConfig: finalGenerationConfig }),
-            safetySettings : [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-            ]
+            safetySettings : getGeminiSafetySettings()
         };
 
         if (isImageGenModel) {
-            requestBody.safetySettings = [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-            ];
+            requestBody.safetySettings = getGeminiSafetySettings();
         } else {
             if (systemInstruction && systemInstruction.parts && systemInstruction.parts.length > 0 && systemInstruction.parts[0].text) {
                 const { _staticText, _dynamicText, ...cleanSystemInstruction } = systemInstruction;
@@ -606,12 +597,12 @@ export const apiUtils = {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Gemini API...`);
 
-            const response = await fetch(endpoint, {
+            // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
+            const response = await fetchGeminiWithSafetyRetry(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-                body: JSON.stringify(requestBody),
                 signal
-            });
+            }, requestBody);
 
             const receivedTimestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Gemini API. Status: ${response.status}`);
@@ -699,12 +690,7 @@ export const apiUtils = {
                 contents: [{ role: 'user', parts: [{ text: textToTranslate }] }],
                 systemInstruction: { parts: [{ text: translationSystemPrompt }] },
                 generationConfig: { temperature: 0.1, thinkingConfig: { thinkingBudget: 0 } },
-                safetySettings: [
-                    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-                ]
+                safetySettings: getGeminiSafetySettings()
             };
         }
 
@@ -748,12 +734,19 @@ export const apiUtils = {
                 const timeoutController = new AbortController();
                 const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
 
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: fetchHeaders,
-                    body: JSON.stringify(requestBody),
-                    signal: timeoutController.signal
-                });
+                // Gemini のときだけ、'OFF' 非対応なら 'BLOCK_NONE' へ落として送り直す
+                const response = !isDeepSeek
+                    ? await fetchGeminiWithSafetyRetry(endpoint, {
+                        method: 'POST',
+                        headers: fetchHeaders,
+                        signal: timeoutController.signal
+                    }, requestBody)
+                    : await fetch(endpoint, {
+                        method: 'POST',
+                        headers: fetchHeaders,
+                        body: JSON.stringify(requestBody),
+                        signal: timeoutController.signal
+                    });
 
                 clearTimeout(timeoutId);
 

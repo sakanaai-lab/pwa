@@ -8,6 +8,7 @@ import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
 import { interruptibleSleep, sleep } from '../utils/format.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
+import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
 
 export const messageMethods = {
 
@@ -41,12 +42,7 @@ export const messageMethods = {
             contents: [{ role: 'user', parts: [{ text: textToProofread }] }],
             ...(Object.keys(generationConfig).length > 0 && { generationConfig }),
             ...(systemInstruction && { systemInstruction }),
-            safetySettings: [
-                { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-                { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-            ]
+            safetySettings: getGeminiSafetySettings()
         };
 
         if (state.settings.dummyEnabled && state.settings.applyDummyToProofread && state.settings.dummyUser) {
@@ -91,12 +87,12 @@ export const messageMethods = {
                     uiUtils.setLoadingIndicatorText(`校正処理${attempt}回目の再試行中...`);
                 }
 
-                const response = await fetch(endpoint, {
+                // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
+                const response = await fetchGeminiWithSafetyRetry(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-                    body: JSON.stringify(requestBody),
                     signal: state.abortController?.signal
-                });
+                }, requestBody);
 
                 if (!response.ok) {
                     let errorMsg = `校正APIエラー (${response.status}): ${response.statusText}`;
