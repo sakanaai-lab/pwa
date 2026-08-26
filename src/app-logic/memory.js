@@ -17,14 +17,7 @@ import { uiUtils } from '../ui.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
 import { calcMessageCost, getUsageRange, summarizeUsage } from '../utils/usage.js';
 import { htmlUtils } from '../utils/html.js';
-
-// Gemini のセーフティ設定（全カテゴリ BLOCK_NONE）。要約・メモリ学習で共通利用。
-const GEMINI_SAFETY_OFF = [
-    { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_NONE' },
-    { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
-];
+import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
 
 // OpenAI互換プロバイダーの APIキー・エンドポイントを返す。
 function getOpenAICompatConfig(provider) {
@@ -83,7 +76,7 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
             contents: [{ role: 'user', parts: [{ text: userContent }] }],
             systemInstruction: { parts: [{ text: systemPrompt }] },
             generationConfig: { temperature, maxOutputTokens: maxTokens },
-            safetySettings: GEMINI_SAFETY_OFF,
+            safetySettings: getGeminiSafetySettings(),
         };
         parse = (d) => d.candidates?.[0]?.content?.parts?.[0]?.text;
     } else {
@@ -104,7 +97,10 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
         parse = (d) => d.choices?.[0]?.message?.content;
     }
 
-    const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+    // Gemini のときだけ、'OFF' 非対応なら 'BLOCK_NONE' へ落として送り直す
+    const response = provider === 'gemini'
+        ? await fetchGeminiWithSafetyRetry(endpoint, { method: 'POST', headers }, body)
+        : await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);
