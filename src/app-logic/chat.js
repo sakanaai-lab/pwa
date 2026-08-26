@@ -4,7 +4,7 @@ import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
-import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
+import { getGeminiSafetySettings } from '../utils/safety.js';
 
 export const chatMethods = {
     // --- スワイプ処理ここまで ---
@@ -761,11 +761,11 @@ export const chatMethods = {
                     generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
                     safetySettings: getGeminiSafetySettings()
                 };
-                // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
-                const resp = await fetchGeminiWithSafetyRetry(endpoint, {
+                const resp = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                }, titleRequestBody);
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(titleRequestBody)
+                });
                 if (resp.ok) {
                     const data = await resp.json();
                     title = data.candidates?.[0]?.content?.parts?.find(p => p.text && p.thought !== true)?.text?.trim();

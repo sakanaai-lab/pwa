@@ -17,7 +17,7 @@ import { uiUtils } from '../ui.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
 import { calcMessageCost, getUsageRange, summarizeUsage } from '../utils/usage.js';
 import { htmlUtils } from '../utils/html.js';
-import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
+import { getGeminiSafetySettings } from '../utils/safety.js';
 
 // OpenAI互換プロバイダーの APIキー・エンドポイントを返す。
 function getOpenAICompatConfig(provider) {
@@ -97,10 +97,7 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
         parse = (d) => d.choices?.[0]?.message?.content;
     }
 
-    // Gemini のときだけ、'OFF' 非対応なら 'BLOCK_NONE' へ落として送り直す
-    const response = provider === 'gemini'
-        ? await fetchGeminiWithSafetyRetry(endpoint, { method: 'POST', headers }, body)
-        : await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
+    const response = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);

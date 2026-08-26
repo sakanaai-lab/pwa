@@ -5,7 +5,7 @@ import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { isImageGenerationModel } from './utils/model-select.js';
-import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from './utils/safety.js';
+import { getGeminiSafetySettings } from './utils/safety.js';
 import { state } from './state.js';
 import { uiUtils } from './ui.js';
 
@@ -597,12 +597,12 @@ export const apiUtils = {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Gemini API...`);
 
-            // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
-            const response = await fetchGeminiWithSafetyRetry(endpoint, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                body: JSON.stringify(requestBody),
                 signal
-            }, requestBody);
+            });
 
             const receivedTimestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Gemini API. Status: ${response.status}`);
@@ -734,19 +734,12 @@ export const apiUtils = {
                 const timeoutController = new AbortController();
                 const timeoutId = setTimeout(() => timeoutController.abort(), 15000);
 
-                // Gemini のときだけ、'OFF' 非対応なら 'BLOCK_NONE' へ落として送り直す
-                const response = !isDeepSeek
-                    ? await fetchGeminiWithSafetyRetry(endpoint, {
-                        method: 'POST',
-                        headers: fetchHeaders,
-                        signal: timeoutController.signal
-                    }, requestBody)
-                    : await fetch(endpoint, {
-                        method: 'POST',
-                        headers: fetchHeaders,
-                        body: JSON.stringify(requestBody),
-                        signal: timeoutController.signal
-                    });
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: fetchHeaders,
+                    body: JSON.stringify(requestBody),
+                    signal: timeoutController.signal
+                });
 
                 clearTimeout(timeoutId);
 
