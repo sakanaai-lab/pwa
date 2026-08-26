@@ -8,7 +8,7 @@ import { uiUtils } from '../ui.js';
 import { htmlUtils } from '../utils/html.js';
 import { interruptibleSleep, sleep } from '../utils/format.js';
 import { isRetiredModelError, resolveRetiredModel } from './retired-model.js';
-import { fetchGeminiWithSafetyRetry, getGeminiSafetySettings } from '../utils/safety.js';
+import { getGeminiSafetySettings } from '../utils/safety.js';
 
 export const messageMethods = {
 
@@ -87,12 +87,12 @@ export const messageMethods = {
                     uiUtils.setLoadingIndicatorText(`校正処理${attempt}回目の再試行中...`);
                 }
 
-                // 'OFF' 非対応のモデルなら 'BLOCK_NONE' へ落として一度だけ送り直す
-                const response = await fetchGeminiWithSafetyRetry(endpoint, {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+                    body: JSON.stringify(requestBody),
                     signal: state.abortController?.signal
-                }, requestBody);
+                });
 
                 if (!response.ok) {
                     let errorMsg = `校正APIエラー (${response.status}): ${response.statusText}`;
