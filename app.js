@@ -2045,9 +2045,8 @@ ${relationship_context}`;
   var DEFAULT_SAKANA_MODEL = "fugu";
   var VERSION_HISTORY = {
     "1.53": [
-      "Gemini のセンシティブフィルターを、これまでの BLOCK_NONE から OFF に変更しました。BLOCK_NONE は「判定はした上で、確率に関わらず返す」という意味で、OFF は「フィルターそのものを止める」です。Gemini 2.5 / 3 系は既定が OFF なので、これまでは明示的に指定することでかえって厳しくなっていました。",
-      "OFF に対応していない古いモデルでは、エラーになった時点で自動的に BLOCK_NONE へ落として送り直します（1回だけ）。この切り替えは保存しないので、再読み込みするとまた OFF から試します。",
-      "チャット本体だけでなく、要約・メモリ学習・タイトル生成・校正・思考プロセスの翻訳など、Gemini を使うすべての箇所に同じ設定が入ります。",
+      "Gemini のセンシティブフィルター設定を1箇所にまとめました。これまで同じ内容が6箇所（チャット送信・思考プロセスの翻訳・要約/メモリ学習・タイトル生成・校正）にコピーされていて、片方だけ直すと食い違う状態でした。内部の整理なので、フィルターの効き方はこれまでと変わりません。",
+      "設定内容もこれまでどおり、調整できる4カテゴリ（ハラスメント・ヘイト・性的表現・危険な行為）すべてを BLOCK_NONE にしています。つまり以前から実質フィルターオフのままです。",
       "※ 児童安全に関わる内容など、中核的な危害への保護は設定に関係なく常にブロックされます（API側で固定されており、変更できません）。"
     ],
     "1.52": [
@@ -8177,50 +8176,14 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
     "HARM_CATEGORY_SEXUALLY_EXPLICIT",
     "HARM_CATEGORY_DANGEROUS_CONTENT"
   ];
-  var GEMINI_SAFETY_THRESHOLD_PRIMARY = "OFF";
-  var GEMINI_SAFETY_THRESHOLD_FALLBACK = "BLOCK_NONE";
-  var currentThreshold = GEMINI_SAFETY_THRESHOLD_PRIMARY;
+  var GEMINI_SAFETY_THRESHOLD = "BLOCK_NONE";
   function getGeminiSafetySettings() {
     return GEMINI_ADJUSTABLE_HARM_CATEGORIES.map((category) => ({
       category,
-      threshold: currentThreshold
+      threshold: GEMINI_SAFETY_THRESHOLD
     }));
   }
   __name(getGeminiSafetySettings, "getGeminiSafetySettings");
-  function isSafetyThresholdRejection(errorData) {
-    const message = errorData?.error?.message;
-    if (typeof message !== "string" || !message) return false;
-    const m = message.toLowerCase();
-    const mentionsSafety = m.includes("safety_settings") || m.includes("safetysettings") || m.includes("harmblockthreshold") || m.includes("harm_category");
-    if (!mentionsSafety) return false;
-    return m.includes("threshold") || m.includes("off") || m.includes("invalid");
-  }
-  __name(isSafetyThresholdRejection, "isSafetyThresholdRejection");
-  function noteGeminiSafetyRejection(errorData) {
-    if (currentThreshold === GEMINI_SAFETY_THRESHOLD_FALLBACK) return false;
-    if (!isSafetyThresholdRejection(errorData)) return false;
-    currentThreshold = GEMINI_SAFETY_THRESHOLD_FALLBACK;
-    console.warn(
-      `[Safety] このモデルは threshold='${GEMINI_SAFETY_THRESHOLD_PRIMARY}' に非対応でした。'${GEMINI_SAFETY_THRESHOLD_FALLBACK}' で送り直します。`
-    );
-    return true;
-  }
-  __name(noteGeminiSafetyRejection, "noteGeminiSafetyRejection");
-  async function fetchGeminiWithSafetyRetry(endpoint, init, requestBody) {
-    const send = /* @__PURE__ */ __name(() => fetch(endpoint, { ...init, body: JSON.stringify(requestBody) }), "send");
-    const response = await send();
-    if (response.ok || response.status !== 400) return response;
-    let errorData = null;
-    try {
-      errorData = await response.clone().json();
-    } catch (e) {
-      return response;
-    }
-    if (!noteGeminiSafetyRejection(errorData)) return response;
-    requestBody.safetySettings = getGeminiSafetySettings();
-    return send();
-  }
-  __name(fetchGeminiWithSafetyRetry, "fetchGeminiWithSafetyRetry");
 
   // src/app-logic/chat.js
   var chatMethods = {
@@ -8897,10 +8860,11 @@ AI: ${firstModelContent}`;
             generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
             safetySettings: getGeminiSafetySettings()
           };
-          const resp = await fetchGeminiWithSafetyRetry(endpoint, {
+          const resp = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json" }
-          }, titleRequestBody);
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(titleRequestBody)
+          });
           if (resp.ok) {
             const data = await resp.json();
             title = data.candidates?.[0]?.content?.parts?.find((p) => p.text && p.thought !== true)?.text?.trim();
@@ -9464,11 +9428,12 @@ AI: ${firstModelContent}`;
       try {
         const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${timestamp}] Sending fetch request to Gemini API...`);
-        const response = await fetchGeminiWithSafetyRetry(endpoint, {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          body: JSON.stringify(requestBody),
           signal
-        }, requestBody);
+        });
         const receivedTimestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${receivedTimestamp}] Received response from Gemini API. Status: ${response.status}`);
         if (!response.ok) {
@@ -9583,11 +9548,7 @@ AI: ${firstModelContent}`;
           }
           const timeoutController = new AbortController();
           const timeoutId = setTimeout(() => timeoutController.abort(), 15e3);
-          const response = !isDeepSeek ? await fetchGeminiWithSafetyRetry(endpoint, {
-            method: "POST",
-            headers: fetchHeaders,
-            signal: timeoutController.signal
-          }, requestBody) : await fetch(endpoint, {
+          const response = await fetch(endpoint, {
             method: "POST",
             headers: fetchHeaders,
             body: JSON.stringify(requestBody),
@@ -10505,11 +10466,12 @@ ${knowledgeText}`;
           } else {
             uiUtils.setLoadingIndicatorText(`校正処理${attempt}回目の再試行中...`);
           }
-          const response = await fetchGeminiWithSafetyRetry(endpoint, {
+          const response = await fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify(requestBody),
             signal: state.abortController?.signal
-          }, requestBody);
+          });
           if (!response.ok) {
             let errorMsg = `校正APIエラー (${response.status}): ${response.statusText}`;
             try {
@@ -13698,7 +13660,7 @@ ${msg}`);
       };
       parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
     }
-    const response = provider === "gemini" ? await fetchGeminiWithSafetyRetry(endpoint, { method: "POST", headers }, body) : await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
+    const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       throw new Error(errorData.error?.message || `APIエラー: ${response.status}`);
