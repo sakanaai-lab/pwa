@@ -28,6 +28,7 @@ export const DEEPSEEK_API_BASE_URL = 'https://api.deepseek.com/chat/completions'
 export const XAI_API_BASE_URL = 'https://api.x.ai/v1/chat/completions';
 export const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1/chat/completions';
 export const SAKANA_API_BASE_URL = 'https://api.sakana.ai/v1/chat/completions';
+export const BAI_API_BASE_URL = 'https://api.b.ai/v1/chat/completions';
 export const DUPLICATE_SUFFIX = ' (コピー)';
 export const IMPORT_PREFIX = '(取込) ';
 export const LIGHT_THEME_COLOR = '#4a90e2';
@@ -211,7 +212,20 @@ export const SAKANA_MODELS = [
 ];
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
+// B.AI（OpenAI Chat Completions 互換の統合API）。
+// 利用できるモデルIDはAPIキーの権限ごとに違い、公開された固定の一覧が無い。
+// そのため標準リストは空にしてあり、設定の「モデル一括取得」(GET /v1/models) か
+// 「追加モデル」で埋める前提。既定モデルも決め打ちできないので空にしている。
+export const BAI_MODELS = [];
+export const DEFAULT_BAI_MODEL = '';
+
 export const VERSION_HISTORY = {
+    '1.55': [
+        'B.AI に対応しました。設定の「APIプロバイダー」で B.AI を選び、APIキーを入力すると使えます。OpenAI互換のAPIなので、思考プロセスの表示・要約・メモリ学習・タイトル自動生成・校正など、これまでの機能はそのまま動きます。',
+        'B.AI は使えるモデルIDがAPIキーごとに違い、決まった一覧がありません。APIキーを入れたあと設定の「すべてのプロバイダーのモデルを取得」を押すと、あなたのキーで使えるモデルが一覧に出ます。手入力したい場合は「追加モデル」にモデルIDを書いてください。',
+        'モデルを選ばずに送信しようとした場合は、何をすればよいかを説明するメッセージを出すようにしています。',
+        '※ B.AI は料金が公開されていないため、ⓘ の推定コストは表示されません（OpenRouter と同じ扱いです）。',
+    ],
     '1.54': [
         'Claude Sonnet 5 の単価を修正しました。専用の行が無く「claude-sonnet」で始まる名前として $3/$15 で計算していましたが、実際は $2/$10 です。ⓘ の推定コストが実際の1.5倍に出ていたので、過去のぶんも含めて正しい金額になります。',
         'これまで金額が出なかった Groq・Mistral・Z.ai の料金に対応しました。GPT-OSS 120B/20B、Qwen3.6 27B、Mistral Large 3 / Medium 3.5 / Small 4 / Codestral、GLM-4.6 / 4.5-Air / 4.5-Flash（無料）が ⓘ に表示されます。',
