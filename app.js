@@ -2062,6 +2062,11 @@ ${relationship_context}`;
   ];
   var DEFAULT_BAI_MODEL = "glm-5.3-flash";
   var VERSION_HISTORY = {
+    "1.58": [
+      "B.AI 経由のメッセージは、ⓘ の推定コストに金額を出さないようにしました。B.AI は上流と同じモデル名（glm-5.3-flash など）を扱いますが独自の料金体系で、無料で使える場合もあります。提供元（Z.ai / Qwen）の単価をそのまま当てると実際と違う金額になってしまうためです。トークン数はこれまでどおり数えます。",
+      "この判定のため、これから送るメッセージにはどのプロバイダー経由かを記録します。それ以前のメッセージは記録が無いので、これまでどおりモデル名だけで金額を出します（過去の集計が後から変わらないようにするためです）。",
+      "※ OpenRouter は提供元の価格をほぼそのまま通すため、これまでどおり金額を表示します。"
+    ],
     "1.57": [
       "B.AI で GLM-5.3 Flash と Qwen3.8 Flash を選べるようにしました。B.AI は使えるモデルがAPIキーごとに違うため、実際のアカウントで存在を確認できたこの2つだけを一覧に載せています。他のモデルは設定の「すべてのプロバイダーのモデルを取得」で一覧に追加できます。",
       "※ ⓘ の推定コストは、同じ名前のモデルの提供元（Z.ai / Qwen）の単価で計算します。B.AI 側の料金が公表されていないためで、B.AI での実際の請求額とは異なる場合があります（B.AI で無料で使える場合は、金額が出ていても実際はかかりません）。"
@@ -10889,6 +10894,7 @@ ${knowledgeText}`;
         const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
         const finalAggregatedMessage = this._aggregateMessages(newMessages);
         finalAggregatedMessage.modelName = state.settings.modelName;
+        finalAggregatedMessage.provider = state.settings.apiProvider || "gemini";
         state.currentMessages[modelMessageIndex] = finalAggregatedMessage;
         uiUtils.renderChatMessages();
         await dbUtils.saveChat(null, null, { skipPush: true });
@@ -11420,6 +11426,7 @@ ${knowledgeText}`;
           const newMessages = await this._internalHandleSend(historyForApi, generationConfig, systemInstruction);
           const newAggregatedMessage = this._aggregateMessages(newMessages);
           newAggregatedMessage.modelName = state.settings.modelName;
+          newAggregatedMessage.provider = state.settings.apiProvider || "gemini";
           const finalOriginalResponses = state.pendingCascadeResponses || [];
           state.pendingCascadeResponses = null;
           const siblingGroupId = finalOriginalResponses.length > 0 && finalOriginalResponses[0].siblingGroupId ? finalOriginalResponses[0].siblingGroupId : `gid-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -13644,7 +13651,9 @@ ${msg}`);
     }
   }
   __name(getUsageRange, "getUsageRange");
+  var UNPRICED_PROVIDERS = ["bai"];
   function calcMessageCost(msg) {
+    if (msg?.provider && UNPRICED_PROVIDERS.includes(msg.provider)) return null;
     const pricing = getPricing(msg?.modelName, msg?.timestamp);
     if (!pricing) return null;
     const u = msg.usageMetadata || {};
