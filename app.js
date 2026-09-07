@@ -1950,9 +1950,19 @@ ${relationship_context}`;
     "grok-2-1212": "grok-4.6"
   };
   var ZAI_MODELS = [
+    { value: "glm-5.3-flash", label: "GLM-5.3 Flash (最新・安価)" },
+    { value: "glm-5.3", label: "GLM-5.3" },
+    { value: "glm-5.2", label: "GLM-5.2" },
+    { value: "glm-5.1", label: "GLM-5.1" },
+    { value: "glm-5", label: "GLM-5" },
+    { value: "glm-4.7", label: "GLM-4.7" },
+    { value: "glm-4.7-flash", label: "GLM-4.7 Flash (無料)" },
+    { value: "glm-4.7-flashx", label: "GLM-4.7 FlashX (安価)" },
     { value: "glm-4.6", label: "GLM-4.6" },
     { value: "glm-4.5-Air", label: "GLM-4.5 Air" },
-    { value: "glm-4.5-flash", label: "GLM-4.5 Flash" }
+    { value: "glm-4.5-flash", label: "GLM-4.5 Flash (無料)" },
+    { value: "glm-4.6v", label: "GLM-4.6V (画像入力)", group: "ビジョン" },
+    { value: "glm-4.6v-flash", label: "GLM-4.6V Flash (画像入力・無料)", group: "ビジョン" }
   ];
   var BEDROCK_MODELS = [
     {
@@ -2049,6 +2059,12 @@ ${relationship_context}`;
   var BAI_MODELS = [];
   var DEFAULT_BAI_MODEL = "";
   var VERSION_HISTORY = {
+    "1.56": [
+      "Z.ai のモデル一覧を最新に更新しました。これまで GLM-4.6 までしか選べませんでしたが、GLM-5.3 Flash・5.3・5.2・5.1・5、GLM-4.7 系、画像入力のできる GLM-4.6V を追加しています。",
+      "GLM-4.7 Flash・GLM-4.5 Flash・GLM-4.6V Flash は無料です。GLM-5.3 Flash も 100万トークンあたり入力$0.075・出力$0.25 と安価です（現在50%割引中の価格）。",
+      "追加したモデルの料金にも対応したので、ⓘ の推定コストが表示されます。Qwen3.8 Flash（OpenRouter で qwen/qwen3.8-flash として使えます）の料金も追加しました。",
+      "※ これまで選んでいたモデルはそのまま残しているので、設定が勝手に変わることはありません。"
+    ],
     "1.55": [
       "B.AI に対応しました。設定の「APIプロバイダー」で B.AI を選び、APIキーを入力すると使えます。OpenAI互換のAPIなので、思考プロセスの表示・要約・メモリ学習・タイトル自動生成・校正など、これまでの機能はそのまま動きます。",
       "B.AI は使えるモデルIDがAPIキーごとに違い、決まった一覧がありません。APIキーを入れたあと設定の「すべてのプロバイダーのモデルを取得」を押すと、あなたのキーで使えるモデルが一覧に出ます。手入力したい場合は「追加モデル」にモデルIDを書いてください。",
@@ -13479,10 +13495,27 @@ ${msg}`);
     "ministral-3-8b": { in: 0.15, out: 0.15, cr: 0.15 },
     "ministral-3-3b": { in: 0.1, out: 0.1, cr: 0.1 },
     // Z.ai GLM — https://docs.z.ai/guides/overview/pricing
-    // 4.5 Flash は入出力とも無料。'glm-4-5-air' は 'glm-4-5' で始まるので順序に注意。
+    // Flash 系（4.7 / 4.5 / 4.6V）は入出力とも無料。
+    // 前方一致なので、長いキーを先に置くこと（'glm-5-3-flash' は 'glm-5-3' より前、
+    // 'glm-4-7-flashx' は 'glm-4-7-flash' より前、'glm-5-1' 等は 'glm-5' より前）。
+    "glm-5-3-flash": { in: 0.075, out: 0.25, cr: 0.015 },
+    // 現在50%割引中の価格
+    "glm-5-3": { in: 1.4, out: 4.4, cr: 0.26 },
+    "glm-5-2": { in: 1.4, out: 4.4, cr: 0.26 },
+    "glm-5-1": { in: 1.4, out: 4.4, cr: 0.26 },
+    "glm-5": { in: 1, out: 3.2, cr: 0.2 },
+    "glm-4-7-flashx": { in: 0.07, out: 0.4, cr: 0.01 },
+    "glm-4-7-flash": { in: 0, out: 0, cr: 0 },
+    "glm-4-7": { in: 0.6, out: 2.2, cr: 0.11 },
+    "glm-4-6v-flashx": { in: 0.04, out: 0.4, cr: 4e-3 },
+    "glm-4-6v-flash": { in: 0, out: 0, cr: 0 },
+    "glm-4-6v": { in: 0.3, out: 0.9, cr: 0.05 },
     "glm-4-6": { in: 0.6, out: 2.2, cr: 0.11 },
     "glm-4-5-air": { in: 0.2, out: 1.1, cr: 0.03 },
     "glm-4-5-flash": { in: 0, out: 0, cr: 0 },
+    // Qwen — https://www.qwencloud.com/models/qwen3.8-flash
+    // OpenRouter 経由（'qwen/qwen3.8-flash'）でもベンダー接頭辞が外れて一致する。
+    "qwen3-8-flash": { in: 0.15, out: 0.47, cr: 0.016 },
     // OpenAI — https://developers.openai.com/api/docs/pricing
     // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
     "gpt-5-6-sol": { in: 4, out: 20, cr: 0.4 },

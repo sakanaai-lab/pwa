@@ -93,10 +93,22 @@ export const RETIRED_MODEL_MAP = {
     'grok-2-1212': 'grok-4.6',
 };
 
+// 既存の 'glm-4.5-Air'（大文字A）は、保存済み設定を持つ人のモデルが
+// 既定値へ勝手に戻ってしまうため、表記を変えずそのまま残している。
 export const ZAI_MODELS = [
+    { value: 'glm-5.3-flash', label: 'GLM-5.3 Flash (最新・安価)' },
+    { value: 'glm-5.3', label: 'GLM-5.3' },
+    { value: 'glm-5.2', label: 'GLM-5.2' },
+    { value: 'glm-5.1', label: 'GLM-5.1' },
+    { value: 'glm-5', label: 'GLM-5' },
+    { value: 'glm-4.7', label: 'GLM-4.7' },
+    { value: 'glm-4.7-flash', label: 'GLM-4.7 Flash (無料)' },
+    { value: 'glm-4.7-flashx', label: 'GLM-4.7 FlashX (安価)' },
     { value: 'glm-4.6', label: 'GLM-4.6' },
     { value: 'glm-4.5-Air', label: 'GLM-4.5 Air' },
-    { value: 'glm-4.5-flash', label: 'GLM-4.5 Flash' },
+    { value: 'glm-4.5-flash', label: 'GLM-4.5 Flash (無料)' },
+    { value: 'glm-4.6v', label: 'GLM-4.6V (画像入力)', group: 'ビジョン' },
+    { value: 'glm-4.6v-flash', label: 'GLM-4.6V Flash (画像入力・無料)', group: 'ビジョン' },
 ];
 
 // Bedrock は基本モデルIDのままだと on-demand で呼べず、推論プロファイルの接頭辞
@@ -220,6 +232,12 @@ export const BAI_MODELS = [];
 export const DEFAULT_BAI_MODEL = '';
 
 export const VERSION_HISTORY = {
+    '1.56': [
+        'Z.ai のモデル一覧を最新に更新しました。これまで GLM-4.6 までしか選べませんでしたが、GLM-5.3 Flash・5.3・5.2・5.1・5、GLM-4.7 系、画像入力のできる GLM-4.6V を追加しています。',
+        'GLM-4.7 Flash・GLM-4.5 Flash・GLM-4.6V Flash は無料です。GLM-5.3 Flash も 100万トークンあたり入力$0.075・出力$0.25 と安価です（現在50%割引中の価格）。',
+        '追加したモデルの料金にも対応したので、ⓘ の推定コストが表示されます。Qwen3.8 Flash（OpenRouter で qwen/qwen3.8-flash として使えます）の料金も追加しました。',
+        '※ これまで選んでいたモデルはそのまま残しているので、設定が勝手に変わることはありません。',
+    ],
     '1.55': [
         'B.AI に対応しました。設定の「APIプロバイダー」で B.AI を選び、APIキーを入力すると使えます。OpenAI互換のAPIなので、思考プロセスの表示・要約・メモリ学習・タイトル自動生成・校正など、これまでの機能はそのまま動きます。',
         'B.AI は使えるモデルIDがAPIキーごとに違い、決まった一覧がありません。APIキーを入れたあと設定の「すべてのプロバイダーのモデルを取得」を押すと、あなたのキーで使えるモデルが一覧に出ます。手入力したい場合は「追加モデル」にモデルIDを書いてください。',
