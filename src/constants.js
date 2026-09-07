@@ -225,13 +225,22 @@ export const SAKANA_MODELS = [
 export const DEFAULT_SAKANA_MODEL = 'fugu';
 
 // B.AI（OpenAI Chat Completions 互換の統合API）。
-// 利用できるモデルIDはAPIキーの権限ごとに違い、公開された固定の一覧が無い。
-// そのため標準リストは空にしてあり、設定の「モデル一括取得」(GET /v1/models) か
-// 「追加モデル」で埋める前提。既定モデルも決め打ちできないので空にしている。
-export const BAI_MODELS = [];
-export const DEFAULT_BAI_MODEL = '';
+// 利用できるモデルIDはAPIキーの権限ごとに違い、公開された固定の一覧が無い
+// （公式ドキュメントの例はすべて 'your-model-id' というプレースホルダ）。
+// ここに載せているのは実アカウントで存在を確認できたものだけ。
+// 他のモデルは設定の「モデル一括取得」(GET /v1/models) か「追加モデル」で埋める。
+// IDは上流の素の表記そのまま（'zai/' のようなベンダー接頭辞は付かない）。
+export const BAI_MODELS = [
+    { value: 'glm-5.3-flash', label: 'GLM-5.3 Flash' },
+    { value: 'qwen3.8-flash', label: 'Qwen3.8 Flash' },
+];
+export const DEFAULT_BAI_MODEL = 'glm-5.3-flash';
 
 export const VERSION_HISTORY = {
+    '1.57': [
+        'B.AI で GLM-5.3 Flash と Qwen3.8 Flash を選べるようにしました。B.AI は使えるモデルがAPIキーごとに違うため、実際のアカウントで存在を確認できたこの2つだけを一覧に載せています。他のモデルは設定の「すべてのプロバイダーのモデルを取得」で一覧に追加できます。',
+        '※ ⓘ の推定コストは、同じ名前のモデルの提供元（Z.ai / Qwen）の単価で計算します。B.AI 側の料金が公表されていないためで、B.AI での実際の請求額とは異なる場合があります（B.AI で無料で使える場合は、金額が出ていても実際はかかりません）。',
+    ],
     '1.56': [
         'Z.ai のモデル一覧を最新に更新しました。これまで GLM-4.6 までしか選べませんでしたが、GLM-5.3 Flash・5.3・5.2・5.1・5、GLM-4.7 系、画像入力のできる GLM-4.6V を追加しています。',
         'GLM-4.7 Flash・GLM-4.5 Flash・GLM-4.6V Flash は無料です。GLM-5.3 Flash も 100万トークンあたり入力$0.075・出力$0.25 と安価です（現在50%割引中の価格）。',

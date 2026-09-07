@@ -57,11 +57,24 @@ describe('B.AI プロバイダーの配線', () => {
         expect(BAI_API_BASE_URL).toBe('https://api.b.ai/v1/chat/completions');
     });
 
-    // モデルIDはAPIキーの権限ごとに違い、公開された固定の一覧が無い。
-    // 決め打ちの既定値を置くと「存在しないモデル」を送ってしまう
-    it('標準モデルリストと既定モデルは空（一括取得で埋める前提）', () => {
-        expect(BAI_MODELS).toEqual([]);
-        expect(DEFAULT_BAI_MODEL).toBe('');
+    // モデルIDはAPIキーの権限ごとに違い、公開された固定の一覧が無いので、
+    // 載せてよいのは実アカウントで存在を確認できたものだけ
+    it('要望のあった2モデルが選べる', () => {
+        const values = BAI_MODELS.map((m) => m.value);
+        expect(values).toContain('glm-5.3-flash');
+        expect(values).toContain('qwen3.8-flash');
+    });
+
+    // ベンダー接頭辞が付く形（'zai/glm-5.3-flash' 等）ではないことを確認済み。
+    // 付けてしまうと一覧には出るのに選ぶとエラーになる
+    it('モデルIDに余計なベンダー接頭辞が付いていない', () => {
+        for (const m of BAI_MODELS) {
+            expect(m.value).not.toContain('/');
+        }
+    });
+
+    it('既定モデルは一覧にあるものを指している', () => {
+        expect(BAI_MODELS.map((m) => m.value)).toContain(DEFAULT_BAI_MODEL);
     });
 
     it('モデル未選択のまま送らないよう案内メッセージを持つ', () => {

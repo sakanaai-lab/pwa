@@ -2056,9 +2056,16 @@ ${relationship_context}`;
     { value: "fugu-ultra", label: "Fugu Ultra" }
   ];
   var DEFAULT_SAKANA_MODEL = "fugu";
-  var BAI_MODELS = [];
-  var DEFAULT_BAI_MODEL = "";
+  var BAI_MODELS = [
+    { value: "glm-5.3-flash", label: "GLM-5.3 Flash" },
+    { value: "qwen3.8-flash", label: "Qwen3.8 Flash" }
+  ];
+  var DEFAULT_BAI_MODEL = "glm-5.3-flash";
   var VERSION_HISTORY = {
+    "1.57": [
+      "B.AI で GLM-5.3 Flash と Qwen3.8 Flash を選べるようにしました。B.AI は使えるモデルがAPIキーごとに違うため、実際のアカウントで存在を確認できたこの2つだけを一覧に載せています。他のモデルは設定の「すべてのプロバイダーのモデルを取得」で一覧に追加できます。",
+      "※ ⓘ の推定コストは、同じ名前のモデルの提供元（Z.ai / Qwen）の単価で計算します。B.AI 側の料金が公表されていないためで、B.AI での実際の請求額とは異なる場合があります（B.AI で無料で使える場合は、金額が出ていても実際はかかりません）。"
+    ],
     "1.56": [
       "Z.ai のモデル一覧を最新に更新しました。これまで GLM-4.6 までしか選べませんでしたが、GLM-5.3 Flash・5.3・5.2・5.1・5、GLM-4.7 系、画像入力のできる GLM-4.6V を追加しています。",
       "GLM-4.7 Flash・GLM-4.5 Flash・GLM-4.6V Flash は無料です。GLM-5.3 Flash も 100万トークンあたり入力$0.075・出力$0.25 と安価です（現在50%割引中の価格）。",
