@@ -84,6 +84,24 @@ describe('ストリーミングのAPI配線', () => {
     });
 });
 
+// 回帰: 本文を <pre> で描いているが、既定の .message-content pre はコードブロック用の
+// 装飾（等幅・灰背景・折り返しなし）だった。そのまま当たると長い段落が横に伸びて読めない
+describe('ストリーミング中の本文が折り返される', () => {
+    it('プレースホルダーに streaming-content クラスを付けている', () => {
+        expect(read('src/ui.js')).toContain("contentDiv.classList.add('streaming-content')");
+    });
+
+    it('CSS で折り返しを指定している', () => {
+        const css = read('style.css');
+        const rule = css
+            .split('\n')
+            .find(l => l.includes('.message-content.streaming-content > pre'));
+        expect(rule).toBeTruthy();
+        expect(rule).toContain('white-space: pre-wrap');
+        expect(rule).toContain('word-wrap: break-word');
+    });
+});
+
 describe('送信経路の配線', () => {
     const message = read('src/app-logic/message.js');
 
