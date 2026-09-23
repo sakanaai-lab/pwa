@@ -879,6 +879,33 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         this.setSendingState(false); // 送信状態解除
     },
     // チャットタイトルを更新
+    /**
+     * ストリーミング中の本文を書き換える。
+     *
+     * プレースホルダーは createMessageElement が <pre> で素のテキストを描く作りに
+     * なっている（Markdown は書き終わってから renderChatMessages が描き直す）。
+     * 途中で Markdown 化すると、閉じていないコードブロックや強調で表示が崩れるため。
+     *
+     * @param {number} index メッセージのインデックス
+     * @param {string} text ここまでに届いた本文
+     */
+    updateStreamingContent(index, text) {
+        const contentDiv = document.getElementById(`streaming-content-${index}`);
+        if (!contentDiv) return;
+
+        let pre = contentDiv.querySelector('pre');
+        if (!pre) {
+            pre = document.createElement('pre');
+            contentDiv.appendChild(pre);
+        }
+        pre.textContent = text;
+
+        if (state.settings.autoScroll) {
+            const container = elements.messageContainer;
+            if (container) container.scrollTop = container.scrollHeight;
+        }
+    },
+
     updateChatTitle(definitiveTitle = null) {
         let titleText = '新規チャット';
         let baseTitle = '';
@@ -1284,6 +1311,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.topPInput.value = state.settings.topP === null ? '' : state.settings.topP;
         elements.thinkingBudgetInput.value = state.settings.thinkingBudget === null ? '' : state.settings.thinkingBudget;
         elements.includeThoughtsToggle.checked = state.settings.includeThoughts;
+        elements.streamingOutputToggle.checked = state.settings.enableStreaming;
         elements.enableThoughtTranslationCheckbox.checked = state.settings.enableThoughtTranslation;
         elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || 'gemini-2.5-flash-lite';
         elements.thoughtTranslationOptionsDiv.classList.toggle('hidden', !state.settings.includeThoughts);
