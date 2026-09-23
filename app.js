@@ -3455,6 +3455,7 @@ Reason: [NGの場合の理由]`,
       contentDiv.classList.add("message-content");
       if (isStreamingPlaceholder) {
         contentDiv.id = `streaming-content-${index}`;
+        contentDiv.classList.add("streaming-content");
       }
       if (role === "user" && attachments && attachments.length > 0) {
         const details = document.createElement("details");

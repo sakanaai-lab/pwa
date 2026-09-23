@@ -251,6 +251,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
     
     if (isStreamingPlaceholder) {
         contentDiv.id = `streaming-content-${index}`;
+        // 本文は <pre> で描かれるが、既定の .message-content pre はコードブロック用の
+        // 装飾（等幅・灰背景・折り返しなし）なので、このクラスで本文向けに上書きする。
+        contentDiv.classList.add('streaming-content');
     }
 
     if (role === 'user' && attachments && attachments.length > 0) {
