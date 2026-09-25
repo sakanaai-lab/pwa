@@ -1308,6 +1308,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.anthropicCacheTTLSelect) {
             elements.anthropicCacheTTLSelect.value = state.settings.anthropicCacheTTL || '5m';
         }
+        if (elements.cacheMissAlertThresholdInput) {
+            elements.cacheMissAlertThresholdInput.value = state.settings.cacheMissAlertThresholdUsd ?? '';
+        }
         if (elements.anthropicEffortSelect) {
             // OFF（思考なし）は空文字なので `||` だと 'high' に化ける。未設定(undefined)のみ既定値にする。
             elements.anthropicEffortSelect.value = state.settings.anthropicEffort ?? 'high';
@@ -1754,6 +1757,44 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         const result = await this.showCustomDialog(elements.confirmDialog, elements.confirmOkBtn);
         return result === 'ok'; // OKが押されたか
     },
+    /**
+     * キャッシュが効かない送信の確認。既存の confirm ダイアログに
+     * 「1時間キャッシュに切り替えて送信」を必要なときだけ足して出す。
+     *
+     * @param {string} message 本文
+     * @param {string|null} altLabel 3つ目のボタンの文言。null なら出さない
+     * @returns {Promise<'ok'|'alt'|'cancel'>}
+     */
+    async showCacheMissConfirm(message, altLabel = null) {
+        elements.confirmMessage.textContent = message;
+        // ボタンのイベントリスナーが重複しないように複製して置き換え
+        for (const key of ['confirmOkBtn', 'confirmCancelBtn', 'confirmAltBtn']) {
+            const fresh = elements[key].cloneNode(true);
+            elements[key].parentNode.replaceChild(fresh, elements[key]);
+            elements[key] = fresh;
+        }
+        elements.confirmOkBtn.textContent = '送信する';
+        elements.confirmOkBtn.onclick = () => elements.confirmDialog.close('ok');
+        elements.confirmCancelBtn.onclick = () => elements.confirmDialog.close('cancel');
+
+        if (altLabel) {
+            elements.confirmAltBtn.textContent = altLabel;
+            elements.confirmAltBtn.classList.remove('hidden');
+            elements.confirmAltBtn.onclick = () => elements.confirmDialog.close('alt');
+        } else {
+            elements.confirmAltBtn.classList.add('hidden');
+        }
+
+        try {
+            const result = await this.showCustomDialog(elements.confirmDialog, elements.confirmCancelBtn);
+            return result === 'ok' || result === 'alt' ? result : 'cancel';
+        } finally {
+            // 通常の confirm に戻す（文言と3つ目のボタンを元に）
+            elements.confirmOkBtn.textContent = 'OK';
+            elements.confirmAltBtn.classList.add('hidden');
+        }
+    },
+
     // プロンプトダイアログ表示
     async showCustomPrompt(message, defaultValue = '') {
         elements.promptMessage.textContent = message;
