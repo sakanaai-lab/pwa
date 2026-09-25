@@ -11066,9 +11066,13 @@ ${knowledgeText}`;
     }
     let body = `キャッシュが効かないため、この送信は約 ${usd(info.estimatedUsd)} かかります（${tokens} トークンを再書き込み）。`;
     if (info.estimatedUsd1h != null) {
+      const extra = info.estimatedUsd1h - info.estimatedUsd;
       body += `
 
-1時間キャッシュに切り替えると、この1通は約 ${usd(info.estimatedUsd1h)} ですが、以後1時間は間が空いても再書き込みになりません。`;
+「1時間キャッシュに切り替えて送信」を選ぶと:
+・この1通は約 ${usd(info.estimatedUsd1h)}（5分のままより +${usd(extra)}）
+・以後、返事のたびに増えるぶんの書き込みが2倍（5分は1.25倍）になります
+・そのかわり、1時間以内なら間が空いても再書き込みは起きません`;
     }
     return `${head}
 ${body}`;

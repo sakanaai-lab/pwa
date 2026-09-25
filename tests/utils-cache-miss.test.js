@@ -118,15 +118,18 @@ describe('formatCacheMissMessage', () => {
         expect(m).toContain('claude-sonnet-5 から claude-opus-5-5');
         expect(m).toContain('$12.50');
         expect(m).toContain('2,500,000');
-        expect(m).toContain('1時間キャッシュに切り替えると');
+        expect(m).toContain('「1時間キャッシュに切り替えて送信」を選ぶと');
         expect(m).toContain('$20.00');
+        // 5分のままとの差額と、以後も高くなることを明記する（安くなるように読ませない）
+        expect(m).toContain('+$7.50');
+        expect(m).toContain('書き込みが2倍');
     });
 
     it('1時間TTLの期限切れでは切り替えの案内を出さない', () => {
         const r = assessAnthropicCacheMiss({ settings: settings({ anthropicCacheTTL: '1h' }), lastModelMessage: last({ timestamp: NOW - 61 * MIN }), now: NOW });
         const m = formatCacheMissMessage(r);
         expect(m).toContain('1時間 以上空いた');
-        expect(m).not.toContain('切り替えると');
+        expect(m).not.toContain('切り替えて送信');
     });
 
     it('null なら空文字', () => {
