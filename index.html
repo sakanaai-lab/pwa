@@ -35,7 +35,7 @@
                 console.error("AWS Bedrock Runtime SDKの読み込みに失敗しました:", err);
             });
     </script>
-    <script src="app.js?v=1.25.91" defer></script>
+    <script src="app.js?v=1.25.92" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -484,12 +484,13 @@
                         <div class="param-grid">
                             <div>
                                 <label for="thinking-budget">Thinking Budget:</label>
-                                <input type="number" id="thinking-budget" step="1" min="0" placeholder="例: 5000 (0～24576整数)" aria-label="Thinking Budget">
+                                <input type="number" id="thinking-budget" step="1" min="0" placeholder="例: 5000 (空欄なら送らない)" aria-label="Thinking Budget">
                             </div>
                         </div>
                         <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
-                            ※ Thinking Budgetは新しいGeminiモデルのみ対応。0明示でthinkingをOFF。<br>
-                            ※ 1～1024指定時は固定で1024になる
+                            ※ Gemini と OpenRouter（Include Thoughts がONのとき）に送られます。Anthropic は「思考の深さ (Effort)」で制御し、この値は使いません。<br>
+                            ※ 空欄または0なら送らず、モデルの既定（動的思考）になります。0で思考を止める指定ではありません。<br>
+                            ※ Gemini では旧方式（thinking_budget）です。公式は thinking_level への移行を推奨しており、後方互換で動作します。
                         </p>
                         <label class="checkbox-label" style="margin-top: 15px;">
                             <input type="checkbox" id="include-thoughts-toggle">
