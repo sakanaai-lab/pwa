@@ -234,3 +234,42 @@ describe('キャッシュが効かない送信の確認の配線', () => {
         expect(alt.classList.contains('hidden')).toBe(true);
     });
 });
+
+// Gemini の thinking_level は「設定 → state → UI → API（3箇所）」にまたがる。
+// 判定と組み立ては utils-gemini-thinking.test.js。ここでは配線の抜けだけ見る
+describe('Gemini thinking_level の配線', () => {
+    it('既定は空（モデルの既定）', () => {
+        expect(state.settings.geminiThinkingLevel).toBe('');
+    });
+
+    it('設定画面にプルダウンがあり、値は小文字で持つ', () => {
+        const doc = new JSDOM(read('index.html')).window.document;
+        const sel = doc.getElementById('gemini-thinking-level');
+        expect(sel).not.toBeNull();
+        const values = Array.from(sel.options).map(o => o.value);
+        expect(values).toEqual(['', 'minimal', 'low', 'medium', 'high']);
+    });
+
+    it('設定の保存対象と画面反映に入っている', () => {
+        expect(read('src/app-logic/lifecycle.js')).toContain('geminiThinkingLevel: { element: elements.geminiThinkingLevelSelect');
+        expect(read('src/ui.js')).toContain("elements.geminiThinkingLevelSelect.value = state.settings.geminiThinkingLevel || ''");
+    });
+
+    // ここが抜けると、モデルを変えても非対応の値が残って 400 になりうる
+    it('モデル変更時に選択肢を絞り直している', () => {
+        const ui = read('src/ui.js');
+        expect(ui).toContain('updateGeminiThinkingLevelOptions() {');
+        expect(ui).toMatch(/updateAnthropicEffortOptions\(\);\s*\n\s*this\.updateGeminiThinkingLevelOptions\(\);/);
+    });
+
+    // 3箇所とも同じ関数を通す。1箇所でも旧コードが残ると、そこだけ両方送って 400 になる
+    it('thinkingConfig を組む3箇所すべてが buildGeminiThinkingConfig を通る', () => {
+        const api = read('src/api.js');
+        const message = read('src/app-logic/message.js');
+        expect((api.match(/buildGeminiThinkingConfig\(\{/g) || []).length).toBe(1);
+        expect((message.match(/buildGeminiThinkingConfig\(\{/g) || []).length).toBe(2);
+        // 旧コードの直書きが残っていないこと
+        expect(api).not.toContain('generationConfig.thinkingConfig = {};');
+        expect(message).not.toContain('generationConfig.thinkingConfig = {};');
+    });
+});
