@@ -30,6 +30,9 @@ export const state = {
         openaiApiKey: '',
         anthropicApiKey: '',
         anthropicCacheTTL: '5m',
+        // 送信前の警告。モデル変更やキャッシュ期限切れで丸ごと再書き込みになる送信が
+        // この額（USD）以上なら確認を出す。0で無効。
+        cacheMissAlertThresholdUsd: 0.5,
         anthropicEffort: 'high',
         novelaiApiKey: '',
         novelaiModel: 'nai-diffusion-4-5-curated',

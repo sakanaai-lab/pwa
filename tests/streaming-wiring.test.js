@@ -193,3 +193,44 @@ describe('ブロックされても受信済みの本文を残す', () => {
         expect(read('style.css')).toContain('.message-stopped-notice');
     });
 });
+
+// モデル変更・キャッシュ期限切れで会話全体が再書き込みになる送信を、額が大きいときだけ止める。
+// 判定は utils-cache-miss.test.js。ここでは配線の抜けだけ見る
+describe('キャッシュが効かない送信の確認の配線', () => {
+    const message = read('src/app-logic/message.js');
+
+    it('既定は $0.50', () => {
+        expect(state.settings.cacheMissAlertThresholdUsd).toBe(0.5);
+    });
+
+    // ユーザー発言を積んだあとに止めると、キャンセルしても発言が残ってしまう
+    it('ユーザー発言を積む前に判定している', () => {
+        const check = message.indexOf('await this._confirmCacheMissIfNeeded()');
+        const push = message.indexOf('state.currentMessages.push(userMessage)');
+        expect(check).toBeGreaterThan(-1);
+        expect(push).toBeGreaterThan(check);
+    });
+
+    it('「1時間に切り替えて送信」で設定を保存している', () => {
+        expect(message).toContain("state.settings.anthropicCacheTTL = '1h'");
+        expect(message).toContain('dbUtils.updateProfile(state.activeProfile)');
+    });
+
+    it('設定が保存対象と画面反映に入っている', () => {
+        expect(read('src/app-logic/lifecycle.js'))
+            .toContain('cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput');
+        expect(read('src/ui.js'))
+            .toContain('elements.cacheMissAlertThresholdInput.value = state.settings.cacheMissAlertThresholdUsd');
+    });
+
+    it('設定画面に入力欄があり、確認ダイアログに3つ目のボタンがある', () => {
+        const doc = new JSDOM(read('index.html')).window.document;
+        const input = doc.getElementById('cache-miss-alert-threshold');
+        expect(input).not.toBeNull();
+        expect(input.type).toBe('number');
+        const alt = doc.querySelector('#confirmDialog .dialog-alt-btn');
+        expect(alt).not.toBeNull();
+        // 普段は隠れている
+        expect(alt.classList.contains('hidden')).toBe(true);
+    });
+});

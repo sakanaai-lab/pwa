@@ -1136,6 +1136,7 @@ export const lifecycleMethods = {
             openaiApiKey: { element: elements.openaiApiKeyInput, event: 'input' },
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
             anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
+            cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput, event: 'input' },
             anthropicEffort: { element: elements.anthropicEffortSelect, event: 'change', getValue: () => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : 'high' },
             novelaiApiKey: { element: elements.novelaiApiKeyInput, event: 'input' },
             novelaiModel: { element: elements.novelaiModelSelect, event: 'change', getValue: () => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : 'nai-diffusion-4-5-curated' },
