@@ -1192,6 +1192,7 @@ export const lifecycleMethods = {
             topK: { element: elements.topKInput, event: 'input' },
             topP: { element: elements.topPInput, event: 'input' },
             thinkingBudget: { element: elements.thinkingBudgetInput, event: 'input' },
+            geminiThinkingLevel: { element: elements.geminiThinkingLevelSelect, event: 'change', getValue: () => elements.geminiThinkingLevelSelect ? elements.geminiThinkingLevelSelect.value : '' },
             includeThoughts: { element: elements.includeThoughtsToggle, event: 'change' },
             enableStreaming: { element: elements.streamingOutputToggle, event: 'change' },
             streamingSpeed: { element: elements.streamingSpeedInput, event: 'input' },

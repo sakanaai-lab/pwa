@@ -49,6 +49,8 @@ export const state = {
         topK: null,
         topP: null,
         thinkingBudget: null,
+        // Gemini の思考の深さ（thinking_level）。空はモデルの既定。選ぶと thinkingBudget は送らない
+        geminiThinkingLevel: '',
         includeThoughts: false,
         // 返事を書かれる端から表示する（Geminiのみ）。まずは様子見のため既定OFF。
         enableStreaming: false,

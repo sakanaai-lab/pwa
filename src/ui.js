@@ -1,5 +1,6 @@
 // uiUtils（Phase 1 で app.js から抽出）。挙動は不変。
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, VERSION_HISTORY, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_HISTORY_EXCERPTS, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
+import { getGeminiThinkingLevels } from './utils/gemini-thinking.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
 import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
@@ -1347,6 +1348,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.topKInput.value = state.settings.topK === null ? '' : state.settings.topK;
         elements.topPInput.value = state.settings.topP === null ? '' : state.settings.topP;
         elements.thinkingBudgetInput.value = state.settings.thinkingBudget === null ? '' : state.settings.thinkingBudget;
+        if (elements.geminiThinkingLevelSelect) {
+            elements.geminiThinkingLevelSelect.value = state.settings.geminiThinkingLevel || '';
+        }
         elements.includeThoughtsToggle.checked = state.settings.includeThoughts;
         elements.streamingOutputToggle.checked = state.settings.enableStreaming;
         elements.streamingSpeedInput.value = state.settings.streamingSpeed ?? '';
@@ -1933,6 +1937,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         const isImageModel = isImageGenerationModel(selectedModel);
         elements.modelWarningMessage.classList.toggle('hidden', !isImageModel);
         this.updateAnthropicEffortOptions();
+        this.updateGeminiThinkingLevelOptions();
     },
     // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
     updateTtsStylePresetOptions() {
@@ -2016,6 +2021,41 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         this._saveTtsStyleSetting('ttsStylePresets', serializeStylePresets(removeStylePreset(before, name)));
         this._saveTtsStyleSetting('ttsStyleName', '');
         this.updateTtsStylePresetOptions();
+    },
+
+    // 選択中の Gemini モデルに応じて thinking_level の選択肢を絞り込み、注意書きを出す。
+    // Anthropic の Effort（updateAnthropicEffortOptions）と同じ作り。
+    updateGeminiThinkingLevelOptions() {
+        const sel = elements.geminiThinkingLevelSelect;
+        if (!sel) return;
+        const model = (elements.modelNameSelect && elements.modelNameSelect.value) || state.settings.modelName || '';
+        const levels = getGeminiThinkingLevels(model); // null = 非対応
+        for (const opt of sel.options) {
+            const ok = opt.value === '' || (levels && levels.includes(opt.value));
+            opt.hidden = !ok;
+            opt.disabled = !ok;
+        }
+        // 非対応の値が残っていたら「既定」へ戻して保存する（送ると 400 になりうる）
+        if (sel.value && (!levels || !levels.includes(sel.value))) {
+            sel.value = '';
+            if (state.settings.geminiThinkingLevel !== '') {
+                state.settings.geminiThinkingLevel = '';
+                if (state.activeProfile) {
+                    state.activeProfile.settings.geminiThinkingLevel = '';
+                    dbUtils.updateProfile(state.activeProfile).catch(() => {});
+                }
+            }
+        }
+        const note = elements.geminiThinkingLevelNote;
+        if (note) {
+            let msg = '';
+            if (model.startsWith('gemini')) {
+                if (!levels) msg = '※ このモデルは thinking_level 非対応です（Gemini 2.5 以降で利用できます）。';
+                else if (!levels.includes('minimal')) msg = '※ minimal はこのモデルでは使えません（3.6 Flash / 3.5 Flash-Lite / 3.1 Flash-Lite で利用可）。';
+            }
+            note.textContent = msg;
+            note.classList.toggle('hidden', !msg);
+        }
     },
 
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。

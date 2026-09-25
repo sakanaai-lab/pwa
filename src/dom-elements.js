@@ -73,6 +73,8 @@ try {
         topKInput: document.getElementById('top-k'),
         topPInput: document.getElementById('top-p'),
         thinkingBudgetInput: document.getElementById('thinking-budget'),
+        geminiThinkingLevelSelect: document.getElementById('gemini-thinking-level'),
+        geminiThinkingLevelNote: document.getElementById('gemini-thinking-level-note'),
         includeThoughtsToggle: document.getElementById('include-thoughts-toggle'),
         streamingOutputToggle: document.getElementById('streaming-output-toggle'),
         streamingSpeedInput: document.getElementById('streaming-speed'),
