@@ -3,13 +3,20 @@ import { getGeminiThinkingLevels, buildGeminiThinkingConfig, GEMINI_THINKING_LEV
 
 describe('getGeminiThinkingLevels', () => {
     it('minimal まで選べるモデル（公式表で minimal が載っているもの）', () => {
-        for (const m of ['gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.1-flash-lite']) {
+        for (const m of ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3-flash-preview', 'gemini-3.1-flash-lite']) {
             expect(getGeminiThinkingLevels(m)).toEqual(['minimal', 'low', 'medium', 'high']);
         }
     });
 
-    it('3.8 / 3.7 Flash、3.1 Pro、3 Flash は low / medium / high', () => {
-        for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview', 'gemini-3-flash-preview']) {
+    // 回帰: 2026-10 の公式表で 3.5 Flash と 3 Flash（プレビュー）に minimal が載ったが、
+    // アプリでは選べないままだった
+    it('3.5 Flash と 3 Flash（プレビュー）でも minimal を選べる', () => {
+        expect(getGeminiThinkingLevels('gemini-3.5-flash')).toContain('minimal');
+        expect(getGeminiThinkingLevels('gemini-3-flash-preview')).toContain('minimal');
+    });
+
+    it('3.8 / 3.7 Flash、3.1 Pro は low / medium / high', () => {
+        for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview']) {
             expect(getGeminiThinkingLevels(m)).toEqual(['low', 'medium', 'high']);
         }
     });
@@ -22,7 +29,7 @@ describe('getGeminiThinkingLevels', () => {
 
     // 公式表に無い 3.x は、対応外の値を送って 400 になるより共通部分に絞る
     it('公式表に無い 3.x は共通の3段階に絞る', () => {
-        expect(getGeminiThinkingLevels('gemini-3.5-flash')).toEqual(['low', 'medium', 'high']);
+        expect(getGeminiThinkingLevels('gemini-3.9-flash')).toEqual(['low', 'medium', 'high']);
     });
 
     it('2.0 以前・画像生成・Gemini 以外は非対応', () => {

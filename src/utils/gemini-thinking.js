@@ -31,15 +31,19 @@ export function getGeminiThinkingLevels(model) {
     // 画像生成・埋め込み・Live などは思考の深さの対象外
     if (/-image|embedding|-live|-tts|robotics/.test(m)) return null;
 
-    // minimal まで選べるもの（公式表で minimal が載っているモデル）
+    // minimal まで選べるもの（公式表で minimal が載っているモデル）。
+    // 2026-10 の公式表で、3.5 Flash と 3 Flash（プレビュー）にも minimal が載った。
+    // 'gemini-3-5-flash' は 3.5 Flash-Lite も含む（どちらも minimal 可）。
+    // 3.1 Flash-Lite は 2026-10 の表から消えたが、以前の表では minimal 可だったので残す。
     if (m.startsWith('gemini-3-6-flash')
-        || m.startsWith('gemini-3-5-flash-lite')
+        || m.startsWith('gemini-3-5-flash')
+        || m.startsWith('gemini-3-flash')
         || m.startsWith('gemini-3-1-flash-lite')) {
         return ['minimal', 'low', 'medium', 'high'];
     }
 
-    // 3系のそれ以外（3.8 / 3.7 Flash、3.1 Pro、3 Flash など）と 2.5 系は low / medium / high。
-    // 公式表に無い 3.x（3.5 Flash など）も、共通部分のこの3つに絞る。
+    // 3系のそれ以外（3.8 / 3.7 Flash、3.1 Pro など）と 2.5 系は low / medium / high。
+    // 公式表に無い 3.x も、全モデル共通のこの3つに絞る。
     if (m.startsWith('gemini-3') || m.startsWith('gemini-2-5')) {
         return ['low', 'medium', 'high'];
     }
