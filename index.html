@@ -475,6 +475,9 @@
                             <input type="number" id="top-p" step="0.01" min="0" max="1" placeholder="例:0.95(0.0 - 1.0)" aria-label="Top P">
                         </div>
                     </div>
+                    <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">
+                        ※ Gemini 3.6 Flash 以降と今後の Gemini には Temperature / Top K / Top P を送りません（効かず、今後のモデルでは送るとエラーになるため）。
+                    </p>
                     
                     <details style="margin-top: 15px;">
                         <summary style="cursor: pointer; font-weight: normal; font-size: 14px; color: var(--text-link); margin-bottom: 10px;">その他パラメータ</summary>
@@ -504,7 +507,8 @@
                         <p style="font-size: 11px; color: var(--text-secondary); margin-top: 8px;">
                             ※ Gemini と OpenRouter（Include Thoughts がONのとき）に送られます。Anthropic は「思考の深さ (Effort)」で制御し、この値は使いません。<br>
                             ※ 空欄または0なら送らず、モデルの既定（動的思考）になります。0で思考を止める指定ではありません。<br>
-                            ※ Gemini では旧方式（thinking_budget）です。上の「思考の深さ」が未指定のときだけ送られます。
+                            ※ Gemini では旧方式（thinking_budget）です。上の「思考の深さ」が未指定のときだけ送られます。<br>
+                            ※ 3.8 Flash より後に出る Gemini には送りません（送るとエラーになるため）。思考の深さを使ってください。
                         </p>
                         <label class="checkbox-label" style="margin-top: 15px;">
                             <input type="checkbox" id="include-thoughts-toggle">
