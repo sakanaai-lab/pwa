@@ -5,6 +5,8 @@ import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { getGeminiSafetySettings } from '../utils/safety.js';
+import { buildGeminiThinkingConfig } from '../utils/gemini-thinking.js';
+import { sanitizeGeminiGenerationConfig } from '../utils/gemini-params.js';
 
 export const chatMethods = {
     // --- スワイプ処理ここまで ---
@@ -755,10 +757,19 @@ export const chatMethods = {
             if (provider === 'gemini') {
                 const apiKey = state.settings.apiKey;
                 if (!apiKey) return;
-                const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+                // 2.5 系は 2026-09-18 から既存ユーザー限定なので、同じ単価の 3.5 Flash-Lite を使う。
+                // 3.5 Flash-Lite は既定で少し考える（minimal）。思考のトークンも出力上限に数えられ、
+                // 30 だとタイトルが空になりうるので、思考を minimal に指定し、上限も広げる
+                const titleModel = 'gemini-3.5-flash-lite';
+                const endpoint = `${GEMINI_API_BASE_URL}${titleModel}:generateContent?key=${apiKey}`;
+                const titleThinking = buildGeminiThinkingConfig({ model: titleModel, thinkingLevel: 'minimal' });
                 const titleRequestBody = {
                     contents: [{ role: 'user', parts: [{ text: titlePrompt }] }],
-                    generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+                    generationConfig: sanitizeGeminiGenerationConfig(titleModel, {
+                        maxOutputTokens: 200,
+                        temperature: 0.3,
+                        ...(titleThinking && { thinkingConfig: titleThinking }),
+                    }),
                     safetySettings: getGeminiSafetySettings()
                 };
                 const resp = await fetch(endpoint, {

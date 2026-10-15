@@ -1360,7 +1360,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.streamingOutputToggle.checked = state.settings.enableStreaming;
         elements.streamingSpeedInput.value = state.settings.streamingSpeed ?? '';
         elements.enableThoughtTranslationCheckbox.checked = state.settings.enableThoughtTranslation;
-        elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || 'gemini-2.5-flash-lite';
+        elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || 'gemini-3.5-flash-lite';
         elements.thoughtTranslationOptionsDiv.classList.toggle('hidden', !state.settings.includeThoughts);
         elements.dummyUserInput.value = state.settings.dummyUser || '';
         if (elements.dummyEnabledToggle) elements.dummyEnabledToggle.checked = state.settings.dummyEnabled !== false;
@@ -1389,7 +1389,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.geminiEnableFunctionCallingToggle.checked = state.settings.geminiEnableFunctionCalling;
         elements.swipeNavigationToggle.checked = state.settings.enableSwipeNavigation;
         elements.enableProofreadingCheckbox.checked = state.settings.enableProofreading;
-        elements.proofreadingModelNameSelect.value = state.settings.proofreadingModelName || 'gemini-2.5-flash';
+        elements.proofreadingModelNameSelect.value = state.settings.proofreadingModelName || 'gemini-3.5-flash-lite';
         elements.proofreadingSystemInstructionTextarea.value = state.settings.proofreadingSystemInstruction || '';
         elements.proofreadingOptionsDiv.classList.toggle('hidden', !state.settings.enableProofreading);
         elements.enableAutoRetryCheckbox.checked = state.settings.enableAutoRetry;
@@ -1423,7 +1423,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         
         // ヘッダー自動非表示機能のUIを更新
         elements.headerAutoHideToggle.checked = state.settings.headerAutoHide;
-        elements.summaryModelNameSelect.value = state.settings.summaryModelName || state.settings.modelName || 'gemini-2.5-flash';
+        elements.summaryModelNameSelect.value = state.settings.summaryModelName || state.settings.modelName || 'gemini-3.5-flash-lite';
         elements.summarySystemPromptTextarea.value = state.settings.summarySystemPrompt || '';
         elements.enableSummaryButtonToggle.checked = state.settings.enableSummaryButton;
         document.body.classList.toggle('header-auto-hide', state.settings.headerAutoHide);
@@ -1451,10 +1451,10 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.sdApiUserInput.value = state.settings.sdApiUser || '';
         elements.sdApiPasswordInput.value = state.settings.sdApiPassword || '';
         elements.sdEnableQualityCheckerCheckbox.checked = state.settings.sdEnableQualityChecker;
-        elements.sdQcModelSelect.value = state.settings.sdQcModel || 'gemini-2.5-pro';
+        elements.sdQcModelSelect.value = state.settings.sdQcModel || 'gemini-3.8-flash';
         elements.sdQcPromptTextarea.value = state.settings.sdQcPrompt || '';
         elements.sdQcRetriesInput.value = state.settings.sdQcRetries === null ? '' : state.settings.sdQcRetries;
-        elements.sdPromptImproveModelSelect.value = state.settings.sdPromptImproveModel || 'gemini-2.5-flash';
+        elements.sdPromptImproveModelSelect.value = state.settings.sdPromptImproveModel || 'gemini-3.5-flash-lite';
         elements.sdPromptImproveSystemPromptTextarea.value = state.settings.sdPromptImproveSystemPrompt || '';
         elements.sdQualityCheckerOptionsDiv.classList.toggle('hidden', !state.settings.sdEnableQualityChecker);
     },

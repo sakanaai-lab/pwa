@@ -1887,7 +1887,7 @@ ${relationship_context}`;
   var IMAGE_STORE = "image_store";
   var CHAT_UPDATEDAT_INDEX = "updatedAtIndex";
   var CHAT_CREATEDAT_INDEX = "createdAtIndex";
-  var DEFAULT_MODEL = "gemini-2.5-pro";
+  var DEFAULT_MODEL = "gemini-3.8-flash";
   var DEFAULT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   var CHAT_TITLE_LENGTH = 15;
   var TEXTAREA_MAX_HEIGHT = 120;
@@ -2146,6 +2146,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_BAI_MODEL = "glm-5.3-flash";
   var VERSION_HISTORY = {
+    "1.70": [
+      "Gemini の既定モデルを 2.5 Pro から 3.8 Flash に変えました。2.5 系は9月18日から以前から使っている人しか使えなくなり、新しく始めた人は最初の送信でエラーになっていたためです。すでに選んでいるモデルはそのままです。",
+      "タイトル生成・メモリ学習・翻訳・校正・画像まわりで使う Gemini の既定も、2.5 系から同じ値段の 3.5 Flash-Lite（画像のチェックは 3.8 Flash）に変えました。タイトル生成とメモリ学習は決め打ちだったので、以前から使っている人も新しいモデルになります。"
+    ],
     "1.69": [
       "Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
       "GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。",
@@ -2472,7 +2476,7 @@ ${relationship_context}`;
       streamingSpeed: 12,
       enableThoughtTranslation: true,
       // 思考プロセスの翻訳を有効にするか
-      thoughtTranslationModel: "gemini-2.5-flash-lite",
+      thoughtTranslationModel: "gemini-3.5-flash-lite",
       dummyUser: "",
       dummyEnabled: true,
       applyDummyToProofread: false,
@@ -2496,7 +2500,7 @@ ${relationship_context}`;
       enableApiTimeout: false,
       apiTimeoutSeconds: 90,
       enableProofreading: false,
-      proofreadingModelName: "gemini-2.5-flash",
+      proofreadingModelName: "gemini-3.5-flash-lite",
       proofreadingSystemInstruction: "あなたはプロの編集者です。受け取った文章の過剰な読点を抑制し、日本語として違和感のない読点の使用量に校正してください。承知しました等の応答は行わず、校正後の文章のみ出力して下さい。読点の抑制以外の編集は禁止です。読点以外の文章には絶対に手を付けないで下さい。",
       geminiEnableGrounding: false,
       geminiEnableFunctionCalling: false,
@@ -2551,7 +2555,7 @@ ${relationship_context}`;
       sdApiUser: "",
       sdApiPassword: "",
       sdEnableQualityChecker: false,
-      sdQcModel: "gemini-2.5-pro",
+      sdQcModel: "gemini-3.8-flash",
       sdQcPrompt: `あなたはプロンプトと画像を比較し、指示通りに生成されているか評価する専門家です。
 以下のプロンプトと画像の内容を厳密に比較してください。
 
@@ -2567,7 +2571,7 @@ ${relationship_context}`;
 Result: [OKまたはNG]
 Reason: [NGの場合の理由]`,
       sdQcRetries: 3,
-      sdPromptImproveModel: "gemini-2.5-flash",
+      sdPromptImproveModel: "gemini-3.5-flash-lite",
       sdPromptImproveSystemPrompt: `あなたはプロのプロンプトエンジニアです。提示された「元のプロンプト」と「失敗理由」に基づき、失敗理由を解決するための改善された英語の画像生成プロンプトを生成してください。余計な解説や前置きは一切含めず、改善されたプロンプト本体のみを出力してください。`,
       debugMode: false
     },
@@ -4982,7 +4986,7 @@ ${error.message}`);
       elements.streamingOutputToggle.checked = state.settings.enableStreaming;
       elements.streamingSpeedInput.value = state.settings.streamingSpeed ?? "";
       elements.enableThoughtTranslationCheckbox.checked = state.settings.enableThoughtTranslation;
-      elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || "gemini-2.5-flash-lite";
+      elements.thoughtTranslationModelSelect.value = state.settings.thoughtTranslationModel || "gemini-3.5-flash-lite";
       elements.thoughtTranslationOptionsDiv.classList.toggle("hidden", !state.settings.includeThoughts);
       elements.dummyUserInput.value = state.settings.dummyUser || "";
       if (elements.dummyEnabledToggle) elements.dummyEnabledToggle.checked = state.settings.dummyEnabled !== false;
@@ -5011,7 +5015,7 @@ ${error.message}`);
       elements.geminiEnableFunctionCallingToggle.checked = state.settings.geminiEnableFunctionCalling;
       elements.swipeNavigationToggle.checked = state.settings.enableSwipeNavigation;
       elements.enableProofreadingCheckbox.checked = state.settings.enableProofreading;
-      elements.proofreadingModelNameSelect.value = state.settings.proofreadingModelName || "gemini-2.5-flash";
+      elements.proofreadingModelNameSelect.value = state.settings.proofreadingModelName || "gemini-3.5-flash-lite";
       elements.proofreadingSystemInstructionTextarea.value = state.settings.proofreadingSystemInstruction || "";
       elements.proofreadingOptionsDiv.classList.toggle("hidden", !state.settings.enableProofreading);
       elements.enableAutoRetryCheckbox.checked = state.settings.enableAutoRetry;
@@ -5043,7 +5047,7 @@ ${error.message}`);
       elements.memoryAutoSaveIntervalSelect.value = state.settings.memoryAutoSaveInterval;
       appLogic.toggleMemoryOptions(state.settings.enableMemory);
       elements.headerAutoHideToggle.checked = state.settings.headerAutoHide;
-      elements.summaryModelNameSelect.value = state.settings.summaryModelName || state.settings.modelName || "gemini-2.5-flash";
+      elements.summaryModelNameSelect.value = state.settings.summaryModelName || state.settings.modelName || "gemini-3.5-flash-lite";
       elements.summarySystemPromptTextarea.value = state.settings.summarySystemPrompt || "";
       elements.enableSummaryButtonToggle.checked = state.settings.enableSummaryButton;
       document.body.classList.toggle("header-auto-hide", state.settings.headerAutoHide);
@@ -5068,10 +5072,10 @@ ${error.message}`);
       elements.sdApiUserInput.value = state.settings.sdApiUser || "";
       elements.sdApiPasswordInput.value = state.settings.sdApiPassword || "";
       elements.sdEnableQualityCheckerCheckbox.checked = state.settings.sdEnableQualityChecker;
-      elements.sdQcModelSelect.value = state.settings.sdQcModel || "gemini-2.5-pro";
+      elements.sdQcModelSelect.value = state.settings.sdQcModel || "gemini-3.8-flash";
       elements.sdQcPromptTextarea.value = state.settings.sdQcPrompt || "";
       elements.sdQcRetriesInput.value = state.settings.sdQcRetries === null ? "" : state.settings.sdQcRetries;
-      elements.sdPromptImproveModelSelect.value = state.settings.sdPromptImproveModel || "gemini-2.5-flash";
+      elements.sdPromptImproveModelSelect.value = state.settings.sdPromptImproveModel || "gemini-3.5-flash-lite";
       elements.sdPromptImproveSystemPromptTextarea.value = state.settings.sdPromptImproveSystemPrompt || "";
       elements.sdQualityCheckerOptionsDiv.classList.toggle("hidden", !state.settings.sdEnableQualityChecker);
     },
@@ -9718,10 +9722,16 @@ AI: ${firstModelContent}`;
         if (provider === "gemini") {
           const apiKey = state.settings.apiKey;
           if (!apiKey) return;
-          const endpoint = `${GEMINI_API_BASE_URL}gemini-2.5-flash-lite:generateContent?key=${apiKey}`;
+          const titleModel = "gemini-3.5-flash-lite";
+          const endpoint = `${GEMINI_API_BASE_URL}${titleModel}:generateContent?key=${apiKey}`;
+          const titleThinking = buildGeminiThinkingConfig({ model: titleModel, thinkingLevel: "minimal" });
           const titleRequestBody = {
             contents: [{ role: "user", parts: [{ text: titlePrompt }] }],
-            generationConfig: { maxOutputTokens: 30, temperature: 0.3 },
+            generationConfig: sanitizeGeminiGenerationConfig(titleModel, {
+              maxOutputTokens: 200,
+              temperature: 0.3,
+              ...titleThinking && { thinkingConfig: titleThinking }
+            }),
             safetySettings: getGeminiSafetySettings()
           };
           const resp = await fetch(endpoint, {
@@ -10501,7 +10511,7 @@ AI: ${firstModelContent}`;
         return textToTranslate;
       }
       console.log("--- 思考プロセスの翻訳処理開始 ---");
-      const modelToUse = translationModelName || "gemini-2.5-flash-lite";
+      const modelToUse = translationModelName || "gemini-3.5-flash-lite";
       const isDeepSeek = modelToUse.startsWith("deepseek-");
       const translationSystemPrompt = "You are a professional translator. Translate the given English text into natural Japanese. Do not add any extra comments or explanations. Just output the translated Japanese text.";
       let endpoint, requestBody, fetchHeaders;
@@ -14795,7 +14805,8 @@ ${msg}`);
   __name(inferProviderFromModel, "inferProviderFromModel");
   function getMemoryLearnModel(provider) {
     const lightModels = {
-      gemini: "gemini-2.5-flash",
+      // 2.5 系は 2026-09-18 から既存ユーザー限定。同じ単価の 3.5 Flash-Lite にしている
+      gemini: "gemini-3.5-flash-lite",
       anthropic: "claude-haiku-4-5-20251001",
       deepseek: "deepseek-chat",
       // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
