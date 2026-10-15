@@ -51,6 +51,8 @@ export const state = {
         thinkingBudget: null,
         // Gemini の思考の深さ（thinking_level）。空はモデルの既定。選ぶと thinkingBudget は送らない
         geminiThinkingLevel: '',
+        // OpenAI の推論の強さ（reasoning_effort）。空はモデルの既定（GPT-6 は medium）
+        openaiReasoningEffort: '',
         includeThoughts: false,
         // 返事を書かれる端から表示する（Geminiのみ）。まずは様子見のため既定OFF。
         enableStreaming: false,

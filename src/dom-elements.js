@@ -47,6 +47,8 @@ try {
         anthropicCacheTTLSelect: document.getElementById('anthropic-cache-ttl'),
         cacheMissAlertThresholdInput: document.getElementById('cache-miss-alert-threshold'),
         anthropicEffortSelect: document.getElementById('anthropic-effort'),
+        openaiReasoningEffortSelect: document.getElementById('openai-reasoning-effort'),
+        openaiReasoningEffortNote: document.getElementById('openai-reasoning-effort-note'),
         anthropicEffortNote: document.getElementById('anthropic-effort-note'),
         novelaiApiKeyInput: document.getElementById('novelai-api-key'),
         novelaiModelSelect: document.getElementById('novelai-model'),

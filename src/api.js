@@ -6,7 +6,7 @@ import { interruptibleSleep } from './utils/format.js';
 import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
-import { openaiIsReasoningModel } from './utils/openai-params.js';
+import { openaiIsReasoningModel, resolveOpenAIReasoningEffort } from './utils/openai-params.js';
 import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
@@ -1300,6 +1300,9 @@ export const apiUtils = {
             requestBody.temperature = config.temperature ?? 0.7;
             requestBody.top_p = config.topP ?? 1.0;
         }
+        // 推論の強さ。選ばれていて、そのモデルで使える値のときだけ送る（空ならモデルの既定）
+        const reasoningEffort = resolveOpenAIReasoningEffort(model, state.settings.openaiReasoningEffort);
+        if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
 
         const systemText = extractSystemText(systemInstruction);
         if (systemText) requestBody.messages.push({ role: 'system', content: systemText });

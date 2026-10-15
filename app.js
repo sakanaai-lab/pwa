@@ -1609,6 +1609,8 @@ ${relationship_context}`;
       anthropicCacheTTLSelect: document.getElementById("anthropic-cache-ttl"),
       cacheMissAlertThresholdInput: document.getElementById("cache-miss-alert-threshold"),
       anthropicEffortSelect: document.getElementById("anthropic-effort"),
+      openaiReasoningEffortSelect: document.getElementById("openai-reasoning-effort"),
+      openaiReasoningEffortNote: document.getElementById("openai-reasoning-effort-note"),
       anthropicEffortNote: document.getElementById("anthropic-effort-note"),
       novelaiApiKeyInput: document.getElementById("novelai-api-key"),
       novelaiModelSelect: document.getElementById("novelai-model"),
@@ -2152,6 +2154,7 @@ ${relationship_context}`;
       "OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。",
       "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。",
       "OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。",
+      "OpenAI に「推論の強さ」の設定を追加しました（設定の OpenAI の項目）。GPT-6 は何も選ばないと medium で考えるので、GPT-4o のように素早く返してほしいときは none（GPT-6 Luna / Sol のみ）、じっくり考えてほしいときは high 以上を選べます。選択中のモデルで使える段階だけ表示されます。",
       "Claude Sonnet 5.5（入力$2／出力$10、キャッシュ読み込み$0.10）と Claude Haiku 5.5（入力$0.10／出力$0.50。10万トークンを超えるとその1通は5倍）に対応しました。どちらも思考の深さを low〜max から選べます。",
       "Claude の思考の深さを「OFF」にしていると、Opus 5.5 などでは毎回エラーになっていたのを直しました。Opus 5.5 と Fable 5 系は思考を止められないモデルなので、OFF は一番軽い low として送ります（設定画面に注記が出ます）。Sonnet 5.5 はこのモデル用の方法で思考を止めます。"
     ],
@@ -2460,6 +2463,8 @@ ${relationship_context}`;
       thinkingBudget: null,
       // Gemini の思考の深さ（thinking_level）。空はモデルの既定。選ぶと thinkingBudget は送らない
       geminiThinkingLevel: "",
+      // OpenAI の推論の強さ（reasoning_effort）。空はモデルの既定（GPT-6 は medium）
+      openaiReasoningEffort: "",
       includeThoughts: false,
       // 返事を書かれる端から表示する（Geminiのみ）。まずは様子見のため既定OFF。
       enableStreaming: false,
@@ -3202,6 +3207,40 @@ Reason: [NGの場合の理由]`,
     return { thinking: { type: "disabled" }, effort: null };
   }
   __name(anthropicThinkingOff, "anthropicThinkingOff");
+
+  // src/utils/openai-params.js
+  function openaiIsReasoningModel(model) {
+    const m = normalizeModelName(model);
+    if (/^o\d/.test(m)) return true;
+    const g = /^gpt-(\d+)/.exec(m);
+    return !!g && Number(g[1]) >= 5;
+  }
+  __name(openaiIsReasoningModel, "openaiIsReasoningModel");
+  var REASONING_LEVELS_BY_MODEL = [
+    ["gpt-6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-sol", ["none", "low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-1-sol", ["low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-astra", ["low", "medium", "high", "xhigh", "max"]]
+  ];
+  function getOpenAIReasoningLevels(model) {
+    if (!openaiIsReasoningModel(model)) return null;
+    const m = normalizeModelName(model);
+    const hit = REASONING_LEVELS_BY_MODEL.find(([p]) => m.startsWith(p));
+    return hit ? hit[1] : ["low", "medium", "high"];
+  }
+  __name(getOpenAIReasoningLevels, "getOpenAIReasoningLevels");
+  function openaiSupportsReasoningNone(model) {
+    const levels = getOpenAIReasoningLevels(model);
+    return !!levels && levels.includes("none");
+  }
+  __name(openaiSupportsReasoningNone, "openaiSupportsReasoningNone");
+  function resolveOpenAIReasoningEffort(model, effort) {
+    const e = typeof effort === "string" ? effort.trim().toLowerCase() : "";
+    if (!e) return null;
+    const levels = getOpenAIReasoningLevels(model);
+    return levels && levels.includes(e) ? e : null;
+  }
+  __name(resolveOpenAIReasoningEffort, "resolveOpenAIReasoningEffort");
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
@@ -4898,6 +4937,9 @@ ${error.message}`);
       if (elements.cacheMissAlertThresholdInput) {
         elements.cacheMissAlertThresholdInput.value = state.settings.cacheMissAlertThresholdUsd ?? "";
       }
+      if (elements.openaiReasoningEffortSelect) {
+        elements.openaiReasoningEffortSelect.value = state.settings.openaiReasoningEffort || "";
+      }
       if (elements.anthropicEffortSelect) {
         elements.anthropicEffortSelect.value = state.settings.anthropicEffort ?? "high";
       }
@@ -5434,6 +5476,7 @@ ${error.message}`);
       elements.modelWarningMessage.classList.toggle("hidden", !isImageModel);
       this.updateAnthropicEffortOptions();
       this.updateGeminiThinkingLevelOptions();
+      this.updateOpenAIReasoningEffortOptions();
     },
     // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
     updateTtsStylePresetOptions() {
@@ -5550,6 +5593,40 @@ ${error.message}`);
         if (model.startsWith("gemini")) {
           if (!levels) msg = "※ このモデルは thinking_level 非対応です（Gemini 2.5 以降で利用できます）。";
           else if (!levels.includes("minimal")) msg = "※ minimal はこのモデルでは使えません（一部のモデルのみ対応）。";
+        }
+        note.textContent = msg;
+        note.classList.toggle("hidden", !msg);
+      }
+    },
+    // 選択中の OpenAI モデルに応じて推論の強さの選択肢を絞り込み、注意書きを出す。
+    // Gemini の思考の深さ（updateGeminiThinkingLevelOptions）と同じ作り。
+    updateOpenAIReasoningEffortOptions() {
+      const sel = elements.openaiReasoningEffortSelect;
+      if (!sel) return;
+      const model = elements.modelNameSelect && elements.modelNameSelect.value || state.settings.modelName || "";
+      const levels = getOpenAIReasoningLevels(model);
+      for (const opt of sel.options) {
+        const ok = opt.value === "" || levels && levels.includes(opt.value);
+        opt.hidden = !ok;
+        opt.disabled = !ok;
+      }
+      if (sel.value && (!levels || !levels.includes(sel.value))) {
+        sel.value = "";
+        if (state.settings.openaiReasoningEffort !== "") {
+          state.settings.openaiReasoningEffort = "";
+          if (state.activeProfile) {
+            state.activeProfile.settings.openaiReasoningEffort = "";
+            dbUtils.updateProfile(state.activeProfile).catch(() => {
+            });
+          }
+        }
+      }
+      const note = elements.openaiReasoningEffortNote;
+      if (note) {
+        let msg = "";
+        if (/^(gpt|o\d)/i.test(model)) {
+          if (!levels) msg = "※ このモデルは推論モデルではないため送りません（GPT-5 以降と o 系が対象）。";
+          else if (!levels.includes("none")) msg = "※ none はこのモデルでは使えません（GPT-6 Luna / GPT-6 Sol で利用可）。";
         }
         note.textContent = msg;
         note.classList.toggle("hidden", !msg);
@@ -7018,6 +7095,7 @@ ${error.message}`);
         anthropicApiKey: { element: elements.anthropicApiKeyInput, event: "input" },
         anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : "5m", "getValue") },
         cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput, event: "input" },
+        openaiReasoningEffort: { element: elements.openaiReasoningEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.openaiReasoningEffortSelect ? elements.openaiReasoningEffortSelect.value : "", "getValue") },
         // OFF を選んだとき「このモデルは思考を止められない」注記を出し直す
         anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue"), onUpdate: /* @__PURE__ */ __name(() => uiUtils.updateAnthropicEffortOptions(), "onUpdate") },
         novelaiApiKey: { element: elements.novelaiApiKeyInput, event: "input" },
@@ -9781,21 +9859,6 @@ AI: ${firstModelContent}`;
   }
   __name(createGeminiStreamAssembler, "createGeminiStreamAssembler");
 
-  // src/utils/openai-params.js
-  function openaiIsReasoningModel(model) {
-    const m = normalizeModelName(model);
-    if (/^o\d/.test(m)) return true;
-    const g = /^gpt-(\d+)/.exec(m);
-    return !!g && Number(g[1]) >= 5;
-  }
-  __name(openaiIsReasoningModel, "openaiIsReasoningModel");
-  var SUPPORTS_NONE = ["gpt-6-luna", "gpt-6-sol"];
-  function openaiSupportsReasoningNone(model) {
-    const m = normalizeModelName(model);
-    return SUPPORTS_NONE.some((p) => m.startsWith(p));
-  }
-  __name(openaiSupportsReasoningNone, "openaiSupportsReasoningNone");
-
   // src/utils/reasoning.js
   function extractReasoningText(message) {
     if (!message || typeof message !== "object") return "";
@@ -10867,6 +10930,8 @@ AI: ${firstModelContent}`;
         requestBody.temperature = config.temperature ?? 0.7;
         requestBody.top_p = config.topP ?? 1;
       }
+      const reasoningEffort = resolveOpenAIReasoningEffort(model, state.settings.openaiReasoningEffort);
+      if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
       const systemText = extractSystemText(systemInstruction);
       if (systemText) requestBody.messages.push({ role: "system", content: systemText });
       this.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));

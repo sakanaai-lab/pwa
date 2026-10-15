@@ -2,6 +2,7 @@
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, VERSION_HISTORY, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_HISTORY_EXCERPTS, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { getGeminiThinkingLevels } from './utils/gemini-thinking.js';
 import { anthropicAlwaysThinks } from './utils/anthropic-thinking.js';
+import { getOpenAIReasoningLevels } from './utils/openai-params.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
 import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
@@ -1313,6 +1314,9 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         if (elements.cacheMissAlertThresholdInput) {
             elements.cacheMissAlertThresholdInput.value = state.settings.cacheMissAlertThresholdUsd ?? '';
         }
+        if (elements.openaiReasoningEffortSelect) {
+            elements.openaiReasoningEffortSelect.value = state.settings.openaiReasoningEffort || '';
+        }
         if (elements.anthropicEffortSelect) {
             // OFF（思考なし）は空文字なので `||` だと 'high' に化ける。未設定(undefined)のみ既定値にする。
             elements.anthropicEffortSelect.value = state.settings.anthropicEffort ?? 'high';
@@ -1939,6 +1943,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
         elements.modelWarningMessage.classList.toggle('hidden', !isImageModel);
         this.updateAnthropicEffortOptions();
         this.updateGeminiThinkingLevelOptions();
+        this.updateOpenAIReasoningEffortOptions();
     },
     // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
     updateTtsStylePresetOptions() {
@@ -2053,6 +2058,41 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             if (model.startsWith('gemini')) {
                 if (!levels) msg = '※ このモデルは thinking_level 非対応です（Gemini 2.5 以降で利用できます）。';
                 else if (!levels.includes('minimal')) msg = '※ minimal はこのモデルでは使えません（一部のモデルのみ対応）。';
+            }
+            note.textContent = msg;
+            note.classList.toggle('hidden', !msg);
+        }
+    },
+
+    // 選択中の OpenAI モデルに応じて推論の強さの選択肢を絞り込み、注意書きを出す。
+    // Gemini の思考の深さ（updateGeminiThinkingLevelOptions）と同じ作り。
+    updateOpenAIReasoningEffortOptions() {
+        const sel = elements.openaiReasoningEffortSelect;
+        if (!sel) return;
+        const model = (elements.modelNameSelect && elements.modelNameSelect.value) || state.settings.modelName || '';
+        const levels = getOpenAIReasoningLevels(model); // null = 推論モデルではない
+        for (const opt of sel.options) {
+            const ok = opt.value === '' || (levels && levels.includes(opt.value));
+            opt.hidden = !ok;
+            opt.disabled = !ok;
+        }
+        // 非対応の値が残っていたら「既定」へ戻して保存する（送ると 400 になりうる）
+        if (sel.value && (!levels || !levels.includes(sel.value))) {
+            sel.value = '';
+            if (state.settings.openaiReasoningEffort !== '') {
+                state.settings.openaiReasoningEffort = '';
+                if (state.activeProfile) {
+                    state.activeProfile.settings.openaiReasoningEffort = '';
+                    dbUtils.updateProfile(state.activeProfile).catch(() => {});
+                }
+            }
+        }
+        const note = elements.openaiReasoningEffortNote;
+        if (note) {
+            let msg = '';
+            if (/^(gpt|o\d)/i.test(model)) {
+                if (!levels) msg = '※ このモデルは推論モデルではないため送りません（GPT-5 以降と o 系が対象）。';
+                else if (!levels.includes('none')) msg = '※ none はこのモデルでは使えません（GPT-6 Luna / GPT-6 Sol で利用可）。';
             }
             note.textContent = msg;
             note.classList.toggle('hidden', !msg);
