@@ -9,7 +9,8 @@ export const CHATS_STORE = 'chats';
 export const IMAGE_STORE = 'image_store';
 export const CHAT_UPDATEDAT_INDEX = 'updatedAtIndex';
 export const CHAT_CREATEDAT_INDEX = 'createdAtIndex';
-export const DEFAULT_MODEL = 'gemini-2.5-pro';
+// 2.5 系は 2026-09-18 から既存ユーザー限定になり、新しく始めた人は使えないため 3.8 Flash にしている
+export const DEFAULT_MODEL = 'gemini-3.8-flash';
 export const DEFAULT_TEMPERATURE = 0.5;
 export const DEFAULT_MAX_TOKENS = 4000;
 export const DEFAULT_TOP_K = 40;
@@ -319,6 +320,10 @@ export const BAI_MODELS = [
 export const DEFAULT_BAI_MODEL = 'glm-5.3-flash';
 
 export const VERSION_HISTORY = {
+    '1.70': [
+        'Gemini の既定モデルを 2.5 Pro から 3.8 Flash に変えました。2.5 系は9月18日から以前から使っている人しか使えなくなり、新しく始めた人は最初の送信でエラーになっていたためです。すでに選んでいるモデルはそのままです。',
+        'タイトル生成・メモリ学習・翻訳・校正・画像まわりで使う Gemini の既定も、2.5 系から同じ値段の 3.5 Flash-Lite（画像のチェックは 3.8 Flash）に変えました。タイトル生成とメモリ学習は決め打ちだったので、以前から使っている人も新しいモデルになります。',
+    ],
     '1.69': [
         'Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。',
         'GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。',

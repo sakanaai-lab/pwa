@@ -765,7 +765,7 @@ export const apiUtils = {
 
         console.log("--- 思考プロセスの翻訳処理開始 ---");
         
-        const modelToUse = translationModelName || 'gemini-2.5-flash-lite';
+        const modelToUse = translationModelName || 'gemini-3.5-flash-lite';
         const isDeepSeek = modelToUse.startsWith('deepseek-');
         const translationSystemPrompt = "You are a professional translator. Translate the given English text into natural Japanese. Do not add any extra comments or explanations. Just output the translated Japanese text.";
 

@@ -175,3 +175,35 @@ describe('RETIRED_MODEL_MAP の後継が有効', () => {
         expect(selfRef).toEqual([]);
     });
 });
+
+// 2.5 系は 2026-09-18 から既存ユーザー限定。新しく始めた人が既定のままで使えるように、
+// 既定値・決め打ちのモデルを 3.x にしている
+describe('新しく始めた人が使えない 2.5 系を既定にしていない', () => {
+    const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
+
+    it('チャットの既定モデル', () => {
+        expect(DEFAULT_MODEL.startsWith('gemini-2.5')).toBe(false);
+    });
+
+    it('補助処理の既定値と決め打ち（翻訳・校正・画像・メモリ学習・タイトル生成）', () => {
+        const state = read('src/state.js');
+        for (const key of ['thoughtTranslationModel', 'proofreadingModelName', 'sdQcModel', 'sdPromptImproveModel']) {
+            expect(state).not.toMatch(new RegExp(`${key}: 'gemini-2\\.5`));
+        }
+        expect(read('src/app-logic/memory.js')).not.toContain("gemini: 'gemini-2.5");
+        expect(read('src/app-logic/chat.js')).not.toContain('gemini-2.5-flash-lite:generateContent');
+        expect(read('src/api.js')).not.toContain("translationModelName || 'gemini-2.5");
+    });
+
+    // 3.5 Flash-Lite は既定で少し考え、思考のトークンも出力上限に数えられる
+    it('タイトル生成は思考を minimal にし、出力上限を 30 より広げている', () => {
+        const chat = read('src/app-logic/chat.js');
+        expect(chat).toContain("buildGeminiThinkingConfig({ model: titleModel, thinkingLevel: 'minimal' })");
+        expect(chat).toContain('maxOutputTokens: 200,');
+    });
+
+    it('index.html の仮の選択肢も現行モデル', () => {
+        const html = read('index.html');
+        expect(html).toContain('<option value="gemini-3.8-flash" selected>gemini-3.8-flash</option>');
+    });
+});

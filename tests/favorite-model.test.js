@@ -46,7 +46,8 @@ function insertFavoriteGroup(selectEl, favorites) {
 describe('お気に入りモデル: 先頭ピン留めの挿入ロジック', () => {
     it('登録したお気に入りが★グループとして先頭に入る', () => {
         const sel = doc.getElementById('model-name').cloneNode(true);
-        const favGroup = insertFavoriteGroup(sel, ['gemini-2.5-pro', 'gemini-2.5-flash']);
+        // index.html の仮の選択肢（既定モデルと同じ現行モデル）を材料にする
+        const favGroup = insertFavoriteGroup(sel, ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
         expect(sel.firstElementChild.id).toBe('favorite-models-group');
         expect(favGroup.children.length).toBe(2);
         expect(favGroup.children[0].textContent.startsWith('★ ')).toBe(true);

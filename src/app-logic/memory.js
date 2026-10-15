@@ -141,7 +141,8 @@ function inferProviderFromModel(model, fallback) {
 // メモリ自動学習で使う軽量モデルをプロバイダー別に返す（コスト抑制。無ければメインモデル）。
 function getMemoryLearnModel(provider) {
     const lightModels = {
-        gemini: 'gemini-2.5-flash',
+        // 2.5 系は 2026-09-18 から既存ユーザー限定。同じ単価の 3.5 Flash-Lite にしている
+        gemini: 'gemini-3.5-flash-lite',
         anthropic: 'claude-haiku-4-5-20251001',
         deepseek: 'deepseek-chat',
         // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
