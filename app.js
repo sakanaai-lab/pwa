@@ -2075,6 +2075,8 @@ ${relationship_context}`;
   var DEFAULT_OPENAI_MODEL = "gpt-6-luna";
   var ANTHROPIC_MODELS = [
     { value: "claude-opus-5-5", label: "Claude Opus 5.5 (最新・Opus 5 より安価)" },
+    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (最新・標準)" },
+    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (最新・最安)" },
     { value: "claude-opus-5", label: "Claude Opus 5" },
     { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
     { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
@@ -2087,7 +2089,7 @@ ${relationship_context}`;
   var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
   function getAnthropicEffortLevels(model) {
     if (!model) return null;
-    const full = ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5"];
+    const full = ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5", "claude-haiku-5"];
     if (full.some((p) => model.startsWith(p))) return ["", "low", "medium", "high", "xhigh", "max"];
     if (model.startsWith("claude-opus-4-6") || model.startsWith("claude-sonnet-4-6")) return ["", "low", "medium", "high", "max"];
     if (model.startsWith("claude-opus-4-5")) return ["", "low", "medium", "high"];
@@ -2149,7 +2151,9 @@ ${relationship_context}`;
       "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。",
       "OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。",
       "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。",
-      "OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。"
+      "OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。",
+      "Claude Sonnet 5.5（入力$2／出力$10、キャッシュ読み込み$0.10）と Claude Haiku 5.5（入力$0.10／出力$0.50。10万トークンを超えるとその1通は5倍）に対応しました。どちらも思考の深さを low〜max から選べます。",
+      "Claude の思考の深さを「OFF」にしていると、Opus 5.5 などでは毎回エラーになっていたのを直しました。Opus 5.5 と Fable 5 系は思考を止められないモデルなので、OFF は一番軽い low として送ります（設定画面に注記が出ます）。Sonnet 5.5 はこのモデル用の方法で思考を止めます。"
     ],
     "1.68": [
       "Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。",
@@ -2875,8 +2879,20 @@ Reason: [NGの場合の理由]`,
     // Sonnet 5 は 4.6/4.5 より安い（$2/$10）。'claude-sonnet-4' より前に置くこと。
     // 発表時は 2026-08-31 までの導入価格とされていたが、その後この額が正価になり、
     // 予定されていた $3/$15 への値上げは行われないと明記された（＝期間で分ける必要なし）。
+    // Sonnet 5.5 は 5 と同額だがキャッシュヒットが基本入力の0.05倍。'claude-sonnet-5' より前に置くこと。
+    "claude-sonnet-5-5": { in: 2, out: 10, cw5m: 2.5, cw1h: 4, cr: 0.1 },
     "claude-sonnet-5": { in: 2, out: 10, cw5m: 2.5, cw1h: 4, cr: 0.2 },
     "claude-sonnet-4": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
+    // Haiku 5.5 はプロンプトが10万トークンを超えるとそのリクエスト全体が上位段の単価になる
+    // （キャッシュ読み込み・書き込みも含めた入力トークン数で判定）。総称の 'claude-haiku' より前に置くこと。
+    "claude-haiku-5-5": {
+      in: 0.1,
+      out: 0.5,
+      cw5m: 0.125,
+      cw1h: 0.2,
+      cr: 0.01,
+      longCtx: { threshold: 1e5, in: 0.5, out: 2.5, cw5m: 0.625, cw1h: 1, cr: 0.05 }
+    },
     "claude-haiku-4": { in: 1, out: 5, cw5m: 1.25, cw1h: 2, cr: 0.1 },
     // Claude 3系 (旧モデル)
     "claude-opus-3": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
@@ -3169,6 +3185,23 @@ Reason: [NGの場合の理由]`,
     return null;
   }
   __name(buildGeminiLightThinkingConfig, "buildGeminiLightThinkingConfig");
+
+  // src/utils/anthropic-thinking.js
+  var ALWAYS_THINKS = ["claude-fable-5", "claude-mythos-5", "claude-opus-5-5"];
+  var BETWEEN_TOOLS = ["claude-sonnet-5-5"];
+  function anthropicAlwaysThinks(model) {
+    const m = normalizeModelName(model);
+    return ALWAYS_THINKS.some((p) => m.startsWith(p));
+  }
+  __name(anthropicAlwaysThinks, "anthropicAlwaysThinks");
+  function anthropicThinkingOff(model) {
+    const m = normalizeModelName(model);
+    if (m.startsWith("claude-3") || m.startsWith("claude-2")) return { thinking: null, effort: null };
+    if (ALWAYS_THINKS.some((p) => m.startsWith(p))) return { thinking: null, effort: "low" };
+    if (BETWEEN_TOOLS.some((p) => m.startsWith(p))) return { thinking: { type: "between_tools" }, effort: null };
+    return { thinking: { type: "disabled" }, effort: null };
+  }
+  __name(anthropicThinkingOff, "anthropicThinkingOff");
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
@@ -5558,6 +5591,7 @@ ${error.message}`);
         if (model.startsWith("claude")) {
           if (levels && levels.length === 1) msg = "※ このモデルは Effort 非対応です（OFFのみ）。Opus 4.6以降 / Sonnet 4.6 で利用できます。";
           else if (levels && !levels.includes("xhigh")) msg = "※ xhigh はこのモデルでは使えません（Opus 4.7以降で利用可）。";
+          else if (sel.value === "" && anthropicAlwaysThinks(model)) msg = "※ このモデルは思考を止められないため、OFF は low として送ります。";
         }
         note.textContent = msg;
         note.classList.toggle("hidden", !msg);
@@ -6984,7 +7018,8 @@ ${error.message}`);
         anthropicApiKey: { element: elements.anthropicApiKeyInput, event: "input" },
         anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : "5m", "getValue") },
         cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput, event: "input" },
-        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue") },
+        // OFF を選んだとき「このモデルは思考を止められない」注記を出し直す
+        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue"), onUpdate: /* @__PURE__ */ __name(() => uiUtils.updateAnthropicEffortOptions(), "onUpdate") },
         novelaiApiKey: { element: elements.novelaiApiKeyInput, event: "input" },
         novelaiModel: { element: elements.novelaiModelSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : "nai-diffusion-4-5-curated", "getValue") },
         groqApiKey: { element: elements.groqApiKeyInput, event: "input" },
@@ -10902,9 +10937,10 @@ AI: ${firstModelContent}`;
         effort = _allowed.length === 0 ? null : _allowed.filter((e) => _order.indexOf(e) <= _order.indexOf(effort)).pop() || _allowed[_allowed.length - 1];
       }
       const useAdaptive = !!effort;
+      const thinkingOff = useAdaptive ? null : anthropicThinkingOff(model);
       const useManualThinking = false;
       const useThinking = useAdaptive || useManualThinking;
-      const maxTokens = useAdaptive ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
+      const maxTokens = useAdaptive || thinkingOff?.effort ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
       const cacheTTL = state.settings.anthropicCacheTTL || "5m";
       const cacheControl = cacheTTL === "none" ? null : cacheTTL === "1h" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
       const requestBody = {
@@ -10912,7 +10948,7 @@ AI: ${firstModelContent}`;
         messages: [],
         max_tokens: maxTokens
       };
-      const rejectsSamplingParams = ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5"].some((m) => model.startsWith(m));
+      const rejectsSamplingParams = ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5", "claude-haiku-5"].some((m) => model.startsWith(m));
       const supportsThinkingParam = !model.startsWith("claude-3") && !model.startsWith("claude-2");
       if (useAdaptive) {
         requestBody.thinking = { type: "adaptive" };
@@ -10921,11 +10957,11 @@ AI: ${firstModelContent}`;
         requestBody.thinking = { type: "enabled", budget_tokens: state.settings.thinkingBudget };
         if (!rejectsSamplingParams) requestBody.temperature = 1;
       } else {
-        if (supportsThinkingParam) requestBody.thinking = { type: "disabled" };
+        if (supportsThinkingParam && thinkingOff?.thinking) requestBody.thinking = thinkingOff.thinking;
         if (!rejectsSamplingParams) requestBody.temperature = config.temperature ?? 0.7;
       }
-      if (effort) {
-        requestBody.output_config = { effort };
+      if (effort || thinkingOff?.effort) {
+        requestBody.output_config = { effort: effort || thinkingOff.effort };
       }
       const _staticText = systemInstruction?._staticText;
       const _dynamicText = systemInstruction?._dynamicText;
@@ -11302,8 +11338,9 @@ ${knowledgeText}`;
       reason = "expired";
     }
     if (!reason) return null;
-    const pricing = getPricing(model, now);
-    if (!pricing) return null;
+    const base = getPricing(model, now);
+    if (!base) return null;
+    const pricing = base.longCtx && tokens >= base.longCtx.threshold ? { ...base, ...base.longCtx } : base;
     const perMillion = (ttl === "1h" ? pricing.cw1h : pricing.cw5m) ?? pricing.in;
     const estimatedUsd = tokens * perMillion / 1e6;
     if (estimatedUsd < threshold) return null;

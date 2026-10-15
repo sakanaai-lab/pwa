@@ -7,6 +7,7 @@ import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
 import { openaiIsReasoningModel } from './utils/openai-params.js';
+import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
 import { isImageGenerationModel } from './utils/model-select.js';
@@ -1376,12 +1377,15 @@ export const apiUtils = {
                 : (_allowed.filter((e) => _order.indexOf(e) <= _order.indexOf(effort)).pop() || _allowed[_allowed.length - 1]);
         }
         const useAdaptive = !!effort;
+        // OFF のときに送る thinking と Effort（モデルによって disabled を受け付けない）
+        const thinkingOff = useAdaptive ? null : anthropicThinkingOff(model);
         // Anthropic の思考は「思考の深さ(effort)」のみで制御する。
         // 「OFF（思考なし）」を選んだら、Gemini 用の thinkingBudget が残っていても
         // 思考（推論）は行わない。
         const useManualThinking = false;
         const useThinking = useAdaptive || useManualThinking;
-        const maxTokens = useAdaptive
+        // 思考を止められないモデルは OFF でも low で考えるので、上限は思考ありと同じにする
+        const maxTokens = (useAdaptive || thinkingOff?.effort)
             ? Math.max(config.maxOutputTokens ?? 16000, 16000)
             : useManualThinking
                 ? Math.max(config.maxOutputTokens ?? 4000, state.settings.thinkingBudget + 1000)
@@ -1400,7 +1404,8 @@ export const apiUtils = {
 
         // 新世代モデル（Opus 4.7/4.8/5・Sonnet 5・Fable 5 等）は temperature/top_p/top_k が
         // 廃止されており、送ると400になるため送らない。
-        const rejectsSamplingParams = ['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'].some(m => model.startsWith(m));
+        // Haiku 5.5 も既定以外の値は400。'claude-opus-5' / 'claude-sonnet-5' は 5.5 も含む。
+        const rejectsSamplingParams = ['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5', 'claude-haiku-5'].some(m => model.startsWith(m));
         // thinking パラメータ非対応の旧モデル（Claude 3.x / 2.x）には thinking を送らない。
         const supportsThinkingParam = !model.startsWith('claude-3') && !model.startsWith('claude-2');
 
@@ -1411,13 +1416,15 @@ export const apiUtils = {
             requestBody.thinking = { type: 'enabled', budget_tokens: state.settings.thinkingBudget };
             if (!rejectsSamplingParams) requestBody.temperature = 1;
         } else {
-            // OFF（思考なし）。Opus 5 等は思考がデフォルトONのため、明示的に disabled を送って止める。
-            // （disabled は effort high 以下限定だが、OFF時は effort を送らない＝サーバー既定 high なので問題なし）
-            if (supportsThinkingParam) requestBody.thinking = { type: 'disabled' };
+            // OFF（思考なし）。Opus 5 等は思考がデフォルトONのため、明示的に止める。
+            // 回帰: 以前は全モデルに disabled を送っていて、Opus 5.5 / Fable 5 系 / Sonnet 5.5 では
+            // 毎回 400 になっていた。止め方はモデルごとに anthropicThinkingOff が決める
+            // （止められないモデルは thinking を送らず Effort を low にする）。
+            if (supportsThinkingParam && thinkingOff?.thinking) requestBody.thinking = thinkingOff.thinking;
             if (!rejectsSamplingParams) requestBody.temperature = config.temperature ?? 0.7;
         }
-        if (effort) {
-            requestBody.output_config = { effort };
+        if (effort || thinkingOff?.effort) {
+            requestBody.output_config = { effort: effort || thinkingOff.effort };
         }
 
         const _staticText = systemInstruction?._staticText;

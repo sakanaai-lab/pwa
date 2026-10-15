@@ -226,6 +226,8 @@ export const DEFAULT_OPENAI_MODEL = 'gpt-6-luna';
 
 export const ANTHROPIC_MODELS = [
     { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (最新・Opus 5 より安価)' },
+    { value: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5 (最新・標準)' },
+    { value: 'claude-haiku-5-5', label: 'Claude Haiku 5.5 (最新・最安)' },
     { value: 'claude-opus-5', label: 'Claude Opus 5' },
     { value: 'claude-opus-4-8', label: 'Claude Opus 4.8' },
     { value: 'claude-opus-4-7', label: 'Claude Opus 4.7' },
@@ -245,7 +247,8 @@ export const DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-4-6';
 // - Effort 非対応（OFFのみ）: Haiku 4.5, Sonnet 4.5, Claude 3.x / 2.x
 export function getAnthropicEffortLevels(model) {
     if (!model) return null;
-    const full = ['claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'];
+    // 'claude-opus-5' / 'claude-sonnet-5' は 5.5 も含む。Haiku 5.5 は 4.5 と違い Effort に対応（low〜max）
+    const full = ['claude-opus-5', 'claude-opus-4-8', 'claude-opus-4-7', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5', 'claude-haiku-5'];
     if (full.some((p) => model.startsWith(p))) return ['', 'low', 'medium', 'high', 'xhigh', 'max'];
     if (model.startsWith('claude-opus-4-6') || model.startsWith('claude-sonnet-4-6')) return ['', 'low', 'medium', 'high', 'max'];
     if (model.startsWith('claude-opus-4-5')) return ['', 'low', 'medium', 'high'];
@@ -324,6 +327,8 @@ export const VERSION_HISTORY = {
         'OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。',
         'OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。',
         'OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。',
+        'Claude Sonnet 5.5（入力$2／出力$10、キャッシュ読み込み$0.10）と Claude Haiku 5.5（入力$0.10／出力$0.50。10万トークンを超えるとその1通は5倍）に対応しました。どちらも思考の深さを low〜max から選べます。',
+        'Claude の思考の深さを「OFF」にしていると、Opus 5.5 などでは毎回エラーになっていたのを直しました。Opus 5.5 と Fable 5 系は思考を止められないモデルなので、OFF は一番軽い low として送ります（設定画面に注記が出ます）。Sonnet 5.5 はこのモデル用の方法で思考を止めます。',
     ],
     '1.68': [
         'Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。',

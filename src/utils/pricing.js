@@ -24,8 +24,14 @@ export const MODEL_PRICING = {
     // Sonnet 5 は 4.6/4.5 より安い（$2/$10）。'claude-sonnet-4' より前に置くこと。
     // 発表時は 2026-08-31 までの導入価格とされていたが、その後この額が正価になり、
     // 予定されていた $3/$15 への値上げは行われないと明記された（＝期間で分ける必要なし）。
+    // Sonnet 5.5 は 5 と同額だがキャッシュヒットが基本入力の0.05倍。'claude-sonnet-5' より前に置くこと。
+    'claude-sonnet-5-5': { in: 2,  out: 10,  cw5m: 2.50,  cw1h: 4,    cr: 0.10 },
     'claude-sonnet-5': { in: 2,    out: 10,  cw5m: 2.50,  cw1h: 4,    cr: 0.20 },
     'claude-sonnet-4': { in: 3,    out: 15,  cw5m: 3.75,  cw1h: 6,    cr: 0.30 },
+    // Haiku 5.5 はプロンプトが10万トークンを超えるとそのリクエスト全体が上位段の単価になる
+    // （キャッシュ読み込み・書き込みも含めた入力トークン数で判定）。総称の 'claude-haiku' より前に置くこと。
+    'claude-haiku-5-5': { in: 0.10, out: 0.50, cw5m: 0.125, cw1h: 0.20, cr: 0.01,
+        longCtx: { threshold: 100_000, in: 0.50, out: 2.50, cw5m: 0.625, cw1h: 1, cr: 0.05 } },
     'claude-haiku-4':  { in: 1,    out: 5,   cw5m: 1.25,  cw1h: 2,    cr: 0.10 },
     // Claude 3系 (旧モデル)
     'claude-opus-3':   { in: 15,   out: 75,  cw5m: 18.75, cw1h: 30,   cr: 1.50 },

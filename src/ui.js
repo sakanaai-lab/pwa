@@ -1,6 +1,7 @@
 // uiUtils（Phase 1 で app.js から抽出）。挙動は不変。
 import { CHAT_TITLE_LENGTH, DARK_THEME_COLOR, VERSION_HISTORY, DEFAULT_BEDROCK_REGION, DEFAULT_FONT_FAMILY, DEFAULT_MODEL, IMPORT_PREFIX, LIGHT_THEME_COLOR, MAX_HISTORY_EXCERPTS, MAX_TOTAL_ATTACHMENT_SIZE, TEXTAREA_MAX_HEIGHT, getAnthropicEffortLevels } from './constants.js';
 import { getGeminiThinkingLevels } from './utils/gemini-thinking.js';
+import { anthropicAlwaysThinks } from './utils/anthropic-thinking.js';
 import { appLogic } from './app-logic.js';
 import { base64ToBlob, formatFileSize, parseNameMaskRules, applyNameMask } from './utils/format.js';
 import { speak, saveSpeech, createUnlockedAudio, createTtsFilename, pickSpeechText, parseStylePresets, serializeStylePresets, upsertStylePreset, removeStylePreset, resolveTtsCaption, DEFAULT_TTS_VOICE } from './utils/tts.js';
@@ -2095,6 +2096,7 @@ createMessageElement(role, content, index, isStreamingPlaceholder = false, casca
             if (model.startsWith('claude')) {
                 if (levels && levels.length === 1) msg = '※ このモデルは Effort 非対応です（OFFのみ）。Opus 4.6以降 / Sonnet 4.6 で利用できます。';
                 else if (levels && !levels.includes('xhigh')) msg = '※ xhigh はこのモデルでは使えません（Opus 4.7以降で利用可）。';
+                else if (sel.value === '' && anthropicAlwaysThinks(model)) msg = '※ このモデルは思考を止められないため、OFF は low として送ります。';
             }
             note.textContent = msg;
             note.classList.toggle('hidden', !msg);

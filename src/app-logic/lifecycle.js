@@ -1141,7 +1141,8 @@ export const lifecycleMethods = {
             anthropicApiKey: { element: elements.anthropicApiKeyInput, event: 'input' },
             anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: 'change', getValue: () => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : '5m' },
             cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput, event: 'input' },
-            anthropicEffort: { element: elements.anthropicEffortSelect, event: 'change', getValue: () => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : 'high' },
+            // OFF を選んだとき「このモデルは思考を止められない」注記を出し直す
+            anthropicEffort: { element: elements.anthropicEffortSelect, event: 'change', getValue: () => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : 'high', onUpdate: () => uiUtils.updateAnthropicEffortOptions() },
             novelaiApiKey: { element: elements.novelaiApiKeyInput, event: 'input' },
             novelaiModel: { element: elements.novelaiModelSelect, event: 'change', getValue: () => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : 'nai-diffusion-4-5-curated' },
             groqApiKey: { element: elements.groqApiKeyInput, event: 'input' },

@@ -513,6 +513,21 @@ describe('getPricing — 2026-10 の新モデル', () => {
         expect(getPricing('gpt-6-sol', NOW).cr).toBe(0.20);
     });
 
+    it('Claude Sonnet 5.5 を引ける（5 と同額、キャッシュヒットは 0.05 倍の $0.10）', () => {
+        expect(getPricing('claude-sonnet-5-5', NOW)).toMatchObject({ in: 2, out: 10, cw5m: 2.50, cw1h: 4, cr: 0.10 });
+        // 'claude-sonnet-5'（cr $0.20）に先に当たらない
+        expect(getPricing('claude-sonnet-5.5', NOW).cr).toBe(0.10);
+        expect(getPricing('claude-sonnet-5', NOW).cr).toBe(0.20);
+    });
+
+    it('Claude Haiku 5.5 を引ける（10万トークン超は全体が上位段）', () => {
+        const p = getPricing('claude-haiku-5-5', NOW);
+        expect(p).toMatchObject({ in: 0.10, out: 0.50, cw5m: 0.125, cw1h: 0.20, cr: 0.01 });
+        expect(p.longCtx).toMatchObject({ threshold: 100000, in: 0.50, out: 2.50, cw5m: 0.625, cw1h: 1, cr: 0.05 });
+        // 総称の 'claude-haiku'（$0.80）や 'claude-haiku-4'（$1）に先に当たらない
+        expect(getPricing('claude-haiku-5.5', NOW).in).toBe(0.10);
+    });
+
     it('GPT-6 Sol / Luna も 272K 超で長コンテキスト段の単価', () => {
         expect(getPricing('gpt-6-sol', NOW).longCtx).toMatchObject({ threshold: 272000, in: 4, out: 15, cr: 0.40 });
         expect(getPricing('gpt-6-luna', NOW).longCtx).toMatchObject({ threshold: 272000, in: 0.20, out: 0.75, cr: 0.02 });
