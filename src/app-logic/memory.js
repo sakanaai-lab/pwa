@@ -12,6 +12,7 @@ import {
     DEFAULT_ANTHROPIC_MODEL,
 } from '../constants.js';
 import { sanitizeGeminiGenerationConfig } from '../utils/gemini-params.js';
+import { openaiIsReasoningModel, openaiSupportsReasoningNone } from '../utils/openai-params.js';
 import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
@@ -99,6 +100,15 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
             temperature,
             max_tokens: maxTokens,
         };
+        // OpenAI の推論モデル（GPT-5 以降・o 系）は temperature を受け付けず、出力上限は
+        // max_completion_tokens。要約やメモリ抽出は短い作業なので、none を受け付けるモデルでは
+        // 推論を止める（GPT-4.x から GPT-6 Luna への移行案内の推奨。止めないと推論で上限を使い切りうる）
+        if (provider === 'openai' && openaiIsReasoningModel(model)) {
+            delete body.temperature;
+            delete body.max_tokens;
+            body.max_completion_tokens = maxTokens;
+            if (openaiSupportsReasoningNone(model)) body.reasoning_effort = 'none';
+        }
         parse = (d) => d.choices?.[0]?.message?.content;
     }
 
@@ -134,7 +144,8 @@ function getMemoryLearnModel(provider) {
         gemini: 'gemini-2.5-flash',
         anthropic: 'claude-haiku-4-5-20251001',
         deepseek: 'deepseek-chat',
-        openai: 'gpt-4o-mini',
+        // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
+        openai: 'gpt-6-luna',
         mistral: 'mistral-small-latest',
     };
     return lightModels[provider] || state.settings.modelName;

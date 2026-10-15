@@ -323,6 +323,7 @@ export const VERSION_HISTORY = {
         '新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。',
         'OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。',
         'OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。',
+        'OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。',
     ],
     '1.68': [
         'Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。',

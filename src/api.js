@@ -1,11 +1,12 @@
 // apiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
+import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
 import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
+import { openaiIsReasoningModel } from './utils/openai-params.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
 import { isImageGenerationModel } from './utils/model-select.js';
@@ -1284,8 +1285,10 @@ export const apiUtils = {
         const apiKey = state.settings.openaiApiKey;
         if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
 
-        const model = state.settings.modelName || 'gpt-4o';
-        const isReasoningModel = /^o\d/i.test(model);
+        const model = state.settings.modelName || DEFAULT_OPENAI_MODEL;
+        // 回帰: 以前は o 系だけを推論モデルとして扱い、GPT-5 / GPT-6 にも temperature と top_p を
+        // 送っていた。GPT-6 は推論の強さが none 以外だと送ってはいけない（既定は medium）
+        const isReasoningModel = openaiIsReasoningModel(model);
         const requestBody = {
             model,
             messages: [],

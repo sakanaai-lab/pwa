@@ -2148,7 +2148,8 @@ ${relationship_context}`;
       "Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。",
       "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。",
       "OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。",
-      "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。"
+      "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。",
+      "OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。"
     ],
     "1.68": [
       "Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。",
@@ -9745,6 +9746,21 @@ AI: ${firstModelContent}`;
   }
   __name(createGeminiStreamAssembler, "createGeminiStreamAssembler");
 
+  // src/utils/openai-params.js
+  function openaiIsReasoningModel(model) {
+    const m = normalizeModelName(model);
+    if (/^o\d/.test(m)) return true;
+    const g = /^gpt-(\d+)/.exec(m);
+    return !!g && Number(g[1]) >= 5;
+  }
+  __name(openaiIsReasoningModel, "openaiIsReasoningModel");
+  var SUPPORTS_NONE = ["gpt-6-luna", "gpt-6-sol"];
+  function openaiSupportsReasoningNone(model) {
+    const m = normalizeModelName(model);
+    return SUPPORTS_NONE.some((p) => m.startsWith(p));
+  }
+  __name(openaiSupportsReasoningNone, "openaiSupportsReasoningNone");
+
   // src/utils/reasoning.js
   function extractReasoningText(message) {
     if (!message || typeof message !== "object") return "";
@@ -10804,8 +10820,8 @@ AI: ${firstModelContent}`;
         e.status = 401;
         throw e;
       }
-      const model = state.settings.modelName || "gpt-4o";
-      const isReasoningModel = /^o\d/i.test(model);
+      const model = state.settings.modelName || DEFAULT_OPENAI_MODEL;
+      const isReasoningModel = openaiIsReasoningModel(model);
       const requestBody = {
         model,
         messages: [],
@@ -14644,6 +14660,12 @@ ${msg}`);
         temperature,
         max_tokens: maxTokens
       };
+      if (provider === "openai" && openaiIsReasoningModel(model)) {
+        delete body.temperature;
+        delete body.max_tokens;
+        body.max_completion_tokens = maxTokens;
+        if (openaiSupportsReasoningNone(model)) body.reasoning_effort = "none";
+      }
       parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
     }
     const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
@@ -14674,7 +14696,8 @@ ${msg}`);
       gemini: "gemini-2.5-flash",
       anthropic: "claude-haiku-4-5-20251001",
       deepseek: "deepseek-chat",
-      openai: "gpt-4o-mini",
+      // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
+      openai: "gpt-6-luna",
       mistral: "mistral-small-latest"
     };
     return lightModels[provider] || state.settings.modelName;
