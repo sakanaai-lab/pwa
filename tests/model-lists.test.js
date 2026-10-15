@@ -39,6 +39,9 @@ const RETIRED_MODELS = [
     'gemini-2.5-flash-lite-preview-09-2025',
     'gemini-2.5-flash-image-preview',
     'gemini-3-pro-preview',
+    // Gemini（2026-10-08 非推奨。API は後継へ自動で回される）
+    'gemini-3.7-flash',
+    'gemini-3.5-flash',
     // Claude API（2025-10-28 / 2026-02-19 ほか）
     'claude-3-5-sonnet-20241022',
     'claude-3-5-sonnet-20240620',
@@ -143,6 +146,8 @@ describe('新しく追加したモデルに料金がある', () => {
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-astra'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-sol'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-luna'],
+        ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.1-sol'],
+        ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-argon'],
         ['XAI_MODELS', XAI_MODELS, 'grok-4.7'],
     ];
     for (const [name, list, value] of cases) {

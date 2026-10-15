@@ -1,6 +1,7 @@
 // appLogic 機能モジュール: lifecycle（Phase 3 で app-logic.js から分割）。挙動は不変。
 import { registerServiceWorker, setupBroadcastChannel, updateMessageMaxWidthVar } from '../app.js';
 import { ANTHROPIC_MODELS, APP_VERSION, BAI_MODELS, BEDROCK_MODELS, DEEPSEEK_MODELS, DEFAULT_ANTHROPIC_MODEL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_DEEPSEEK_MODEL, DEFAULT_GROQ_MODEL, DEFAULT_MISTRAL_MODEL, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_XAI_MODEL, DEFAULT_ZAI_MODEL, GEMINI_MODELS, GROQ_MODELS, HISTORY_SEARCH_DEBOUNCE_MS, IMAGE_STORE, MISTRAL_MODELS, OPENAI_MODELS, SAKANA_MODELS, SETTINGS_STORE, SWIPE_THRESHOLD, VERSION_ACK_STORAGE_KEY, VERSION_HISTORY, VERSION_LEGACY_STORAGE_KEY, VERSION_NOTICE_SESSION_KEY, XAI_MODELS, ZAI_MODELS, ZOOM_THRESHOLD } from '../constants.js';
+import { filterLiveModels } from '../utils/retirement.js';
 import { dbUtils } from '../db.js';
 import { DebugLogger } from '../debug-logger.js';
 import { elements } from '../dom-elements.js';
@@ -402,6 +403,9 @@ export const lifecycleMethods = {
             models = GEMINI_MODELS;
         }
         
+        // 終了日を過ぎたモデルは出さない（選んで送って初めてエラーになるのを防ぐ）
+        models = filterLiveModels(models, Date.now());
+
         const groups = {};
         
         models.forEach(model => {

@@ -98,6 +98,71 @@ export const RETIRED_MODEL_MAP = {
     'grok-2-1212': 'grok-4.6',
 };
 
+// 終了日が告知されていて、まだ使えるモデル（終了日 → 旧モデル名 → 後継）。
+// 終了日を過ぎると RETIRED_MODEL_MAP と同じ扱いになる（一覧から消え、保存済みの設定は後継へ移る）。
+// それまでは今までどおり選べる。判定は src/utils/retirement.js。
+// 後継は各社が公式に案内している移行先。時刻の明記が無いものは UTC の 0時で切り替える。
+// OpenAI — https://developers.openai.com/api/docs/deprecations
+export const SCHEDULED_RETIREMENTS = [
+    {
+        // 2026-04-22 告知「Legacy GPT model snapshots」
+        at: Date.UTC(2026, 9, 23),
+        models: {
+            'o4-mini': 'gpt-5.6-terra',
+            'o4-mini-2025-04-16': 'gpt-5.6-terra',
+            'o3-mini': 'gpt-5.6-sol',
+            'o3-mini-2025-01-31': 'gpt-5.6-sol',
+            'o1': 'gpt-5.6-sol',
+            'o1-2024-12-17': 'gpt-5.6-sol',
+            'gpt-4.1-nano': 'gpt-5.6-luna',
+            'gpt-4.1-nano-2025-04-14': 'gpt-5.6-luna',
+            'gpt-4o-2024-05-13': 'gpt-5.6-sol',
+            'gpt-4-turbo': 'gpt-5.6-sol',
+            'gpt-4-turbo-2024-04-09': 'gpt-5.6-sol',
+            'gpt-4-1106-preview': 'gpt-5.6-sol',
+            'gpt-4': 'gpt-5.6-sol',
+            'gpt-4-0613': 'gpt-5.6-sol',
+            'gpt-3.5-turbo': 'gpt-5.6-terra',
+            'gpt-3.5-turbo-0125': 'gpt-5.6-terra',
+        },
+    },
+    {
+        // 2026-06-11 告知「GPT-5 and o3 model deprecations」。
+        // 別名の 'o3' / 'gpt-5' / 'gpt-5-mini' は告知に載っていないので入れていない（推測で入れない）
+        at: Date.UTC(2026, 11, 11),
+        models: {
+            'o3-2025-04-16': 'gpt-5.6-sol',
+            'gpt-5-2025-08-07': 'gpt-5.6-sol',
+            'gpt-5-mini-2025-08-07': 'gpt-5.6-terra',
+            'gpt-5-nano-2025-08-07': 'gpt-5.6-luna',
+        },
+    },
+    {
+        // 2026-10-14 告知「GPT-4 series model deprecations」（メールでも通知あり）
+        at: Date.UTC(2027, 0, 14),
+        models: {
+            'gpt-4o': 'gpt-6-luna',
+            'gpt-4o-2024-08-06': 'gpt-6-luna',
+            'gpt-4o-2024-11-20': 'gpt-6-luna',
+            'gpt-4o-mini': 'gpt-6-luna',
+            'gpt-4o-mini-2024-07-18': 'gpt-6-luna',
+            'gpt-4.1': 'gpt-6-luna',
+            'gpt-4.1-2025-04-14': 'gpt-6-luna',
+            'gpt-4.1-mini': 'gpt-6-luna',
+            'gpt-4.1-mini-2025-04-14': 'gpt-6-luna',
+        },
+    },
+    {
+        // 2026-10-01 告知「GPT-5.3-Codex, GPT-5.1, GPT-5.4-Nano」
+        at: Date.UTC(2027, 3, 1),
+        models: {
+            'gpt-5.1': 'gpt-6-sol',
+            'gpt-5.3-codex': 'gpt-6-sol',
+            'gpt-5.4-nano': 'gpt-6-luna',
+        },
+    },
+];
+
 // 既存の 'glm-4.5-Air'（大文字A）は、保存済み設定を持つ人のモデルが
 // 既定値へ勝手に戻ってしまうため、表記を変えずそのまま残している。
 export const ZAI_MODELS = [
@@ -149,14 +214,15 @@ export const OPENAI_MODELS = [
     { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol (最新・標準)' },
     { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
     { value: 'gpt-6-luna', label: 'GPT-6 Luna (最新・最安)' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
-    { value: 'gpt-4.1', label: 'GPT-4.1' },
-    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini' },
+    { value: 'gpt-4o', label: 'GPT-4o (2027/1/14 終了)' },
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini (2027/1/14 終了)' },
+    { value: 'gpt-4.1', label: 'GPT-4.1 (2027/1/14 終了)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 mini (2027/1/14 終了)' },
     { value: 'o3', label: 'o3', group: '推論モデル' },
-    { value: 'o4-mini', label: 'o4-mini', group: '推論モデル' },
+    { value: 'o4-mini', label: 'o4-mini (10/23 終了)', group: '推論モデル' },
 ];
-export const DEFAULT_OPENAI_MODEL = 'gpt-4o';
+// gpt-4o は 2027-01-14 に終了するため、公式の移行先 gpt-6-luna にしている
+export const DEFAULT_OPENAI_MODEL = 'gpt-6-luna';
 
 export const ANTHROPIC_MODELS = [
     { value: 'claude-opus-5-5', label: 'Claude Opus 5.5 (最新・Opus 5 より安価)' },
@@ -255,6 +321,8 @@ export const VERSION_HISTORY = {
         'GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。',
         'Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。',
         '新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。',
+        'OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。',
+        'OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。',
     ],
     '1.68': [
         'Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。',

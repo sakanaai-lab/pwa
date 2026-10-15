@@ -8,7 +8,6 @@
 //  - 未知の廃止は「そのプロバイダーのデフォルトモデル」を提案し、必ずユーザーに確認する
 //    （勝手に別モデル＝想定外の課金へ切り替えない）。
 import {
-    RETIRED_MODEL_MAP,
     DEFAULT_MODEL,
     DEFAULT_OPENAI_MODEL,
     DEFAULT_ANTHROPIC_MODEL,
@@ -21,6 +20,7 @@ import {
     DEFAULT_BAI_MODEL,
     DEFAULT_OPENROUTER_MODEL,
 } from '../constants.js';
+import { getRetirementSuccessor } from '../utils/retirement.js';
 import { dbUtils } from '../db.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
@@ -52,9 +52,11 @@ export function isRetiredModelError(errorMessage) {
 // 廃止モデルの後継候補を返す。{ model, fromMap } または null。
 // - fromMap: true  … RETIRED_MODEL_MAP に定義された確実な後継（自動切替してよい）
 // - fromMap: false … プロバイダーのデフォルトへのフォールバック（要ユーザー確認）
-export function suggestSuccessor(deadModel, provider) {
-    if (deadModel && RETIRED_MODEL_MAP[deadModel]) {
-        return { model: RETIRED_MODEL_MAP[deadModel], fromMap: true };
+// 終了日が決まっているモデル（SCHEDULED_RETIREMENTS）も、終了日を過ぎていれば fromMap: true。
+export function suggestSuccessor(deadModel, provider, now = Date.now()) {
+    const successor = getRetirementSuccessor(deadModel, now);
+    if (successor) {
+        return { model: successor, fromMap: true };
     }
     const fallback = PROVIDER_DEFAULT_MODEL[provider];
     if (fallback && fallback !== deadModel) {

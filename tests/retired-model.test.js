@@ -67,11 +67,20 @@ describe('suggestSuccessor', () => {
         }
     });
 
+    // 終了日が決まっているモデルは、終了日を過ぎてから確実な後継（fromMap:true）になる
+    it('終了予定のモデルは、終了日の後だけ公式の移行先を返す', () => {
+        expect(suggestSuccessor('o4-mini', 'openai', Date.UTC(2026, 9, 23)))
+            .toEqual({ model: 'gpt-5.6-terra', fromMap: true });
+        expect(suggestSuccessor('gpt-4o', 'openai', Date.UTC(2027, 0, 14)))
+            .toEqual({ model: 'gpt-6-luna', fromMap: true });
+        expect(suggestSuccessor('gpt-4o', 'openai', Date.UTC(2026, 9, 15)).fromMap).toBe(false);
+    });
+
     it('未知の廃止はプロバイダーのデフォルトを fromMap:false で提案する', () => {
-        const s = suggestSuccessor('gpt-4o-2024-05-13', 'openai');
+        const s = suggestSuccessor('gpt-4-0314', 'openai');
         expect(s.fromMap).toBe(false);
         expect(typeof s.model).toBe('string');
-        expect(s.model).not.toBe('gpt-4o-2024-05-13');
+        expect(s.model).not.toBe('gpt-4-0314');
     });
 
     it('後継候補が無い（未知プロバイダー）場合は null を返す', () => {

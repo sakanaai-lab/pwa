@@ -1962,6 +1962,65 @@ ${relationship_context}`;
     "grok-3-mini": "grok-4.3",
     "grok-2-1212": "grok-4.6"
   };
+  var SCHEDULED_RETIREMENTS = [
+    {
+      // 2026-04-22 告知「Legacy GPT model snapshots」
+      at: Date.UTC(2026, 9, 23),
+      models: {
+        "o4-mini": "gpt-5.6-terra",
+        "o4-mini-2025-04-16": "gpt-5.6-terra",
+        "o3-mini": "gpt-5.6-sol",
+        "o3-mini-2025-01-31": "gpt-5.6-sol",
+        "o1": "gpt-5.6-sol",
+        "o1-2024-12-17": "gpt-5.6-sol",
+        "gpt-4.1-nano": "gpt-5.6-luna",
+        "gpt-4.1-nano-2025-04-14": "gpt-5.6-luna",
+        "gpt-4o-2024-05-13": "gpt-5.6-sol",
+        "gpt-4-turbo": "gpt-5.6-sol",
+        "gpt-4-turbo-2024-04-09": "gpt-5.6-sol",
+        "gpt-4-1106-preview": "gpt-5.6-sol",
+        "gpt-4": "gpt-5.6-sol",
+        "gpt-4-0613": "gpt-5.6-sol",
+        "gpt-3.5-turbo": "gpt-5.6-terra",
+        "gpt-3.5-turbo-0125": "gpt-5.6-terra"
+      }
+    },
+    {
+      // 2026-06-11 告知「GPT-5 and o3 model deprecations」。
+      // 別名の 'o3' / 'gpt-5' / 'gpt-5-mini' は告知に載っていないので入れていない（推測で入れない）
+      at: Date.UTC(2026, 11, 11),
+      models: {
+        "o3-2025-04-16": "gpt-5.6-sol",
+        "gpt-5-2025-08-07": "gpt-5.6-sol",
+        "gpt-5-mini-2025-08-07": "gpt-5.6-terra",
+        "gpt-5-nano-2025-08-07": "gpt-5.6-luna"
+      }
+    },
+    {
+      // 2026-10-14 告知「GPT-4 series model deprecations」（メールでも通知あり）
+      at: Date.UTC(2027, 0, 14),
+      models: {
+        "gpt-4o": "gpt-6-luna",
+        "gpt-4o-2024-08-06": "gpt-6-luna",
+        "gpt-4o-2024-11-20": "gpt-6-luna",
+        "gpt-4o-mini": "gpt-6-luna",
+        "gpt-4o-mini-2024-07-18": "gpt-6-luna",
+        "gpt-4.1": "gpt-6-luna",
+        "gpt-4.1-2025-04-14": "gpt-6-luna",
+        "gpt-4.1-mini": "gpt-6-luna",
+        "gpt-4.1-mini-2025-04-14": "gpt-6-luna"
+      }
+    },
+    {
+      // 2026-10-01 告知「GPT-5.3-Codex, GPT-5.1, GPT-5.4-Nano」
+      at: Date.UTC(2027, 3, 1),
+      models: {
+        "gpt-5.1": "gpt-6-sol",
+        "gpt-5.3-codex": "gpt-6-sol",
+        "gpt-5.4-nano": "gpt-6-luna"
+      }
+    }
+  ];
   var ZAI_MODELS = [
     { value: "glm-5.3-flash", label: "GLM-5.3 Flash (最新・安価)" },
     { value: "glm-5.3", label: "GLM-5.3" },
@@ -2006,14 +2065,14 @@ ${relationship_context}`;
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol (最新・標準)" },
     { value: "gpt-6-sol", label: "GPT-6 Sol" },
     { value: "gpt-6-luna", label: "GPT-6 Luna (最新・最安)" },
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o mini" },
-    { value: "gpt-4.1", label: "GPT-4.1" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
+    { value: "gpt-4o", label: "GPT-4o (2027/1/14 終了)" },
+    { value: "gpt-4o-mini", label: "GPT-4o mini (2027/1/14 終了)" },
+    { value: "gpt-4.1", label: "GPT-4.1 (2027/1/14 終了)" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 mini (2027/1/14 終了)" },
     { value: "o3", label: "o3", group: "推論モデル" },
-    { value: "o4-mini", label: "o4-mini", group: "推論モデル" }
+    { value: "o4-mini", label: "o4-mini (10/23 終了)", group: "推論モデル" }
   ];
-  var DEFAULT_OPENAI_MODEL = "gpt-4o";
+  var DEFAULT_OPENAI_MODEL = "gpt-6-luna";
   var ANTHROPIC_MODELS = [
     { value: "claude-opus-5-5", label: "Claude Opus 5.5 (最新・Opus 5 より安価)" },
     { value: "claude-opus-5", label: "Claude Opus 5" },
@@ -2087,7 +2146,9 @@ ${relationship_context}`;
       "Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
       "GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。",
       "Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。",
-      "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。"
+      "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。",
+      "OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。",
+      "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。"
     ],
     "1.68": [
       "Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。",
@@ -2696,6 +2757,24 @@ Reason: [NGの場合の理由]`,
     }
   }
   __name(applyDbMigrations, "applyDbMigrations");
+
+  // src/utils/retirement.js
+  function getRetirementSuccessor(model, now, {
+    retiredMap = RETIRED_MODEL_MAP,
+    scheduled = SCHEDULED_RETIREMENTS
+  } = {}) {
+    if (!model) return null;
+    if (retiredMap[model]) return retiredMap[model];
+    for (const { at, models } of scheduled) {
+      if (now >= at && models[model]) return models[model];
+    }
+    return null;
+  }
+  __name(getRetirementSuccessor, "getRetirementSuccessor");
+  function filterLiveModels(list, now, tables) {
+    return list.filter((m) => getRetirementSuccessor(m.value, now, tables) === null);
+  }
+  __name(filterLiveModels, "filterLiveModels");
 
   // src/debug-logger.js
   var DebugLogger = {
@@ -5722,8 +5801,8 @@ ${error.message}`);
         let migratedRetiredModel = false;
         for (const key of ["modelName", "summaryModelName", "proofreadingModelName"]) {
           const current = state.settings[key];
-          if (current && RETIRED_MODEL_MAP[current]) {
-            const replacement = RETIRED_MODEL_MAP[current];
+          const replacement = current ? getRetirementSuccessor(current, Date.now()) : null;
+          if (replacement) {
             state.settings[key] = replacement;
             if (state.activeProfile.settings) state.activeProfile.settings[key] = replacement;
             migratedRetiredModel = true;
@@ -6292,6 +6371,7 @@ ${error.message}`);
       } else {
         models = GEMINI_MODELS;
       }
+      models = filterLiveModels(models, Date.now());
       const groups = {};
       models.forEach((model2) => {
         if (model2.group) {
@@ -11277,9 +11357,10 @@ ${body}`;
     );
   }
   __name(isRetiredModelError, "isRetiredModelError");
-  function suggestSuccessor(deadModel, provider) {
-    if (deadModel && RETIRED_MODEL_MAP[deadModel]) {
-      return { model: RETIRED_MODEL_MAP[deadModel], fromMap: true };
+  function suggestSuccessor(deadModel, provider, now = Date.now()) {
+    const successor = getRetirementSuccessor(deadModel, now);
+    if (successor) {
+      return { model: successor, fromMap: true };
     }
     const fallback = PROVIDER_DEFAULT_MODEL[provider];
     if (fallback && fallback !== deadModel) {

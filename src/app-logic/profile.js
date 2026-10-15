@@ -1,5 +1,6 @@
 // appLogic 機能モジュール: profile（Phase 3 で app-logic.js から分割）。挙動は不変。
-import { IMPORT_PREFIX, MAX_PROFILES, RETIRED_MODEL_MAP } from '../constants.js';
+import { IMPORT_PREFIX, MAX_PROFILES } from '../constants.js';
+import { getRetirementSuccessor } from '../utils/retirement.js';
 import { dbUtils } from '../db.js';
 import { DebugLogger } from '../debug-logger.js';
 import { elements } from '../dom-elements.js';
@@ -89,8 +90,9 @@ export const profileMethods = {
             let migratedRetiredModel = false;
             for (const key of ['modelName', 'summaryModelName', 'proofreadingModelName']) {
                 const current = state.settings[key];
-                if (current && RETIRED_MODEL_MAP[current]) {
-                    const replacement = RETIRED_MODEL_MAP[current];
+                // 終了済みのモデルと、終了日を過ぎた予定のモデルを後継へ移す
+                const replacement = current ? getRetirementSuccessor(current, Date.now()) : null;
+                if (replacement) {
                     state.settings[key] = replacement;
                     if (state.activeProfile.settings) state.activeProfile.settings[key] = replacement;
                     migratedRetiredModel = true;
