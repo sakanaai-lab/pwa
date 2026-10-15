@@ -48,9 +48,13 @@ describe('suggestSuccessor', () => {
     // 一覧から取り除いたモデルは、保存済み設定に残っていても後継へ案内できること
     it('一覧から外した各社の廃止モデルにも後継が登録されている', () => {
         const cases = [
-            ['gemini-2.0-flash', 'gemini', 'gemini-3.5-flash'],
+            // 移行先の 3.5 Flash / 3.1 Flash Image も 2026-10 に非推奨になったので、その後継へ
+            ['gemini-2.0-flash', 'gemini', 'gemini-3.6-flash'],
             ['gemini-2.0-flash-lite', 'gemini', 'gemini-3.1-flash-lite'],
-            ['gemini-2.5-flash-image-preview', 'gemini', 'gemini-3.1-flash-image'],
+            ['gemini-2.5-flash-image-preview', 'gemini', 'gemini-nano-banana-2.1'],
+            // 2026-10-08 非推奨（API は後継へ自動で回される）
+            ['gemini-3.7-flash', 'gemini', 'gemini-3.8-flash'],
+            ['gemini-3.5-flash', 'gemini', 'gemini-3.6-flash'],
             ['claude-3-5-sonnet-20241022', 'anthropic', 'claude-sonnet-4-6'],
             ['claude-3-5-haiku-20241022', 'anthropic', 'claude-haiku-4-5-20251001'],
             ['moonshotai/kimi-k2-instruct', 'groq', 'openai/gpt-oss-120b'],
@@ -63,11 +67,20 @@ describe('suggestSuccessor', () => {
         }
     });
 
+    // 終了日が決まっているモデルは、終了日を過ぎてから確実な後継（fromMap:true）になる
+    it('終了予定のモデルは、終了日の後だけ公式の移行先を返す', () => {
+        expect(suggestSuccessor('o4-mini', 'openai', Date.UTC(2026, 9, 23)))
+            .toEqual({ model: 'gpt-5.6-terra', fromMap: true });
+        expect(suggestSuccessor('gpt-4o', 'openai', Date.UTC(2027, 0, 14)))
+            .toEqual({ model: 'gpt-6-luna', fromMap: true });
+        expect(suggestSuccessor('gpt-4o', 'openai', Date.UTC(2026, 9, 15)).fromMap).toBe(false);
+    });
+
     it('未知の廃止はプロバイダーのデフォルトを fromMap:false で提案する', () => {
-        const s = suggestSuccessor('gpt-4o-2024-05-13', 'openai');
+        const s = suggestSuccessor('gpt-4-0314', 'openai');
         expect(s.fromMap).toBe(false);
         expect(typeof s.model).toBe('string');
-        expect(s.model).not.toBe('gpt-4o-2024-05-13');
+        expect(s.model).not.toBe('gpt-4-0314');
     });
 
     it('後継候補が無い（未知プロバイダー）場合は null を返す', () => {

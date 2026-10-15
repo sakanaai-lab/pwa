@@ -158,7 +158,8 @@ describe('isImageGenerationModel', () => {
     // 回帰: Nano Banana を名指ししていたため、後継の -image モデルを選ぶと
     // 画像生成として扱われなかった
     it('後継の画像生成モデルを認識する', () => {
-        for (const m of ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image']) {
+        // 回帰: Nano Banana 2.1 は名前に '-image' を含まず、テキストモデル扱いになっていた
+        for (const m of ['gemini-3.1-flash-image', 'gemini-3.1-flash-lite-image', 'gemini-3-pro-image', 'gemini-nano-banana-2.1']) {
             expect(isImageGenerationModel(m)).toBe(true);
         }
     });

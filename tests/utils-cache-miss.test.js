@@ -105,6 +105,17 @@ describe('assessAnthropicCacheMiss — 止める場合', () => {
         expect(r?.reason).toBe('model');
     });
 
+    // 回帰: 長いプロンプトで単価が上がるモデルを、下位段の単価で安く見積もっていた
+    it('Haiku 5.5 は10万トークン超なら上位段の書き込み単価で見積もる', () => {
+        const s = settings({ modelName: 'claude-haiku-5-5' });
+        const big = last({ modelName: 'claude-haiku-5-5', timestamp: NOW - 10 * MIN, usageMetadata: { promptTokenCount: 800_000 } });
+        const r = assessAnthropicCacheMiss({ settings: s, lastModelMessage: big, now: NOW });
+        // 80万 × $0.625/M（5分書込・上位段）= $0.50
+        expect(r.estimatedUsd).toBeCloseTo(0.50, 5);
+        // 1時間に切り替えた場合も上位段の $1/M
+        expect(r.estimatedUsd1h).toBeCloseTo(0.80, 5);
+    });
+
     it('TTL の定数', () => {
         expect(CACHE_TTL_MS['5m']).toBe(5 * MIN);
         expect(CACHE_TTL_MS['1h']).toBe(60 * MIN);

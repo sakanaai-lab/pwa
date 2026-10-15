@@ -1,11 +1,13 @@
 // apiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
+import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
 import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
+import { openaiIsReasoningModel, resolveOpenAIReasoningEffort } from './utils/openai-params.js';
+import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
 import { isImageGenerationModel } from './utils/model-select.js';
@@ -1284,8 +1286,10 @@ export const apiUtils = {
         const apiKey = state.settings.openaiApiKey;
         if (!apiKey) { const e = new Error("OpenAI APIキーが設定されていません。設定画面で追加してください。"); e.status = 401; throw e; }
 
-        const model = state.settings.modelName || 'gpt-4o';
-        const isReasoningModel = /^o\d/i.test(model);
+        const model = state.settings.modelName || DEFAULT_OPENAI_MODEL;
+        // 回帰: 以前は o 系だけを推論モデルとして扱い、GPT-5 / GPT-6 にも temperature と top_p を
+        // 送っていた。GPT-6 は推論の強さが none 以外だと送ってはいけない（既定は medium）
+        const isReasoningModel = openaiIsReasoningModel(model);
         const requestBody = {
             model,
             messages: [],
@@ -1296,6 +1300,9 @@ export const apiUtils = {
             requestBody.temperature = config.temperature ?? 0.7;
             requestBody.top_p = config.topP ?? 1.0;
         }
+        // 推論の強さ。選ばれていて、そのモデルで使える値のときだけ送る（空ならモデルの既定）
+        const reasoningEffort = resolveOpenAIReasoningEffort(model, state.settings.openaiReasoningEffort);
+        if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
 
         const systemText = extractSystemText(systemInstruction);
         if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
@@ -1373,12 +1380,15 @@ export const apiUtils = {
                 : (_allowed.filter((e) => _order.indexOf(e) <= _order.indexOf(effort)).pop() || _allowed[_allowed.length - 1]);
         }
         const useAdaptive = !!effort;
+        // OFF のときに送る thinking と Effort（モデルによって disabled を受け付けない）
+        const thinkingOff = useAdaptive ? null : anthropicThinkingOff(model);
         // Anthropic の思考は「思考の深さ(effort)」のみで制御する。
         // 「OFF（思考なし）」を選んだら、Gemini 用の thinkingBudget が残っていても
         // 思考（推論）は行わない。
         const useManualThinking = false;
         const useThinking = useAdaptive || useManualThinking;
-        const maxTokens = useAdaptive
+        // 思考を止められないモデルは OFF でも low で考えるので、上限は思考ありと同じにする
+        const maxTokens = (useAdaptive || thinkingOff?.effort)
             ? Math.max(config.maxOutputTokens ?? 16000, 16000)
             : useManualThinking
                 ? Math.max(config.maxOutputTokens ?? 4000, state.settings.thinkingBudget + 1000)
@@ -1397,7 +1407,8 @@ export const apiUtils = {
 
         // 新世代モデル（Opus 4.7/4.8/5・Sonnet 5・Fable 5 等）は temperature/top_p/top_k が
         // 廃止されており、送ると400になるため送らない。
-        const rejectsSamplingParams = ['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5'].some(m => model.startsWith(m));
+        // Haiku 5.5 も既定以外の値は400。'claude-opus-5' / 'claude-sonnet-5' は 5.5 も含む。
+        const rejectsSamplingParams = ['claude-opus-4-7', 'claude-opus-4-8', 'claude-opus-5', 'claude-sonnet-5', 'claude-fable-5', 'claude-mythos-5', 'claude-haiku-5'].some(m => model.startsWith(m));
         // thinking パラメータ非対応の旧モデル（Claude 3.x / 2.x）には thinking を送らない。
         const supportsThinkingParam = !model.startsWith('claude-3') && !model.startsWith('claude-2');
 
@@ -1408,13 +1419,15 @@ export const apiUtils = {
             requestBody.thinking = { type: 'enabled', budget_tokens: state.settings.thinkingBudget };
             if (!rejectsSamplingParams) requestBody.temperature = 1;
         } else {
-            // OFF（思考なし）。Opus 5 等は思考がデフォルトONのため、明示的に disabled を送って止める。
-            // （disabled は effort high 以下限定だが、OFF時は effort を送らない＝サーバー既定 high なので問題なし）
-            if (supportsThinkingParam) requestBody.thinking = { type: 'disabled' };
+            // OFF（思考なし）。Opus 5 等は思考がデフォルトONのため、明示的に止める。
+            // 回帰: 以前は全モデルに disabled を送っていて、Opus 5.5 / Fable 5 系 / Sonnet 5.5 では
+            // 毎回 400 になっていた。止め方はモデルごとに anthropicThinkingOff が決める
+            // （止められないモデルは thinking を送らず Effort を low にする）。
+            if (supportsThinkingParam && thinkingOff?.thinking) requestBody.thinking = thinkingOff.thinking;
             if (!rejectsSamplingParams) requestBody.temperature = config.temperature ?? 0.7;
         }
-        if (effort) {
-            requestBody.output_config = { effort };
+        if (effort || thinkingOff?.effort) {
+            requestBody.output_config = { effort: effort || thinkingOff.effort };
         }
 
         const _staticText = systemInstruction?._staticText;

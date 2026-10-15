@@ -56,8 +56,10 @@ export function assessAnthropicCacheMiss({ settings, lastModelMessage, now }) {
     }
     if (!reason) return null;
 
-    const pricing = getPricing(model, now);
-    if (!pricing) return null;
+    const base = getPricing(model, now);
+    if (!base) return null;
+    // 長いプロンプトで単価が上がるモデル（Haiku 5.5 は10万トークン超で5倍）は上位段で見積もる
+    const pricing = (base.longCtx && tokens >= base.longCtx.threshold) ? { ...base, ...base.longCtx } : base;
 
     // 再書き込みなので単価はキャッシュ書き込み（cw5m / cw1h）。無いモデルは入力単価で代用
     const perMillion = (ttl === '1h' ? pricing.cw1h : pricing.cw5m) ?? pricing.in;

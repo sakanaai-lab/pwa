@@ -1609,6 +1609,8 @@ ${relationship_context}`;
       anthropicCacheTTLSelect: document.getElementById("anthropic-cache-ttl"),
       cacheMissAlertThresholdInput: document.getElementById("cache-miss-alert-threshold"),
       anthropicEffortSelect: document.getElementById("anthropic-effort"),
+      openaiReasoningEffortSelect: document.getElementById("openai-reasoning-effort"),
+      openaiReasoningEffortNote: document.getElementById("openai-reasoning-effort-note"),
       anthropicEffortNote: document.getElementById("anthropic-effort-note"),
       novelaiApiKeyInput: document.getElementById("novelai-api-key"),
       novelaiModelSelect: document.getElementById("novelai-model"),
@@ -1911,10 +1913,9 @@ ${relationship_context}`;
   var VERSION_ACK_STORAGE_KEY = "appVersionAcknowledged";
   var VERSION_LEGACY_STORAGE_KEY = "appVersion";
   var GEMINI_MODELS = [
-    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (最新・2026年内は半額)" },
-    { value: "gemini-3.7-flash", label: "gemini-3.7-flash (2026年内は半額)" },
+    { value: "gemini-4-argon", label: "gemini-4-argon (最新・11月末まで半額)" },
+    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (2026年内は半額)" },
     { value: "gemini-3.6-flash", label: "gemini-3.6-flash (2026年内は半額)" },
-    { value: "gemini-3.5-flash", label: "gemini-3.5-flash" },
     { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
     { value: "gemini-3.1-flash-lite", label: "gemini-3.1-flash-lite (軽量・安価)" },
     { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
@@ -1924,14 +1925,19 @@ ${relationship_context}`;
     { value: "gemini-3-flash-preview", label: "gemini-3-flash-preview", group: "プレビュー版" }
   ];
   var RETIRED_MODEL_MAP = {
-    // Gemini（2026-06-01 提供終了）
-    "gemini-2.0-flash": "gemini-3.5-flash",
+    // Gemini（2026-06-01 提供終了）。移行先の 3.5 Flash も 2026-10-08 に非推奨になったため 3.6 Flash へ
+    "gemini-2.0-flash": "gemini-3.6-flash",
     "gemini-2.0-flash-lite": "gemini-3.1-flash-lite",
     // Gemini プレビュー版（2026-03-31 / 2026-01-15 提供終了）
     "gemini-2.5-flash-preview-09-2025": "gemini-2.5-flash",
     "gemini-2.5-flash-lite-preview-09-2025": "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-image-preview": "gemini-3.1-flash-image",
+    // 移行先だった 3.1 Flash Image も 2026-10-06 に非推奨になり、Nano Banana 2.1 が後継
+    "gemini-2.5-flash-image-preview": "gemini-nano-banana-2.1",
     "gemini-3-pro-preview": "gemini-3.1-pro-preview",
+    // Gemini（2026-10-08 非推奨）。AI Studio で選べなくなり、API へのリクエストは
+    // 後継へ自動で回される。後継の単価で課金されるので、設定も後継に揃える
+    "gemini-3.7-flash": "gemini-3.8-flash",
+    "gemini-3.5-flash": "gemini-3.6-flash",
     // Claude（Claude API）
     "claude-3-5-sonnet-20241022": "claude-sonnet-4-6",
     "claude-3-5-sonnet-20240620": "claude-sonnet-4-6",
@@ -1958,6 +1964,65 @@ ${relationship_context}`;
     "grok-3-mini": "grok-4.3",
     "grok-2-1212": "grok-4.6"
   };
+  var SCHEDULED_RETIREMENTS = [
+    {
+      // 2026-04-22 告知「Legacy GPT model snapshots」
+      at: Date.UTC(2026, 9, 23),
+      models: {
+        "o4-mini": "gpt-5.6-terra",
+        "o4-mini-2025-04-16": "gpt-5.6-terra",
+        "o3-mini": "gpt-5.6-sol",
+        "o3-mini-2025-01-31": "gpt-5.6-sol",
+        "o1": "gpt-5.6-sol",
+        "o1-2024-12-17": "gpt-5.6-sol",
+        "gpt-4.1-nano": "gpt-5.6-luna",
+        "gpt-4.1-nano-2025-04-14": "gpt-5.6-luna",
+        "gpt-4o-2024-05-13": "gpt-5.6-sol",
+        "gpt-4-turbo": "gpt-5.6-sol",
+        "gpt-4-turbo-2024-04-09": "gpt-5.6-sol",
+        "gpt-4-1106-preview": "gpt-5.6-sol",
+        "gpt-4": "gpt-5.6-sol",
+        "gpt-4-0613": "gpt-5.6-sol",
+        "gpt-3.5-turbo": "gpt-5.6-terra",
+        "gpt-3.5-turbo-0125": "gpt-5.6-terra"
+      }
+    },
+    {
+      // 2026-06-11 告知「GPT-5 and o3 model deprecations」。
+      // 別名の 'o3' / 'gpt-5' / 'gpt-5-mini' は告知に載っていないので入れていない（推測で入れない）
+      at: Date.UTC(2026, 11, 11),
+      models: {
+        "o3-2025-04-16": "gpt-5.6-sol",
+        "gpt-5-2025-08-07": "gpt-5.6-sol",
+        "gpt-5-mini-2025-08-07": "gpt-5.6-terra",
+        "gpt-5-nano-2025-08-07": "gpt-5.6-luna"
+      }
+    },
+    {
+      // 2026-10-14 告知「GPT-4 series model deprecations」（メールでも通知あり）
+      at: Date.UTC(2027, 0, 14),
+      models: {
+        "gpt-4o": "gpt-6-luna",
+        "gpt-4o-2024-08-06": "gpt-6-luna",
+        "gpt-4o-2024-11-20": "gpt-6-luna",
+        "gpt-4o-mini": "gpt-6-luna",
+        "gpt-4o-mini-2024-07-18": "gpt-6-luna",
+        "gpt-4.1": "gpt-6-luna",
+        "gpt-4.1-2025-04-14": "gpt-6-luna",
+        "gpt-4.1-mini": "gpt-6-luna",
+        "gpt-4.1-mini-2025-04-14": "gpt-6-luna"
+      }
+    },
+    {
+      // 2026-10-01 告知「GPT-5.3-Codex, GPT-5.1, GPT-5.4-Nano」
+      at: Date.UTC(2027, 3, 1),
+      models: {
+        "gpt-5.1": "gpt-6-sol",
+        "gpt-5.3-codex": "gpt-6-sol",
+        "gpt-5.4-nano": "gpt-6-luna"
+      }
+    }
+  ];
   var ZAI_MODELS = [
     { value: "glm-5.3-flash", label: "GLM-5.3 Flash (最新・安価)" },
     { value: "glm-5.3", label: "GLM-5.3" },
@@ -1999,18 +2064,21 @@ ${relationship_context}`;
   var DEFAULT_BEDROCK_REGION = "us-east-1";
   var OPENAI_MODELS = [
     { value: "gpt-6-astra", label: "GPT-6 Astra (最上位)" },
-    { value: "gpt-6-sol", label: "GPT-6 Sol (最新・標準)" },
+    { value: "gpt-6.1-sol", label: "GPT-6.1 Sol (最新・標準)" },
+    { value: "gpt-6-sol", label: "GPT-6 Sol" },
     { value: "gpt-6-luna", label: "GPT-6 Luna (最新・最安)" },
-    { value: "gpt-4o", label: "GPT-4o" },
-    { value: "gpt-4o-mini", label: "GPT-4o mini" },
-    { value: "gpt-4.1", label: "GPT-4.1" },
-    { value: "gpt-4.1-mini", label: "GPT-4.1 mini" },
+    { value: "gpt-4o", label: "GPT-4o (2027/1/14 終了)" },
+    { value: "gpt-4o-mini", label: "GPT-4o mini (2027/1/14 終了)" },
+    { value: "gpt-4.1", label: "GPT-4.1 (2027/1/14 終了)" },
+    { value: "gpt-4.1-mini", label: "GPT-4.1 mini (2027/1/14 終了)" },
     { value: "o3", label: "o3", group: "推論モデル" },
-    { value: "o4-mini", label: "o4-mini", group: "推論モデル" }
+    { value: "o4-mini", label: "o4-mini (10/23 終了)", group: "推論モデル" }
   ];
-  var DEFAULT_OPENAI_MODEL = "gpt-4o";
+  var DEFAULT_OPENAI_MODEL = "gpt-6-luna";
   var ANTHROPIC_MODELS = [
     { value: "claude-opus-5-5", label: "Claude Opus 5.5 (最新・Opus 5 より安価)" },
+    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (最新・標準)" },
+    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (最新・最安)" },
     { value: "claude-opus-5", label: "Claude Opus 5" },
     { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
     { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
@@ -2023,7 +2091,7 @@ ${relationship_context}`;
   var DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
   function getAnthropicEffortLevels(model) {
     if (!model) return null;
-    const full = ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5"];
+    const full = ["claude-opus-5", "claude-opus-4-8", "claude-opus-4-7", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5", "claude-haiku-5"];
     if (full.some((p) => model.startsWith(p))) return ["", "low", "medium", "high", "xhigh", "max"];
     if (model.startsWith("claude-opus-4-6") || model.startsWith("claude-sonnet-4-6")) return ["", "low", "medium", "high", "max"];
     if (model.startsWith("claude-opus-4-5")) return ["", "low", "medium", "high"];
@@ -2078,6 +2146,18 @@ ${relationship_context}`;
   ];
   var DEFAULT_BAI_MODEL = "glm-5.3-flash";
   var VERSION_HISTORY = {
+    "1.69": [
+      "Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
+      "GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。",
+      "Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。",
+      "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。",
+      "OpenAI の提供終了の予定に対応しました。o4-mini は 10月23日、GPT-4o／4o mini／4.1／4.1 mini は 2027年1月14日に終了します。一覧に終了日を書き、終了日を過ぎたら一覧から消して、選んでいた場合は OpenAI が案内している後継（o4-mini は GPT-5.6 Terra、GPT-4o などは GPT-6 Luna）へ自動で切り替えます。終了日まではこれまでどおり使えます。",
+      "OpenAI を選んだときの既定のモデルを、終了予定の GPT-4o から GPT-6 Luna に変えました。",
+      "OpenAI の GPT-5 以降（GPT-6 Astra／Sol／Luna など）に、受け付けない Temperature と Top P を送っていたのを直しました。エラーになっていた可能性があります。OpenAI で要約やメモリ学習を使うときのモデルも、終了予定の GPT-4o mini から GPT-6 Luna に変えました。",
+      "OpenAI に「推論の強さ」の設定を追加しました（設定の OpenAI の項目）。GPT-6 は何も選ばないと medium で考えるので、GPT-4o のように素早く返してほしいときは none（GPT-6 Luna / Sol のみ）、じっくり考えてほしいときは high 以上を選べます。選択中のモデルで使える段階だけ表示されます。",
+      "Claude Sonnet 5.5（入力$2／出力$10、キャッシュ読み込み$0.10）と Claude Haiku 5.5（入力$0.10／出力$0.50。10万トークンを超えるとその1通は5倍）に対応しました。どちらも思考の深さを low〜max から選べます。",
+      "Claude の思考の深さを「OFF」にしていると、Opus 5.5 などでは毎回エラーになっていたのを直しました。Opus 5.5 と Fable 5 系は思考を止められないモデルなので、OFF は一番軽い low として送ります（設定画面に注記が出ます）。Sonnet 5.5 はこのモデル用の方法で思考を止めます。"
+    ],
     "1.68": [
       "Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。",
       "Google から「今後の Gemini では thinking_budget と Temperature / Top K / Top P を送るとエラーになる」と告知があったため、受け付けるモデルにだけ送るようにしました。3.6 Flash 以降はもともと Temperature などが効いていないので、送らなくても結果は変わりません。新しい Gemini では思考の深さを使ってください。",
@@ -2383,6 +2463,8 @@ ${relationship_context}`;
       thinkingBudget: null,
       // Gemini の思考の深さ（thinking_level）。空はモデルの既定。選ぶと thinkingBudget は送らない
       geminiThinkingLevel: "",
+      // OpenAI の推論の強さ（reasoning_effort）。空はモデルの既定（GPT-6 は medium）
+      openaiReasoningEffort: "",
       includeThoughts: false,
       // 返事を書かれる端から表示する（Geminiのみ）。まずは様子見のため既定OFF。
       enableStreaming: false,
@@ -2686,6 +2768,24 @@ Reason: [NGの場合の理由]`,
   }
   __name(applyDbMigrations, "applyDbMigrations");
 
+  // src/utils/retirement.js
+  function getRetirementSuccessor(model, now, {
+    retiredMap = RETIRED_MODEL_MAP,
+    scheduled = SCHEDULED_RETIREMENTS
+  } = {}) {
+    if (!model) return null;
+    if (retiredMap[model]) return retiredMap[model];
+    for (const { at, models } of scheduled) {
+      if (now >= at && models[model]) return models[model];
+    }
+    return null;
+  }
+  __name(getRetirementSuccessor, "getRetirementSuccessor");
+  function filterLiveModels(list, now, tables) {
+    return list.filter((m) => getRetirementSuccessor(m.value, now, tables) === null);
+  }
+  __name(filterLiveModels, "filterLiveModels");
+
   // src/debug-logger.js
   var DebugLogger = {
     logs: [],
@@ -2784,8 +2884,20 @@ Reason: [NGの場合の理由]`,
     // Sonnet 5 は 4.6/4.5 より安い（$2/$10）。'claude-sonnet-4' より前に置くこと。
     // 発表時は 2026-08-31 までの導入価格とされていたが、その後この額が正価になり、
     // 予定されていた $3/$15 への値上げは行われないと明記された（＝期間で分ける必要なし）。
+    // Sonnet 5.5 は 5 と同額だがキャッシュヒットが基本入力の0.05倍。'claude-sonnet-5' より前に置くこと。
+    "claude-sonnet-5-5": { in: 2, out: 10, cw5m: 2.5, cw1h: 4, cr: 0.1 },
     "claude-sonnet-5": { in: 2, out: 10, cw5m: 2.5, cw1h: 4, cr: 0.2 },
     "claude-sonnet-4": { in: 3, out: 15, cw5m: 3.75, cw1h: 6, cr: 0.3 },
+    // Haiku 5.5 はプロンプトが10万トークンを超えるとそのリクエスト全体が上位段の単価になる
+    // （キャッシュ読み込み・書き込みも含めた入力トークン数で判定）。総称の 'claude-haiku' より前に置くこと。
+    "claude-haiku-5-5": {
+      in: 0.1,
+      out: 0.5,
+      cw5m: 0.125,
+      cw1h: 0.2,
+      cr: 0.01,
+      longCtx: { threshold: 1e5, in: 0.5, out: 2.5, cw5m: 0.625, cw1h: 1, cr: 0.05 }
+    },
     "claude-haiku-4": { in: 1, out: 5, cw5m: 1.25, cw1h: 2, cr: 0.1 },
     // Claude 3系 (旧モデル)
     "claude-opus-3": { in: 15, out: 75, cw5m: 18.75, cw1h: 30, cr: 1.5 },
@@ -2856,11 +2968,13 @@ Reason: [NGの場合の理由]`,
     "qwen3-8-flash": { in: 0.15, out: 0.47, cr: 0.016 },
     // OpenAI — https://developers.openai.com/api/docs/pricing
     // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
-    // GPT-6 Astra。長コンテキスト段（入力$20/出力$75）もあるが、何トークンから
-    // 切り替わるかが公表されていないため longCtx は入れていない（推測で入れない）。
-    "gpt-6-astra": { in: 10, out: 50, cr: 1 },
-    "gpt-6-sol": { in: 2, out: 10, cr: 0.2 },
-    "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01 },
+    // GPT-6 系は入力が 272K トークンを超えると長コンテキスト段の単価になる
+    // （料金ページの表記: short context = 272K 以下、long context = 272K 超）。
+    // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
+    "gpt-6-astra": { in: 10, out: 50, cr: 1, longCtx: { threshold: 272e3, in: 20, out: 75, cr: 2 } },
+    "gpt-6-1-sol": { in: 2, out: 10, cr: 0.1, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.2 } },
+    "gpt-6-sol": { in: 2, out: 10, cr: 0.2, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.4 } },
+    "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01, longCtx: { threshold: 272e3, in: 0.2, out: 0.75, cr: 0.02 } },
     "gpt-5-6-sol": { in: 4, out: 20, cr: 0.4 },
     // 2026-08-21 値下げ（少なくとも11/21まで）
     "gpt-5-6-terra": { in: 2, out: 12, cr: 0.2 },
@@ -2889,6 +3003,10 @@ Reason: [NGの場合の理由]`,
     // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
     // 3.7 / 3.6 Flash は 2026-12-31 まで半額。ここには割引終了後の通常単価を置き、
     // 割引期間中は MODEL_PRICING_GEMINI_FLASH_PROMO を優先して引く。
+    // 4 Argon（2026-10-13）は 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
+    // それより前は MODEL_PRICING_GEMINI_ARGON_INTRO を優先して引く。
+    // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
+    "gemini-4-argon": { in: 4, out: 20, cr: 0.2 },
     "gemini-3-8-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-7-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-6-flash": { in: 1.5, out: 7.5, cr: 0.15 },
@@ -2918,6 +3036,10 @@ Reason: [NGの場合の理由]`,
     "gemini-3-8-flash": { in: 0.75, out: 3.75, cr: 0.075 },
     "gemini-3-7-flash": { in: 0.75, out: 3.75, cr: 0.075 },
     "gemini-3-6-flash": { in: 0.75, out: 3.75, cr: 0.075 }
+  };
+  var GEMINI_ARGON_INTRO_END_AT = Date.UTC(2026, 11, 1, 0, 0, 0);
+  var MODEL_PRICING_GEMINI_ARGON_INTRO = {
+    "gemini-4-argon": { in: 2, out: 10, cr: 0.1 }
   };
   var DEEPSEEK_V41_FLASH_AT = Date.UTC(2026, 8, 10, 0, 0, 0);
   var MODEL_PRICING_BEFORE_V41_FLASH = {
@@ -2958,6 +3080,11 @@ Reason: [NGの場合の理由]`,
     }
     if (!timestamp || timestamp < GEMINI_FLASH_PROMO_END_AT) {
       for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_FLASH_PROMO)) {
+        if (m.startsWith(key)) return price;
+      }
+    }
+    if (!timestamp || timestamp < GEMINI_ARGON_INTRO_END_AT) {
+      for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_ARGON_INTRO)) {
         if (m.startsWith(key)) return price;
       }
     }
@@ -3063,6 +3190,57 @@ Reason: [NGの場合の理由]`,
     return null;
   }
   __name(buildGeminiLightThinkingConfig, "buildGeminiLightThinkingConfig");
+
+  // src/utils/anthropic-thinking.js
+  var ALWAYS_THINKS = ["claude-fable-5", "claude-mythos-5", "claude-opus-5-5"];
+  var BETWEEN_TOOLS = ["claude-sonnet-5-5"];
+  function anthropicAlwaysThinks(model) {
+    const m = normalizeModelName(model);
+    return ALWAYS_THINKS.some((p) => m.startsWith(p));
+  }
+  __name(anthropicAlwaysThinks, "anthropicAlwaysThinks");
+  function anthropicThinkingOff(model) {
+    const m = normalizeModelName(model);
+    if (m.startsWith("claude-3") || m.startsWith("claude-2")) return { thinking: null, effort: null };
+    if (ALWAYS_THINKS.some((p) => m.startsWith(p))) return { thinking: null, effort: "low" };
+    if (BETWEEN_TOOLS.some((p) => m.startsWith(p))) return { thinking: { type: "between_tools" }, effort: null };
+    return { thinking: { type: "disabled" }, effort: null };
+  }
+  __name(anthropicThinkingOff, "anthropicThinkingOff");
+
+  // src/utils/openai-params.js
+  function openaiIsReasoningModel(model) {
+    const m = normalizeModelName(model);
+    if (/^o\d/.test(m)) return true;
+    const g = /^gpt-(\d+)/.exec(m);
+    return !!g && Number(g[1]) >= 5;
+  }
+  __name(openaiIsReasoningModel, "openaiIsReasoningModel");
+  var REASONING_LEVELS_BY_MODEL = [
+    ["gpt-6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-sol", ["none", "low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-1-sol", ["low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-astra", ["low", "medium", "high", "xhigh", "max"]]
+  ];
+  function getOpenAIReasoningLevels(model) {
+    if (!openaiIsReasoningModel(model)) return null;
+    const m = normalizeModelName(model);
+    const hit = REASONING_LEVELS_BY_MODEL.find(([p]) => m.startsWith(p));
+    return hit ? hit[1] : ["low", "medium", "high"];
+  }
+  __name(getOpenAIReasoningLevels, "getOpenAIReasoningLevels");
+  function openaiSupportsReasoningNone(model) {
+    const levels = getOpenAIReasoningLevels(model);
+    return !!levels && levels.includes("none");
+  }
+  __name(openaiSupportsReasoningNone, "openaiSupportsReasoningNone");
+  function resolveOpenAIReasoningEffort(model, effort) {
+    const e = typeof effort === "string" ? effort.trim().toLowerCase() : "";
+    if (!e) return null;
+    const levels = getOpenAIReasoningLevels(model);
+    return levels && levels.includes(e) ? e : null;
+  }
+  __name(resolveOpenAIReasoningEffort, "resolveOpenAIReasoningEffort");
 
   // src/utils/format.js
   var sleep = /* @__PURE__ */ __name((ms) => new Promise((resolve) => setTimeout(resolve, ms)), "sleep");
@@ -3538,6 +3716,7 @@ Reason: [NGの場合の理由]`,
     if (typeof model !== "string" || !model) return false;
     const m = model.toLowerCase();
     if (/(^|-)image(-|$)/.test(m)) return true;
+    if (m.includes("nano-banana")) return true;
     return m.includes("image-generation") || m.includes("imagen");
   }
   __name(isImageGenerationModel, "isImageGenerationModel");
@@ -4758,6 +4937,9 @@ ${error.message}`);
       if (elements.cacheMissAlertThresholdInput) {
         elements.cacheMissAlertThresholdInput.value = state.settings.cacheMissAlertThresholdUsd ?? "";
       }
+      if (elements.openaiReasoningEffortSelect) {
+        elements.openaiReasoningEffortSelect.value = state.settings.openaiReasoningEffort || "";
+      }
       if (elements.anthropicEffortSelect) {
         elements.anthropicEffortSelect.value = state.settings.anthropicEffort ?? "high";
       }
@@ -5294,6 +5476,7 @@ ${error.message}`);
       elements.modelWarningMessage.classList.toggle("hidden", !isImageModel);
       this.updateAnthropicEffortOptions();
       this.updateGeminiThinkingLevelOptions();
+      this.updateOpenAIReasoningEffortOptions();
     },
     // 登録済みプリセットから読み上げスタイルのプルダウンを組み立てる。
     updateTtsStylePresetOptions() {
@@ -5415,6 +5598,40 @@ ${error.message}`);
         note.classList.toggle("hidden", !msg);
       }
     },
+    // 選択中の OpenAI モデルに応じて推論の強さの選択肢を絞り込み、注意書きを出す。
+    // Gemini の思考の深さ（updateGeminiThinkingLevelOptions）と同じ作り。
+    updateOpenAIReasoningEffortOptions() {
+      const sel = elements.openaiReasoningEffortSelect;
+      if (!sel) return;
+      const model = elements.modelNameSelect && elements.modelNameSelect.value || state.settings.modelName || "";
+      const levels = getOpenAIReasoningLevels(model);
+      for (const opt of sel.options) {
+        const ok = opt.value === "" || levels && levels.includes(opt.value);
+        opt.hidden = !ok;
+        opt.disabled = !ok;
+      }
+      if (sel.value && (!levels || !levels.includes(sel.value))) {
+        sel.value = "";
+        if (state.settings.openaiReasoningEffort !== "") {
+          state.settings.openaiReasoningEffort = "";
+          if (state.activeProfile) {
+            state.activeProfile.settings.openaiReasoningEffort = "";
+            dbUtils.updateProfile(state.activeProfile).catch(() => {
+            });
+          }
+        }
+      }
+      const note = elements.openaiReasoningEffortNote;
+      if (note) {
+        let msg = "";
+        if (/^(gpt|o\d)/i.test(model)) {
+          if (!levels) msg = "※ このモデルは推論モデルではないため送りません（GPT-5 以降と o 系が対象）。";
+          else if (!levels.includes("none")) msg = "※ none はこのモデルでは使えません（GPT-6 Luna / GPT-6 Sol で利用可）。";
+        }
+        note.textContent = msg;
+        note.classList.toggle("hidden", !msg);
+      }
+    },
     // 選択中のAnthropicモデルに応じて Effort の選択肢を絞り込み、注意書きを出す。
     updateAnthropicEffortOptions() {
       const sel = elements.anthropicEffortSelect;
@@ -5451,6 +5668,7 @@ ${error.message}`);
         if (model.startsWith("claude")) {
           if (levels && levels.length === 1) msg = "※ このモデルは Effort 非対応です（OFFのみ）。Opus 4.6以降 / Sonnet 4.6 で利用できます。";
           else if (levels && !levels.includes("xhigh")) msg = "※ xhigh はこのモデルでは使えません（Opus 4.7以降で利用可）。";
+          else if (sel.value === "" && anthropicAlwaysThinks(model)) msg = "※ このモデルは思考を止められないため、OFF は low として送ります。";
         }
         note.textContent = msg;
         note.classList.toggle("hidden", !msg);
@@ -5695,8 +5913,8 @@ ${error.message}`);
         let migratedRetiredModel = false;
         for (const key of ["modelName", "summaryModelName", "proofreadingModelName"]) {
           const current = state.settings[key];
-          if (current && RETIRED_MODEL_MAP[current]) {
-            const replacement = RETIRED_MODEL_MAP[current];
+          const replacement = current ? getRetirementSuccessor(current, Date.now()) : null;
+          if (replacement) {
             state.settings[key] = replacement;
             if (state.activeProfile.settings) state.activeProfile.settings[key] = replacement;
             migratedRetiredModel = true;
@@ -6265,6 +6483,7 @@ ${error.message}`);
       } else {
         models = GEMINI_MODELS;
       }
+      models = filterLiveModels(models, Date.now());
       const groups = {};
       models.forEach((model2) => {
         if (model2.group) {
@@ -6876,7 +7095,9 @@ ${error.message}`);
         anthropicApiKey: { element: elements.anthropicApiKeyInput, event: "input" },
         anthropicCacheTTL: { element: elements.anthropicCacheTTLSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicCacheTTLSelect ? elements.anthropicCacheTTLSelect.value : "5m", "getValue") },
         cacheMissAlertThresholdUsd: { element: elements.cacheMissAlertThresholdInput, event: "input" },
-        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue") },
+        openaiReasoningEffort: { element: elements.openaiReasoningEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.openaiReasoningEffortSelect ? elements.openaiReasoningEffortSelect.value : "", "getValue") },
+        // OFF を選んだとき「このモデルは思考を止められない」注記を出し直す
+        anthropicEffort: { element: elements.anthropicEffortSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.anthropicEffortSelect ? elements.anthropicEffortSelect.value : "high", "getValue"), onUpdate: /* @__PURE__ */ __name(() => uiUtils.updateAnthropicEffortOptions(), "onUpdate") },
         novelaiApiKey: { element: elements.novelaiApiKeyInput, event: "input" },
         novelaiModel: { element: elements.novelaiModelSelect, event: "change", getValue: /* @__PURE__ */ __name(() => elements.novelaiModelSelect ? elements.novelaiModelSelect.value : "nai-diffusion-4-5-curated", "getValue") },
         groqApiKey: { element: elements.groqApiKeyInput, event: "input" },
@@ -10697,8 +10918,8 @@ AI: ${firstModelContent}`;
         e.status = 401;
         throw e;
       }
-      const model = state.settings.modelName || "gpt-4o";
-      const isReasoningModel = /^o\d/i.test(model);
+      const model = state.settings.modelName || DEFAULT_OPENAI_MODEL;
+      const isReasoningModel = openaiIsReasoningModel(model);
       const requestBody = {
         model,
         messages: [],
@@ -10709,6 +10930,8 @@ AI: ${firstModelContent}`;
         requestBody.temperature = config.temperature ?? 0.7;
         requestBody.top_p = config.topP ?? 1;
       }
+      const reasoningEffort = resolveOpenAIReasoningEffort(model, state.settings.openaiReasoningEffort);
+      if (reasoningEffort) requestBody.reasoning_effort = reasoningEffort;
       const systemText = extractSystemText(systemInstruction);
       if (systemText) requestBody.messages.push({ role: "system", content: systemText });
       this.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
@@ -10779,9 +11002,10 @@ AI: ${firstModelContent}`;
         effort = _allowed.length === 0 ? null : _allowed.filter((e) => _order.indexOf(e) <= _order.indexOf(effort)).pop() || _allowed[_allowed.length - 1];
       }
       const useAdaptive = !!effort;
+      const thinkingOff = useAdaptive ? null : anthropicThinkingOff(model);
       const useManualThinking = false;
       const useThinking = useAdaptive || useManualThinking;
-      const maxTokens = useAdaptive ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
+      const maxTokens = useAdaptive || thinkingOff?.effort ? Math.max(config.maxOutputTokens ?? 16e3, 16e3) : useManualThinking ? Math.max(config.maxOutputTokens ?? 4e3, state.settings.thinkingBudget + 1e3) : config.maxOutputTokens ?? 4e3;
       const cacheTTL = state.settings.anthropicCacheTTL || "5m";
       const cacheControl = cacheTTL === "none" ? null : cacheTTL === "1h" ? { type: "ephemeral", ttl: "1h" } : { type: "ephemeral" };
       const requestBody = {
@@ -10789,7 +11013,7 @@ AI: ${firstModelContent}`;
         messages: [],
         max_tokens: maxTokens
       };
-      const rejectsSamplingParams = ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5"].some((m) => model.startsWith(m));
+      const rejectsSamplingParams = ["claude-opus-4-7", "claude-opus-4-8", "claude-opus-5", "claude-sonnet-5", "claude-fable-5", "claude-mythos-5", "claude-haiku-5"].some((m) => model.startsWith(m));
       const supportsThinkingParam = !model.startsWith("claude-3") && !model.startsWith("claude-2");
       if (useAdaptive) {
         requestBody.thinking = { type: "adaptive" };
@@ -10798,11 +11022,11 @@ AI: ${firstModelContent}`;
         requestBody.thinking = { type: "enabled", budget_tokens: state.settings.thinkingBudget };
         if (!rejectsSamplingParams) requestBody.temperature = 1;
       } else {
-        if (supportsThinkingParam) requestBody.thinking = { type: "disabled" };
+        if (supportsThinkingParam && thinkingOff?.thinking) requestBody.thinking = thinkingOff.thinking;
         if (!rejectsSamplingParams) requestBody.temperature = config.temperature ?? 0.7;
       }
-      if (effort) {
-        requestBody.output_config = { effort };
+      if (effort || thinkingOff?.effort) {
+        requestBody.output_config = { effort: effort || thinkingOff.effort };
       }
       const _staticText = systemInstruction?._staticText;
       const _dynamicText = systemInstruction?._dynamicText;
@@ -11179,8 +11403,9 @@ ${knowledgeText}`;
       reason = "expired";
     }
     if (!reason) return null;
-    const pricing = getPricing(model, now);
-    if (!pricing) return null;
+    const base = getPricing(model, now);
+    if (!base) return null;
+    const pricing = base.longCtx && tokens >= base.longCtx.threshold ? { ...base, ...base.longCtx } : base;
     const perMillion = (ttl === "1h" ? pricing.cw1h : pricing.cw5m) ?? pricing.in;
     const estimatedUsd = tokens * perMillion / 1e6;
     if (estimatedUsd < threshold) return null;
@@ -11250,9 +11475,10 @@ ${body}`;
     );
   }
   __name(isRetiredModelError, "isRetiredModelError");
-  function suggestSuccessor(deadModel, provider) {
-    if (deadModel && RETIRED_MODEL_MAP[deadModel]) {
-      return { model: RETIRED_MODEL_MAP[deadModel], fromMap: true };
+  function suggestSuccessor(deadModel, provider, now = Date.now()) {
+    const successor = getRetirementSuccessor(deadModel, now);
+    if (successor) {
+      return { model: successor, fromMap: true };
     }
     const fallback = PROVIDER_DEFAULT_MODEL[provider];
     if (fallback && fallback !== deadModel) {
@@ -14536,6 +14762,12 @@ ${msg}`);
         temperature,
         max_tokens: maxTokens
       };
+      if (provider === "openai" && openaiIsReasoningModel(model)) {
+        delete body.temperature;
+        delete body.max_tokens;
+        body.max_completion_tokens = maxTokens;
+        if (openaiSupportsReasoningNone(model)) body.reasoning_effort = "none";
+      }
       parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
     }
     const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
@@ -14566,7 +14798,8 @@ ${msg}`);
       gemini: "gemini-2.5-flash",
       anthropic: "claude-haiku-4-5-20251001",
       deepseek: "deepseek-chat",
-      openai: "gpt-4o-mini",
+      // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
+      openai: "gpt-6-luna",
       mistral: "mistral-small-latest"
     };
     return lightModels[provider] || state.settings.modelName;
