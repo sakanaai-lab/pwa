@@ -48,9 +48,13 @@ describe('suggestSuccessor', () => {
     // 一覧から取り除いたモデルは、保存済み設定に残っていても後継へ案内できること
     it('一覧から外した各社の廃止モデルにも後継が登録されている', () => {
         const cases = [
-            ['gemini-2.0-flash', 'gemini', 'gemini-3.5-flash'],
+            // 移行先の 3.5 Flash / 3.1 Flash Image も 2026-10 に非推奨になったので、その後継へ
+            ['gemini-2.0-flash', 'gemini', 'gemini-3.6-flash'],
             ['gemini-2.0-flash-lite', 'gemini', 'gemini-3.1-flash-lite'],
-            ['gemini-2.5-flash-image-preview', 'gemini', 'gemini-3.1-flash-image'],
+            ['gemini-2.5-flash-image-preview', 'gemini', 'gemini-nano-banana-2.1'],
+            // 2026-10-08 非推奨（API は後継へ自動で回される）
+            ['gemini-3.7-flash', 'gemini', 'gemini-3.8-flash'],
+            ['gemini-3.5-flash', 'gemini', 'gemini-3.6-flash'],
             ['claude-3-5-sonnet-20241022', 'anthropic', 'claude-sonnet-4-6'],
             ['claude-3-5-haiku-20241022', 'anthropic', 'claude-haiku-4-5-20251001'],
             ['moonshotai/kimi-k2-instruct', 'groq', 'openai/gpt-oss-120b'],

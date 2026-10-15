@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getPricing, isDeepSeekPeak, normalizeModelName, DEEPSEEK_V4_PRICE_CHANGE_AT, GEMINI_FLASH_PROMO_END_AT, DEEPSEEK_WEEKEND_OFFPEAK_AT, GPT_56_SOL_PRICE_CUT_AT, DEEPSEEK_V41_FLASH_AT, GLM_53_FLASH_PROMO_END_AT } from '../src/utils/pricing.js';
+import { getPricing, isDeepSeekPeak, normalizeModelName, DEEPSEEK_V4_PRICE_CHANGE_AT, GEMINI_FLASH_PROMO_END_AT, GEMINI_ARGON_INTRO_END_AT, DEEPSEEK_WEEKEND_OFFPEAK_AT, GPT_56_SOL_PRICE_CUT_AT, DEEPSEEK_V41_FLASH_AT, GLM_53_FLASH_PROMO_END_AT } from '../src/utils/pricing.js';
 
 const BEFORE = DEEPSEEK_V4_PRICE_CHANGE_AT - 1;
 const AFTER = DEEPSEEK_V4_PRICE_CHANGE_AT;
@@ -440,9 +440,11 @@ describe('getPricing — 2026-09 の新モデル', () => {
         expect(getPricing('gpt-6-astra', NOW).out).not.toBe(20);
     });
 
-    // 長コンテキスト段の閾値が公表されていないので、推測で入れていないことを固定する
-    it('GPT-6 Astra に longCtx を入れていない', () => {
-        expect(getPricing('gpt-6-astra', NOW).longCtx).toBeUndefined();
+    // 以前は閾値が公表されておらず入れていなかった。2026-10 に料金ページで
+    // 「272K 以下 / 272K 超」と明記されたので、公表値で入れている
+    it('GPT-6 Astra は 272K 超で長コンテキスト段の単価', () => {
+        expect(getPricing('gpt-6-astra', NOW).longCtx)
+            .toMatchObject({ threshold: 272000, in: 20, out: 75, cr: 2 });
     });
 
     it('grok-build-0.1 を引ける（200k以上は倍額）', () => {
@@ -483,6 +485,37 @@ describe('getPricing — 2026-09 の新モデル', () => {
         expect(getPricing('deepseek-flash', NOW).in).not.toBe(0.27);
         // ピーク倍率は他の V4 系と同じく持つ
         expect(getPricing('deepseek-flash', NOW).peakMul).toBe(2);
+    });
+});
+
+describe('getPricing — 2026-10 の新モデル', () => {
+    const NOW = Date.UTC(2026, 9, 15);
+
+    it('Gemini 4 Argon は 11月末まで半額、12/1 から通常単価', () => {
+        expect(getPricing('gemini-4-argon', NOW)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gemini-4-argon', GEMINI_ARGON_INTRO_END_AT - 1)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gemini-4-argon', GEMINI_ARGON_INTRO_END_AT)).toMatchObject({ in: 4, out: 20, cr: 0.20 });
+        // 切り替えは UTC の 12/1 0時（日本時間 12/1 9時）
+        expect(GEMINI_ARGON_INTRO_END_AT).toBe(Date.UTC(2026, 11, 1));
+    });
+
+    // 公表されていない値は入れない
+    it('Gemini 4 Argon に長コンテキスト段は入れていない（料金ページに記載が無い）', () => {
+        expect(getPricing('gemini-4-argon', NOW).longCtx).toBeUndefined();
+        expect(getPricing('gemini-4-argon', GEMINI_ARGON_INTRO_END_AT).longCtx).toBeUndefined();
+    });
+
+    it('GPT-6.1 Sol を引ける（6 Sol と同額、キャッシュヒットは半額）', () => {
+        expect(getPricing('gpt-6.1-sol', NOW)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gpt-6.1-sol', NOW).longCtx).toMatchObject({ threshold: 272000, in: 4, out: 15, cr: 0.20 });
+        // 正規化で 'gpt-6-1-sol' になる。'gpt-6-sol' と取り違えない
+        expect(normalizeModelName('gpt-6.1-sol')).toBe('gpt-6-1-sol');
+        expect(getPricing('gpt-6-sol', NOW).cr).toBe(0.20);
+    });
+
+    it('GPT-6 Sol / Luna も 272K 超で長コンテキスト段の単価', () => {
+        expect(getPricing('gpt-6-sol', NOW).longCtx).toMatchObject({ threshold: 272000, in: 4, out: 15, cr: 0.40 });
+        expect(getPricing('gpt-6-luna', NOW).longCtx).toMatchObject({ threshold: 272000, in: 0.20, out: 0.75, cr: 0.02 });
     });
 });
 

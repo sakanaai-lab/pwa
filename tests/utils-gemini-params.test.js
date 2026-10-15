@@ -21,6 +21,8 @@ describe('geminiAcceptsSamplingParams', () => {
     // 名前を知らないモデルは今後のモデルとみなす。送らなければモデルの既定で動くだけで済む
     it('今後出るモデルと -latest の別名には送らない', () => {
         expect(geminiAcceptsSamplingParams('gemini-4-flash')).toBe(false);
+        // 2026-10-13 公開の 4 Argon は告知後のモデル
+        expect(geminiAcceptsSamplingParams('gemini-4-argon')).toBe(false);
         expect(geminiAcceptsSamplingParams('gemini-3.9-flash')).toBe(false);
         expect(geminiAcceptsSamplingParams('gemini-flash-latest')).toBe(false);
     });
@@ -44,6 +46,7 @@ describe('geminiAcceptsThinkingBudget', () => {
 
     it('今後出るモデルと -latest の別名は受け付けない扱い', () => {
         expect(geminiAcceptsThinkingBudget('gemini-4-flash')).toBe(false);
+        expect(geminiAcceptsThinkingBudget('gemini-4-argon')).toBe(false);
         expect(geminiAcceptsThinkingBudget('gemini-3.9-flash')).toBe(false);
         expect(geminiAcceptsThinkingBudget('gemini-flash-latest')).toBe(false);
     });

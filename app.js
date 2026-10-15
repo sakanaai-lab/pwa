@@ -1911,10 +1911,9 @@ ${relationship_context}`;
   var VERSION_ACK_STORAGE_KEY = "appVersionAcknowledged";
   var VERSION_LEGACY_STORAGE_KEY = "appVersion";
   var GEMINI_MODELS = [
-    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (最新・2026年内は半額)" },
-    { value: "gemini-3.7-flash", label: "gemini-3.7-flash (2026年内は半額)" },
+    { value: "gemini-4-argon", label: "gemini-4-argon (最新・11月末まで半額)" },
+    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (2026年内は半額)" },
     { value: "gemini-3.6-flash", label: "gemini-3.6-flash (2026年内は半額)" },
-    { value: "gemini-3.5-flash", label: "gemini-3.5-flash" },
     { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
     { value: "gemini-3.1-flash-lite", label: "gemini-3.1-flash-lite (軽量・安価)" },
     { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
@@ -1924,14 +1923,19 @@ ${relationship_context}`;
     { value: "gemini-3-flash-preview", label: "gemini-3-flash-preview", group: "プレビュー版" }
   ];
   var RETIRED_MODEL_MAP = {
-    // Gemini（2026-06-01 提供終了）
-    "gemini-2.0-flash": "gemini-3.5-flash",
+    // Gemini（2026-06-01 提供終了）。移行先の 3.5 Flash も 2026-10-08 に非推奨になったため 3.6 Flash へ
+    "gemini-2.0-flash": "gemini-3.6-flash",
     "gemini-2.0-flash-lite": "gemini-3.1-flash-lite",
     // Gemini プレビュー版（2026-03-31 / 2026-01-15 提供終了）
     "gemini-2.5-flash-preview-09-2025": "gemini-2.5-flash",
     "gemini-2.5-flash-lite-preview-09-2025": "gemini-2.5-flash-lite",
-    "gemini-2.5-flash-image-preview": "gemini-3.1-flash-image",
+    // 移行先だった 3.1 Flash Image も 2026-10-06 に非推奨になり、Nano Banana 2.1 が後継
+    "gemini-2.5-flash-image-preview": "gemini-nano-banana-2.1",
     "gemini-3-pro-preview": "gemini-3.1-pro-preview",
+    // Gemini（2026-10-08 非推奨）。AI Studio で選べなくなり、API へのリクエストは
+    // 後継へ自動で回される。後継の単価で課金されるので、設定も後継に揃える
+    "gemini-3.7-flash": "gemini-3.8-flash",
+    "gemini-3.5-flash": "gemini-3.6-flash",
     // Claude（Claude API）
     "claude-3-5-sonnet-20241022": "claude-sonnet-4-6",
     "claude-3-5-sonnet-20240620": "claude-sonnet-4-6",
@@ -1999,7 +2003,8 @@ ${relationship_context}`;
   var DEFAULT_BEDROCK_REGION = "us-east-1";
   var OPENAI_MODELS = [
     { value: "gpt-6-astra", label: "GPT-6 Astra (最上位)" },
-    { value: "gpt-6-sol", label: "GPT-6 Sol (最新・標準)" },
+    { value: "gpt-6.1-sol", label: "GPT-6.1 Sol (最新・標準)" },
+    { value: "gpt-6-sol", label: "GPT-6 Sol" },
     { value: "gpt-6-luna", label: "GPT-6 Luna (最新・最安)" },
     { value: "gpt-4o", label: "GPT-4o" },
     { value: "gpt-4o-mini", label: "GPT-4o mini" },
@@ -2078,6 +2083,12 @@ ${relationship_context}`;
   ];
   var DEFAULT_BAI_MODEL = "glm-5.3-flash";
   var VERSION_HISTORY = {
+    "1.69": [
+      "Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
+      "GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。",
+      "Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。",
+      "新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。"
+    ],
     "1.68": [
       "Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。",
       "Google から「今後の Gemini では thinking_budget と Temperature / Top K / Top P を送るとエラーになる」と告知があったため、受け付けるモデルにだけ送るようにしました。3.6 Flash 以降はもともと Temperature などが効いていないので、送らなくても結果は変わりません。新しい Gemini では思考の深さを使ってください。",
@@ -2856,11 +2867,13 @@ Reason: [NGの場合の理由]`,
     "qwen3-8-flash": { in: 0.15, out: 0.47, cr: 0.016 },
     // OpenAI — https://developers.openai.com/api/docs/pricing
     // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
-    // GPT-6 Astra。長コンテキスト段（入力$20/出力$75）もあるが、何トークンから
-    // 切り替わるかが公表されていないため longCtx は入れていない（推測で入れない）。
-    "gpt-6-astra": { in: 10, out: 50, cr: 1 },
-    "gpt-6-sol": { in: 2, out: 10, cr: 0.2 },
-    "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01 },
+    // GPT-6 系は入力が 272K トークンを超えると長コンテキスト段の単価になる
+    // （料金ページの表記: short context = 272K 以下、long context = 272K 超）。
+    // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
+    "gpt-6-astra": { in: 10, out: 50, cr: 1, longCtx: { threshold: 272e3, in: 20, out: 75, cr: 2 } },
+    "gpt-6-1-sol": { in: 2, out: 10, cr: 0.1, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.2 } },
+    "gpt-6-sol": { in: 2, out: 10, cr: 0.2, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.4 } },
+    "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01, longCtx: { threshold: 272e3, in: 0.2, out: 0.75, cr: 0.02 } },
     "gpt-5-6-sol": { in: 4, out: 20, cr: 0.4 },
     // 2026-08-21 値下げ（少なくとも11/21まで）
     "gpt-5-6-terra": { in: 2, out: 12, cr: 0.2 },
@@ -2889,6 +2902,10 @@ Reason: [NGの場合の理由]`,
     // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
     // 3.7 / 3.6 Flash は 2026-12-31 まで半額。ここには割引終了後の通常単価を置き、
     // 割引期間中は MODEL_PRICING_GEMINI_FLASH_PROMO を優先して引く。
+    // 4 Argon（2026-10-13）は 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
+    // それより前は MODEL_PRICING_GEMINI_ARGON_INTRO を優先して引く。
+    // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
+    "gemini-4-argon": { in: 4, out: 20, cr: 0.2 },
     "gemini-3-8-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-7-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-6-flash": { in: 1.5, out: 7.5, cr: 0.15 },
@@ -2918,6 +2935,10 @@ Reason: [NGの場合の理由]`,
     "gemini-3-8-flash": { in: 0.75, out: 3.75, cr: 0.075 },
     "gemini-3-7-flash": { in: 0.75, out: 3.75, cr: 0.075 },
     "gemini-3-6-flash": { in: 0.75, out: 3.75, cr: 0.075 }
+  };
+  var GEMINI_ARGON_INTRO_END_AT = Date.UTC(2026, 11, 1, 0, 0, 0);
+  var MODEL_PRICING_GEMINI_ARGON_INTRO = {
+    "gemini-4-argon": { in: 2, out: 10, cr: 0.1 }
   };
   var DEEPSEEK_V41_FLASH_AT = Date.UTC(2026, 8, 10, 0, 0, 0);
   var MODEL_PRICING_BEFORE_V41_FLASH = {
@@ -2958,6 +2979,11 @@ Reason: [NGの場合の理由]`,
     }
     if (!timestamp || timestamp < GEMINI_FLASH_PROMO_END_AT) {
       for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_FLASH_PROMO)) {
+        if (m.startsWith(key)) return price;
+      }
+    }
+    if (!timestamp || timestamp < GEMINI_ARGON_INTRO_END_AT) {
+      for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_ARGON_INTRO)) {
         if (m.startsWith(key)) return price;
       }
     }
@@ -3538,6 +3564,7 @@ Reason: [NGの場合の理由]`,
     if (typeof model !== "string" || !model) return false;
     const m = model.toLowerCase();
     if (/(^|-)image(-|$)/.test(m)) return true;
+    if (m.includes("nano-banana")) return true;
     return m.includes("image-generation") || m.includes("imagen");
   }
   __name(isImageGenerationModel, "isImageGenerationModel");

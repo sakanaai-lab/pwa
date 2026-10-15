@@ -32,6 +32,8 @@ export function isImageGenerationModel(model) {
     const m = model.toLowerCase();
     // '-image' で終わる / '-image-' を含む（例: -image-preview）
     if (/(^|-)image(-|$)/.test(m)) return true;
+    // 2026-10 の Nano Banana 2.1 は 'gemini-nano-banana-2.1' で、'-image' を含まない
+    if (m.includes('nano-banana')) return true;
     return m.includes('image-generation') || m.includes('imagen');
 }
 

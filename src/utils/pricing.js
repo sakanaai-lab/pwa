@@ -102,11 +102,13 @@ export const MODEL_PRICING = {
 
     // OpenAI — https://developers.openai.com/api/docs/pricing
     // 前方一致のため、より具体的なキーを先に置くこと（'gpt-5-mini' は 'gpt-5' より前）。
-    // GPT-6 Astra。長コンテキスト段（入力$20/出力$75）もあるが、何トークンから
-    // 切り替わるかが公表されていないため longCtx は入れていない（推測で入れない）。
-    'gpt-6-astra':   { in: 10,   out: 50,   cr: 1 },
-    'gpt-6-sol':     { in: 2,    out: 10,   cr: 0.20 },
-    'gpt-6-luna':    { in: 0.10, out: 0.50, cr: 0.01 },
+    // GPT-6 系は入力が 272K トークンを超えると長コンテキスト段の単価になる
+    // （料金ページの表記: short context = 272K 以下、long context = 272K 超）。
+    // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
+    'gpt-6-astra':   { in: 10,   out: 50,   cr: 1,    longCtx: { threshold: 272_000, in: 20,   out: 75,   cr: 2    } },
+    'gpt-6-1-sol':   { in: 2,    out: 10,   cr: 0.10, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.20 } },
+    'gpt-6-sol':     { in: 2,    out: 10,   cr: 0.20, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.40 } },
+    'gpt-6-luna':    { in: 0.10, out: 0.50, cr: 0.01, longCtx: { threshold: 272_000, in: 0.20, out: 0.75, cr: 0.02 } },
     'gpt-5-6-sol':   { in: 4,    out: 20,   cr: 0.40 },  // 2026-08-21 値下げ（少なくとも11/21まで）
     'gpt-5-6-terra': { in: 2,    out: 12,   cr: 0.20 },
     'gpt-5-6-luna':  { in: 0.20, out: 1.20, cr: 0.02 },
@@ -132,6 +134,10 @@ export const MODEL_PRICING = {
     // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
     // 3.7 / 3.6 Flash は 2026-12-31 まで半額。ここには割引終了後の通常単価を置き、
     // 割引期間中は MODEL_PRICING_GEMINI_FLASH_PROMO を優先して引く。
+    // 4 Argon（2026-10-13）は 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
+    // それより前は MODEL_PRICING_GEMINI_ARGON_INTRO を優先して引く。
+    // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
+    'gemini-4-argon':        { in: 4,    out: 20,   cr: 0.20 },
     'gemini-3-8-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-7-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-6-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
@@ -177,6 +183,16 @@ export const MODEL_PRICING_GEMINI_FLASH_PROMO = {
     'gemini-3-8-flash': { in: 0.75, out: 3.75, cr: 0.075 },
     'gemini-3-7-flash': { in: 0.75, out: 3.75, cr: 0.075 },
     'gemini-3-6-flash': { in: 0.75, out: 3.75, cr: 0.075 },
+};
+
+// Gemini 4 Argon の導入価格の終了時刻。
+// 料金ページの表記は「Through Nov 30, 2026」「From Dec 1, 2026」でタイムゾーンの明記が無いため
+// UTC 基準で切り替える（日本時間では 12/1 09:00 に通常単価へ）。
+export const GEMINI_ARGON_INTRO_END_AT = Date.UTC(2026, 11, 1, 0, 0, 0);
+
+// 導入価格期間中の Gemini 4 Argon の単価（通常単価のちょうど半額）。
+export const MODEL_PRICING_GEMINI_ARGON_INTRO = {
+    'gemini-4-argon': { in: 2, out: 10, cr: 0.10 },
 };
 
 // DeepSeek V4.1 Flash の公開日（2026-09-10）。この日から旧名 'deepseek-v4-flash'
@@ -262,6 +278,13 @@ export function getPricing(modelName, timestamp) {
     // （時刻が無い古いデータも、割引開始より前に存在しえないので割引期間として扱う）
     if (!timestamp || timestamp < GEMINI_FLASH_PROMO_END_AT) {
         for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_FLASH_PROMO)) {
+            if (m.startsWith(key)) return price;
+        }
+    }
+    // Gemini 4 Argon の導入価格。終了より前のメッセージは半額で計算する
+    // （時刻が無い古いデータも、公開より前に存在しえないので導入価格期間として扱う）
+    if (!timestamp || timestamp < GEMINI_ARGON_INTRO_END_AT) {
+        for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_ARGON_INTRO)) {
             if (m.startsWith(key)) return price;
         }
     }

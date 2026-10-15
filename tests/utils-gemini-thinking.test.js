@@ -15,8 +15,8 @@ describe('getGeminiThinkingLevels', () => {
         expect(getGeminiThinkingLevels('gemini-3-flash-preview')).toContain('minimal');
     });
 
-    it('3.8 / 3.7 Flash、3.1 Pro は low / medium / high', () => {
-        for (const m of ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview']) {
+    it('4 Argon、3.8 / 3.7 Flash、3.1 Pro は low / medium / high', () => {
+        for (const m of ['gemini-4-argon', 'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview']) {
             expect(getGeminiThinkingLevels(m)).toEqual(['low', 'medium', 'high']);
         }
     });

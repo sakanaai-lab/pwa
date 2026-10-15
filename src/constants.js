@@ -42,10 +42,9 @@ export const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
 
 // プロバイダーごとのモデルリスト
 export const GEMINI_MODELS = [
-    { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash (最新・2026年内は半額)' },
-    { value: 'gemini-3.7-flash', label: 'gemini-3.7-flash (2026年内は半額)' },
+    { value: 'gemini-4-argon', label: 'gemini-4-argon (最新・11月末まで半額)' },
+    { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash (2026年内は半額)' },
     { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash (2026年内は半額)' },
-    { value: 'gemini-3.5-flash', label: 'gemini-3.5-flash' },
     { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite' },
     { value: 'gemini-3.1-flash-lite', label: 'gemini-3.1-flash-lite (軽量・安価)' },
     { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
@@ -59,14 +58,19 @@ export const GEMINI_MODELS = [
 // プロファイル適用時に保存済みのモデル設定を書き換える。
 // 後継は各社が公式に案内している移行先に合わせている。
 export const RETIRED_MODEL_MAP = {
-    // Gemini（2026-06-01 提供終了）
-    'gemini-2.0-flash': 'gemini-3.5-flash',
+    // Gemini（2026-06-01 提供終了）。移行先の 3.5 Flash も 2026-10-08 に非推奨になったため 3.6 Flash へ
+    'gemini-2.0-flash': 'gemini-3.6-flash',
     'gemini-2.0-flash-lite': 'gemini-3.1-flash-lite',
     // Gemini プレビュー版（2026-03-31 / 2026-01-15 提供終了）
     'gemini-2.5-flash-preview-09-2025': 'gemini-2.5-flash',
     'gemini-2.5-flash-lite-preview-09-2025': 'gemini-2.5-flash-lite',
-    'gemini-2.5-flash-image-preview': 'gemini-3.1-flash-image',
+    // 移行先だった 3.1 Flash Image も 2026-10-06 に非推奨になり、Nano Banana 2.1 が後継
+    'gemini-2.5-flash-image-preview': 'gemini-nano-banana-2.1',
     'gemini-3-pro-preview': 'gemini-3.1-pro-preview',
+    // Gemini（2026-10-08 非推奨）。AI Studio で選べなくなり、API へのリクエストは
+    // 後継へ自動で回される。後継の単価で課金されるので、設定も後継に揃える
+    'gemini-3.7-flash': 'gemini-3.8-flash',
+    'gemini-3.5-flash': 'gemini-3.6-flash',
     // Claude（Claude API）
     'claude-3-5-sonnet-20241022': 'claude-sonnet-4-6',
     'claude-3-5-sonnet-20240620': 'claude-sonnet-4-6',
@@ -142,7 +146,8 @@ export const DEFAULT_BEDROCK_REGION = 'us-east-1';
 
 export const OPENAI_MODELS = [
     { value: 'gpt-6-astra', label: 'GPT-6 Astra (最上位)' },
-    { value: 'gpt-6-sol', label: 'GPT-6 Sol (最新・標準)' },
+    { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol (最新・標準)' },
+    { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
     { value: 'gpt-6-luna', label: 'GPT-6 Luna (最新・最安)' },
     { value: 'gpt-4o', label: 'GPT-4o' },
     { value: 'gpt-4o-mini', label: 'GPT-4o mini' },
@@ -245,6 +250,12 @@ export const BAI_MODELS = [
 export const DEFAULT_BAI_MODEL = 'glm-5.3-flash';
 
 export const VERSION_HISTORY = {
+    '1.69': [
+        'Gemini 4 Argon に対応しました。コーディングや数学・科学向けの新しい上位モデルで、11月末までは半額（入力$2／出力$10）、12月1日から入力$4／出力$20 です。推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。',
+        'GPT-6.1 Sol に対応しました。料金は GPT-6 Sol と同じ（入力$2／出力$10）で、キャッシュの読み込みは半額です。GPT-6 系は入力が27万2千トークンを超えると単価が上がる段階があり、推定コストにも反映しました。',
+        'Gemini 3.7 Flash と 3.5 Flash は Google 側で非推奨になり、送っても後継（3.8 Flash／3.6 Flash）へ回されるようになりました。一覧から外し、選んでいた場合は後継へ自動で切り替えます。',
+        '新しい画像生成モデル Nano Banana 2.1（gemini-nano-banana-2.1）を「追加モデル」に入れたとき、画像生成として扱われていなかったのを直しました。',
+    ],
     '1.68': [
         'Gemini の「思考の深さ」だけを選んでいると、実際には送られていなかった不具合を直しました。Thinking Budget か Include Thoughts を一緒に設定していた場合は送られていました。',
         'Google から「今後の Gemini では thinking_budget と Temperature / Top K / Top P を送るとエラーになる」と告知があったため、受け付けるモデルにだけ送るようにしました。3.6 Flash 以降はもともと Temperature などが効いていないので、送らなくても結果は変わりません。新しい Gemini では思考の深さを使ってください。',
