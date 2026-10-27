@@ -102,6 +102,16 @@ export const MODEL_PRICING = {
     'glm-4-5-air':   { in: 0.20, out: 1.10, cr: 0.03 },
     'glm-4-5-flash': { in: 0,    out: 0,    cr: 0    },
 
+    // Meta Model API（Muse）— https://dev.meta.ai/docs/pricing-rate-limits
+    // 長コンテキストの割増なし（料金ページに明記）。キャッシュは自動で、書き込みの別料金の記載は無い。
+    // '-contributor' 付き（学習に使われる代わりに安い）は、前方一致のため無印より前に置くこと。
+    'muse-spark-1-3-contributor': { in: 0.10, out: 0.20, cr: 0.002 },
+    'muse-spark-1-2-contributor': { in: 0.10, out: 0.20, cr: 0.002 },
+    'muse-wonder-1-0':            { in: 4,    out: 20,   cr: 0.20 },
+    'muse-spark-1-3':             { in: 1.25, out: 4.25, cr: 0.15 },
+    'muse-spark-1-2':             { in: 1.25, out: 4.25, cr: 0.15 },
+    'muse-spark-1-1':             { in: 1.25, out: 4.25, cr: 0.15 },
+
     // Qwen — https://www.qwencloud.com/models/qwen3.8-flash
     // OpenRouter 経由（'qwen/qwen3.8-flash'）でもベンダー接頭辞が外れて一致する。
     'qwen3-8-flash': { in: 0.15, out: 0.47, cr: 0.016 },
@@ -113,6 +123,8 @@ export const MODEL_PRICING = {
     // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
     'gpt-6-astra':   { in: 10,   out: 50,   cr: 1,    longCtx: { threshold: 272_000, in: 20,   out: 75,   cr: 2    } },
     'gpt-6-1-sol':   { in: 2,    out: 10,   cr: 0.10, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.20 } },
+    // GPT-6.1 Terra（Sol と Luna の間）。272K 超は入力・キャッシュ2倍、出力1.5倍
+    'gpt-6-1-terra': { in: 1,    out: 5,    cr: 0.05, longCtx: { threshold: 272_000, in: 2,    out: 7.50, cr: 0.10 } },
     'gpt-6-sol':     { in: 2,    out: 10,   cr: 0.20, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.40 } },
     'gpt-6-luna':    { in: 0.10, out: 0.50, cr: 0.01, longCtx: { threshold: 272_000, in: 0.20, out: 0.75, cr: 0.02 } },
     'gpt-5-6-sol':   { in: 4,    out: 20,   cr: 0.40 },  // 2026-08-21 値下げ（少なくとも11/21まで）

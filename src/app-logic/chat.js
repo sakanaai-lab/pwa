@@ -1,11 +1,12 @@
 // appLogic 機能モジュール: chat（Phase 3 で app-logic.js から分割）。挙動は不変。
-import { BAI_API_BASE_URL, CHATS_STORE, DEEPSEEK_API_BASE_URL, DEFAULT_DEEPSEEK_MODEL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
+import { BAI_API_BASE_URL, CHATS_STORE, META_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_DEEPSEEK_MODEL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
 import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
 import { uiUtils } from '../ui.js';
 import { getGeminiSafetySettings } from '../utils/safety.js';
 import { deepseekThinkingOffParams } from '../utils/deepseek-params.js';
+import { metaLightReasoningParams } from '../utils/meta-params.js';
 import { buildGeminiThinkingConfig } from '../utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from '../utils/gemini-params.js';
 
@@ -814,7 +815,8 @@ export const chatMethods = {
                     openrouter: state.settings.openrouterApiKey,
                     zai: state.settings.zaiApiKey || state.settings.apiKey,
                     sakana: state.settings.sakanaApiKey,
-                    bai: state.settings.baiApiKey
+                    bai: state.settings.baiApiKey,
+                    meta: state.settings.metaApiKey
                 };
                 const baseUrlMap = {
                     openai: 'https://api.openai.com/v1/chat/completions',
@@ -825,7 +827,8 @@ export const chatMethods = {
                     openrouter: OPENROUTER_API_BASE_URL,
                     zai: ZAI_API_BASE_URL,
                     sakana: SAKANA_API_BASE_URL,
-                    bai: BAI_API_BASE_URL
+                    bai: BAI_API_BASE_URL,
+                    meta: META_API_BASE_URL
                 };
                 const apiKey = apiKeyMap[provider];
                 const baseUrl = baseUrlMap[provider];
@@ -847,7 +850,9 @@ export const chatMethods = {
                         messages: [{ role: 'user', content: titlePrompt }],
                         // 回帰: deepseek-chat 廃止後の deepseek-flash は既定で思考し、200 トークンを
                         // 思考で使い切ってタイトルが空になりうる
-                        ...(deepseekThinkingOffParams(titleModel) || {})
+                        ...(deepseekThinkingOffParams(titleModel) || {}),
+                        // Muse も常に推論するので、200 トークンを使い切らないよう最も軽くする
+                        ...(metaLightReasoningParams(titleModel) || {})
                     })
                 });
                 if (resp.ok) {

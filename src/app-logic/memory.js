@@ -9,11 +9,13 @@ import {
     ZAI_API_BASE_URL,
     SAKANA_API_BASE_URL,
     BAI_API_BASE_URL,
+    META_API_BASE_URL,
     DEFAULT_ANTHROPIC_MODEL,
 } from '../constants.js';
 import { sanitizeGeminiGenerationConfig } from '../utils/gemini-params.js';
 import { openaiIsReasoningModel, openaiSupportsReasoningNone } from '../utils/openai-params.js';
 import { deepseekThinkingOffParams } from '../utils/deepseek-params.js';
+import { metaLightReasoningParams } from '../utils/meta-params.js';
 import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
@@ -35,6 +37,7 @@ function getOpenAICompatConfig(provider) {
         zai: state.settings.zaiApiKey || state.settings.apiKey,
         sakana: state.settings.sakanaApiKey,
         bai: state.settings.baiApiKey,
+        meta: state.settings.metaApiKey,
     };
     const urls = {
         openai: 'https://api.openai.com/v1/chat/completions',
@@ -46,6 +49,7 @@ function getOpenAICompatConfig(provider) {
         zai: ZAI_API_BASE_URL,
         sakana: SAKANA_API_BASE_URL,
         bai: BAI_API_BASE_URL,
+        meta: META_API_BASE_URL,
     };
     return { apiKey: keys[provider], baseUrl: urls[provider] };
 }
@@ -114,6 +118,10 @@ async function runAuxiliaryCompletion({ provider, model, systemPrompt, userConte
         if (provider === 'deepseek' && lightweight) {
             Object.assign(body, deepseekThinkingOffParams(model) || {});
         }
+        // Muse は推論を止められないので、短い作業ではいちばん軽くする
+        if (provider === 'meta' && lightweight) {
+            Object.assign(body, metaLightReasoningParams(model) || {});
+        }
         parse = (d) => d.choices?.[0]?.message?.content;
     }
 
@@ -140,6 +148,7 @@ function inferProviderFromModel(model, fallback) {
     if (m.startsWith('mistral') || m.startsWith('codestral') || m.startsWith('open-mistral') || m.startsWith('open-mixtral')) return 'mistral';
     if (m.startsWith('glm')) return 'zai';
     if (m.startsWith('fugu')) return 'sakana';
+    if (m.startsWith('muse-')) return 'meta';
     return fallback;
 }
 

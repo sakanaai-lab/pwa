@@ -30,6 +30,8 @@ export const XAI_API_BASE_URL = 'https://api.x.ai/v1/chat/completions';
 export const MISTRAL_API_BASE_URL = 'https://api.mistral.ai/v1/chat/completions';
 export const SAKANA_API_BASE_URL = 'https://api.sakana.ai/v1/chat/completions';
 export const BAI_API_BASE_URL = 'https://api.b.ai/v1/chat/completions';
+// Meta Model API（Muse）。OpenAI Chat Completions 互換。https://dev.meta.ai/docs/protocols/chat-completions
+export const META_API_BASE_URL = 'https://api.meta.ai/v1/chat/completions';
 export const DUPLICATE_SUFFIX = ' (コピー)';
 export const IMPORT_PREFIX = '(取込) ';
 export const LIGHT_THEME_COLOR = '#4a90e2';
@@ -217,6 +219,7 @@ export const DEFAULT_BEDROCK_REGION = 'us-east-1';
 export const OPENAI_MODELS = [
     { value: 'gpt-6-astra', label: 'GPT-6 Astra (最上位)' },
     { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol (最新・標準)' },
+    { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra (最新・中間)' },
     { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
     { value: 'gpt-6-luna', label: 'GPT-6 Luna (最新・最安)' },
     { value: 'gpt-4o', label: 'GPT-4o (2027/1/14 終了)' },
@@ -322,7 +325,25 @@ export const BAI_MODELS = [
 ];
 export const DEFAULT_BAI_MODEL = 'glm-5.3-flash';
 
+// Meta Model API（Muse）。https://dev.meta.ai/docs/models
+// '-contributor' 付きは、送った内容と返事を Meta のモデルの学習に使ってよい代わりに安い区分。
+// 学習に使われることがラベルで分かるようにし、既定にはしない。
+export const META_MODELS = [
+    { value: 'muse-spark-1.3', label: 'Muse Spark 1.3 (最新・推奨)' },
+    { value: 'muse-wonder-1.0', label: 'Muse Wonder 1.0 (最上位・プレビュー)' },
+    { value: 'muse-spark-1.2', label: 'Muse Spark 1.2' },
+    { value: 'muse-spark-1.3-contributor', label: 'Muse Spark 1.3 Contributor (安価・会話が学習に使われる)' },
+    { value: 'muse-spark-1.2-contributor', label: 'Muse Spark 1.2 Contributor (安価・会話が学習に使われる)' },
+];
+export const DEFAULT_META_MODEL = 'muse-spark-1.3';
+
 export const VERSION_HISTORY = {
+    '1.72': [
+        'GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。',
+        'Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。',
+        'Muse は常に考えてから答えます。考えた内容は Meta が外部のアプリに返さないため、思考プロセスは表示されません。',
+        '「Contributor」の付いたモデルはとても安い代わりに、送った内容と返事が Meta のモデルの学習に使われます。気になる場合は付いていないモデルを選んでください。',
+    ],
     '1.71': [
         'DeepSeek の新しい Flash（V4.1 Flash 1017）が公開されました。モデル名は deepseek-flash のままで、料金も変わりません。そのまま新しいモデルで動きます。',
         'DeepSeek の旧名 deepseek-chat / deepseek-reasoner は7月24日に提供が終わっていたので、一覧から外し、選んでいた場合は deepseek-flash に自動で切り替えるようにしました。DeepSeek を選んだときの既定も deepseek-flash にしています。',

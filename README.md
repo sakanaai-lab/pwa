@@ -12,7 +12,7 @@
 |------|------|
 | **アプリ名** | 「Aquarium Chat」に改名 |
 | **カラーテーマ** | ライトモードを水色・ブルーグリーン系「Aquarium」テーマに変更 |
-| **マルチプロバイダー対応** | OpenAI・Anthropic・Groq・DeepSeek・xAI・Mistral・Z.ai・Sakana(fugu)・B.AI のAPIをネイティブサポート。Anthropic使用時はプロンプトキャッシングを自動適用（システムプロンプト＋会話履歴を設定TTLでキャッシュ、大幅なコスト削減） |
+| **マルチプロバイダー対応** | OpenAI・Anthropic・Groq・DeepSeek・xAI・Mistral・Z.ai・Sakana(fugu)・B.AI・Meta(Muse) のAPIをネイティブサポート。Anthropic使用時はプロンプトキャッシングを自動適用（システムプロンプト＋会話履歴を設定TTLでキャッシュ、大幅なコスト削減） |
 | **カスタムモデル登録** | 各プロバイダーに任意のモデルIDを追加可能 |
 | **推論モデル対応** | OpenAI o-series / DeepSeek-R1 / Anthropic Adaptive Thinking に最適化されたAPIパラメータを自動適用 |
 | **思考プロセス表示** | Gemini・Claude・DeepSeek-R1 の思考プロセスを折りたたみで表示、日本語翻訳も対応 |
@@ -78,6 +78,7 @@
 | **ZAI** | ZAI管理画面 | ZAI |
 | **OpenRouter** | [OpenRouter](https://openrouter.ai/keys) | OpenRouter |
 | **B.AI** | [B.AI](https://b.ai/) | B.AI |
+| **Meta (Muse)** | [Meta Model API](https://dev.meta.ai/) | Meta (Muse) |
 
 > **⚠️ 注意：** APIキーはお使いのブラウザのIndexedDBにのみ保存されます。PCとスマホでは別々のデータベースになるため、スマホで使う場合はスマホ側でも設定が必要です。
 
@@ -544,6 +545,8 @@ AIの発言を音声で読み上げ、wavとして保存もできます。Google
 
 | 日付 | 内容 |
 |---|---|
+| **2026-10-27** | **GPT-6.1 Terra に対応**：Sol と Luna の間のモデル（入力$1／出力$5、キャッシュ読み込み$0.05、27万2千トークン超は上位段）を料金表とモデル一覧に追加。推論の強さは none〜max から選べます |
+| **2026-10-27** | **Meta (Muse) に対応**：プロバイダーに「Meta (Muse)」を追加。Muse Spark 1.3 / 1.2、Muse Wonder 1.0 を選べます（Spark 1.3 は入力$1.25／出力$4.25、Wonder は入力$4／出力$20。推定コストも表示）。Muse は常に考えてから答えますが、考えた内容は外部のアプリに返されないため表示されません。「Contributor」付きのモデルは安い代わりに、会話が Meta のモデルの学習に使われます |
 | **2026-10-17** | **DeepSeek の旧名の廃止に対応**：deepseek-chat / deepseek-reasoner は 2026-07-24 に提供終了していたため一覧から外し、選んでいた場合と DeepSeek の既定を deepseek-flash（V4.1 Flash。10/17 に 1017 版へ更新、料金は据え置き）へ切り替え。deepseek-flash は既定で思考するので、タイトル生成・思考の翻訳・メモリ学習では思考を止めて送ります |
 | **2026-10-15** | **Gemini の既定モデルを 2.5 系から 3.x へ**：2.5 系は 2026-09-18 から既存ユーザー限定になり、新しく始めた人は最初の送信でエラーになっていました。チャットの既定を 3.8 Flash に、タイトル生成・メモリ学習・翻訳・校正などの既定を同じ値段の 3.5 Flash-Lite に変更（すでに選んでいるモデルはそのまま） |
 | **2026-10-15** | **新しいモデルに対応**：Gemini 4 Argon（11月末まで入力$2／出力$10、12月1日から入力$4／出力$20。推定コストも日付で切り替え）と GPT-6.1 Sol（入力$2／出力$10、キャッシュ読み込み$0.10）を料金表とモデル一覧に追加。GPT-6 系の27万2千トークン超の単価も反映。非推奨になった Gemini 3.7 Flash／3.5 Flash は一覧から外し、選んでいた場合は後継へ自動で切り替えます。Nano Banana 2.1 が画像生成として扱われなかった不具合も修正 |

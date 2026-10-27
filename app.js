@@ -1623,6 +1623,8 @@ ${relationship_context}`;
       versionHistoryList: document.getElementById("version-history-list"),
       baiApiKeyInput: document.getElementById("bai-api-key"),
       baiApiKeyContainer: document.getElementById("bai-api-key-container"),
+      metaApiKeyInput: document.getElementById("meta-api-key"),
+      metaApiKeyContainer: document.getElementById("meta-api-key-container"),
       xaiApiKeyInput: document.getElementById("xai-api-key"),
       xaiApiKeyContainer: document.getElementById("xai-api-key-container"),
       mistralApiKeyInput: document.getElementById("mistral-api-key"),
@@ -1902,6 +1904,7 @@ ${relationship_context}`;
   var MISTRAL_API_BASE_URL = "https://api.mistral.ai/v1/chat/completions";
   var SAKANA_API_BASE_URL = "https://api.sakana.ai/v1/chat/completions";
   var BAI_API_BASE_URL = "https://api.b.ai/v1/chat/completions";
+  var META_API_BASE_URL = "https://api.meta.ai/v1/chat/completions";
   var DUPLICATE_SUFFIX = " (コピー)";
   var IMPORT_PREFIX = "(取込) ";
   var LIGHT_THEME_COLOR = "#4a90e2";
@@ -2069,6 +2072,7 @@ ${relationship_context}`;
   var OPENAI_MODELS = [
     { value: "gpt-6-astra", label: "GPT-6 Astra (最上位)" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol (最新・標準)" },
+    { value: "gpt-6.1-terra", label: "GPT-6.1 Terra (最新・中間)" },
     { value: "gpt-6-sol", label: "GPT-6 Sol" },
     { value: "gpt-6-luna", label: "GPT-6 Luna (最新・最安)" },
     { value: "gpt-4o", label: "GPT-4o (2027/1/14 終了)" },
@@ -2147,7 +2151,21 @@ ${relationship_context}`;
     { value: "qwen3.8-flash", label: "Qwen3.8 Flash" }
   ];
   var DEFAULT_BAI_MODEL = "glm-5.3-flash";
+  var META_MODELS = [
+    { value: "muse-spark-1.3", label: "Muse Spark 1.3 (最新・推奨)" },
+    { value: "muse-wonder-1.0", label: "Muse Wonder 1.0 (最上位・プレビュー)" },
+    { value: "muse-spark-1.2", label: "Muse Spark 1.2" },
+    { value: "muse-spark-1.3-contributor", label: "Muse Spark 1.3 Contributor (安価・会話が学習に使われる)" },
+    { value: "muse-spark-1.2-contributor", label: "Muse Spark 1.2 Contributor (安価・会話が学習に使われる)" }
+  ];
+  var DEFAULT_META_MODEL = "muse-spark-1.3";
   var VERSION_HISTORY = {
+    "1.72": [
+      "GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。",
+      "Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。",
+      "Muse は常に考えてから答えます。考えた内容は Meta が外部のアプリに返さないため、思考プロセスは表示されません。",
+      "「Contributor」の付いたモデルはとても安い代わりに、送った内容と返事が Meta のモデルの学習に使われます。気になる場合は付いていないモデルを選んでください。"
+    ],
     "1.71": [
       "DeepSeek の新しい Flash（V4.1 Flash 1017）が公開されました。モデル名は deepseek-flash のままで、料金も変わりません。そのまま新しいモデルで動きます。",
       "DeepSeek の旧名 deepseek-chat / deepseek-reasoner は7月24日に提供が終わっていたので、一覧から外し、選んでいた場合は deepseek-flash に自動で切り替えるようにしました。DeepSeek を選んだときの既定も deepseek-flash にしています。",
@@ -2465,6 +2483,7 @@ ${relationship_context}`;
       mistralApiKey: "",
       sakanaApiKey: "",
       baiApiKey: "",
+      metaApiKey: "",
       modelName: DEFAULT_MODEL,
       systemPrompt: "",
       temperature: null,
@@ -2974,6 +2993,15 @@ Reason: [NGの場合の理由]`,
     "glm-4-6": { in: 0.6, out: 2.2, cr: 0.11 },
     "glm-4-5-air": { in: 0.2, out: 1.1, cr: 0.03 },
     "glm-4-5-flash": { in: 0, out: 0, cr: 0 },
+    // Meta Model API（Muse）— https://dev.meta.ai/docs/pricing-rate-limits
+    // 長コンテキストの割増なし（料金ページに明記）。キャッシュは自動で、書き込みの別料金の記載は無い。
+    // '-contributor' 付き（学習に使われる代わりに安い）は、前方一致のため無印より前に置くこと。
+    "muse-spark-1-3-contributor": { in: 0.1, out: 0.2, cr: 2e-3 },
+    "muse-spark-1-2-contributor": { in: 0.1, out: 0.2, cr: 2e-3 },
+    "muse-wonder-1-0": { in: 4, out: 20, cr: 0.2 },
+    "muse-spark-1-3": { in: 1.25, out: 4.25, cr: 0.15 },
+    "muse-spark-1-2": { in: 1.25, out: 4.25, cr: 0.15 },
+    "muse-spark-1-1": { in: 1.25, out: 4.25, cr: 0.15 },
     // Qwen — https://www.qwencloud.com/models/qwen3.8-flash
     // OpenRouter 経由（'qwen/qwen3.8-flash'）でもベンダー接頭辞が外れて一致する。
     "qwen3-8-flash": { in: 0.15, out: 0.47, cr: 0.016 },
@@ -2984,6 +3012,8 @@ Reason: [NGの場合の理由]`,
     // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
     "gpt-6-astra": { in: 10, out: 50, cr: 1, longCtx: { threshold: 272e3, in: 20, out: 75, cr: 2 } },
     "gpt-6-1-sol": { in: 2, out: 10, cr: 0.1, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.2 } },
+    // GPT-6.1 Terra（Sol と Luna の間）。272K 超は入力・キャッシュ2倍、出力1.5倍
+    "gpt-6-1-terra": { in: 1, out: 5, cr: 0.05, longCtx: { threshold: 272e3, in: 2, out: 7.5, cr: 0.1 } },
     "gpt-6-sol": { in: 2, out: 10, cr: 0.2, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.4 } },
     "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01, longCtx: { threshold: 272e3, in: 0.2, out: 0.75, cr: 0.02 } },
     "gpt-5-6-sol": { in: 4, out: 20, cr: 0.4 },
@@ -3231,6 +3261,7 @@ Reason: [NGの場合の理由]`,
     ["gpt-6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-sol", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-1-sol", ["low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-1-terra", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-astra", ["low", "medium", "high", "xhigh", "max"]]
   ];
   function getOpenAIReasoningLevels(model) {
@@ -4975,6 +5006,9 @@ ${error.message}`);
       if (elements.baiApiKeyInput) {
         elements.baiApiKeyInput.value = state.settings.baiApiKey || "";
       }
+      if (elements.metaApiKeyInput) {
+        elements.metaApiKeyInput.value = state.settings.metaApiKey || "";
+      }
       this.renderVersionHistory();
       if (elements.mistralApiKeyInput) {
         elements.mistralApiKeyInput.value = state.settings.mistralApiKey || "";
@@ -6073,7 +6107,7 @@ ${error.message}`);
     },
     getCurrentUiSettings() {
       const settings = {};
-      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "sakanaApiKey", "baiApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
+      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "sakanaApiKey", "baiApiKey", "metaApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
       const numberKeys = ["temperature", "maxTokens", "topK", "topP", "thinkingBudget", "maxRetries", "maxBackoffDelaySeconds", "overlayOpacity", "messageOpacity"];
       const booleanKeys = ["enterToSend", "darkMode", "geminiEnableGrounding", "geminiEnableFunctionCalling", "enableSwipeNavigation", "enableProofreading", "enableAutoRetry", "useFixedRetryDelay", "reverseDummyOrder", "concatDummyModel", "dummyEnabled", "includeThoughts", "enableThoughtTranslation", "applyDummyToProofread", "applyDummyToTranslate", "forceFunctionCalling", "autoScroll", "enableWideMode", "enableSummaryButton"];
       settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
@@ -6379,6 +6413,7 @@ ${error.message}`);
       const isMistral = provider === "mistral";
       const isSakana = provider === "sakana";
       const isBai = provider === "bai";
+      const isMeta = provider === "meta";
       const containers = [
         [elements.geminiApiKeyContainer, isGemini2],
         [elements.zaiApiKeyContainer, isZai],
@@ -6391,7 +6426,8 @@ ${error.message}`);
         [elements.xaiApiKeyContainer, isXAI],
         [elements.mistralApiKeyContainer, isMistral],
         [elements.sakanaApiKeyContainer, isSakana],
-        [elements.baiApiKeyContainer, isBai]
+        [elements.baiApiKeyContainer, isBai],
+        [elements.metaApiKeyContainer, isMeta]
       ];
       containers.forEach(([el, show]) => {
         if (el) el.classList.toggle("hidden", !show);
@@ -6489,6 +6525,8 @@ ${error.message}`);
         models = MISTRAL_MODELS;
       } else if (provider === "bai") {
         models = BAI_MODELS;
+      } else if (provider === "meta") {
+        models = META_MODELS;
       } else if (provider === "sakana") {
         models = SAKANA_MODELS;
       } else {
@@ -6561,6 +6599,8 @@ ${error.message}`);
         defaultModel = DEFAULT_MISTRAL_MODEL;
       } else if (provider === "bai") {
         defaultModel = DEFAULT_BAI_MODEL;
+      } else if (provider === "meta") {
+        defaultModel = DEFAULT_META_MODEL;
       } else if (provider === "sakana") {
         defaultModel = DEFAULT_SAKANA_MODEL;
       } else {
@@ -7117,6 +7157,7 @@ ${error.message}`);
         mistralApiKey: { element: elements.mistralApiKeyInput, event: "input" },
         sakanaApiKey: { element: elements.sakanaApiKeyInput, event: "input" },
         baiApiKey: { element: elements.baiApiKeyInput, event: "input" },
+        metaApiKey: { element: elements.metaApiKeyInput, event: "input" },
         modelName: {
           element: elements.modelNameSelect,
           event: "change",
@@ -9067,6 +9108,16 @@ URL、認証情報、Forge/Reforgeの起動オプション(--listen)を確認し
   }
   __name(deepseekThinkingOffParams, "deepseekThinkingOffParams");
 
+  // src/utils/meta-params.js
+  function isMetaMuseModel(model) {
+    return typeof model === "string" && model.toLowerCase().startsWith("muse-");
+  }
+  __name(isMetaMuseModel, "isMetaMuseModel");
+  function metaLightReasoningParams(model) {
+    return isMetaMuseModel(model) ? { reasoning_effort: "minimal" } : null;
+  }
+  __name(metaLightReasoningParams, "metaLightReasoningParams");
+
   // src/app-logic/chat.js
   var chatMethods = {
     // --- スワイプ処理ここまで ---
@@ -9788,7 +9839,8 @@ AI: ${firstModelContent}`;
             openrouter: state.settings.openrouterApiKey,
             zai: state.settings.zaiApiKey || state.settings.apiKey,
             sakana: state.settings.sakanaApiKey,
-            bai: state.settings.baiApiKey
+            bai: state.settings.baiApiKey,
+            meta: state.settings.metaApiKey
           };
           const baseUrlMap = {
             openai: "https://api.openai.com/v1/chat/completions",
@@ -9799,7 +9851,8 @@ AI: ${firstModelContent}`;
             openrouter: OPENROUTER_API_BASE_URL,
             zai: ZAI_API_BASE_URL,
             sakana: SAKANA_API_BASE_URL,
-            bai: BAI_API_BASE_URL
+            bai: BAI_API_BASE_URL,
+            meta: META_API_BASE_URL
           };
           const apiKey = apiKeyMap[provider];
           const baseUrl = baseUrlMap[provider];
@@ -9817,7 +9870,9 @@ AI: ${firstModelContent}`;
               messages: [{ role: "user", content: titlePrompt }],
               // 回帰: deepseek-chat 廃止後の deepseek-flash は既定で思考し、200 トークンを
               // 思考で使い切ってタイトルが空になりうる
-              ...deepseekThinkingOffParams(titleModel) || {}
+              ...deepseekThinkingOffParams(titleModel) || {},
+              // Muse も常に推論するので、200 トークンを使い切らないよう最も軽くする
+              ...metaLightReasoningParams(titleModel) || {}
             })
           });
           if (resp.ok) {
@@ -11400,6 +11455,16 @@ ${knowledgeText}`;
             // 思考自体はモデル側が返すので、reasoning_content 等があれば表示される。
             verboseError: true
           }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+        case "meta":
+          return await this._callOpenAICompatibleWithTools({
+            label: "Meta",
+            baseUrl: META_API_BASE_URL,
+            defaultModel: DEFAULT_META_MODEL,
+            getApiKey: /* @__PURE__ */ __name(() => state.settings.metaApiKey, "getApiKey"),
+            missingKeyMessage: "Meta APIキーが設定されていません。設定画面で追加してください。",
+            extraHeaders: /* @__PURE__ */ __name(() => ({}), "extraHeaders"),
+            verboseError: true
+          }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
         default:
           return await this.callGeminiApi(messagesForApi, generationConfig, systemInstruction, tools, forceCalling, signal, onChunk);
       }
@@ -11494,6 +11559,7 @@ ${body}`;
     zai: DEFAULT_ZAI_MODEL,
     sakana: DEFAULT_SAKANA_MODEL,
     bai: DEFAULT_BAI_MODEL,
+    meta: DEFAULT_META_MODEL,
     openrouter: DEFAULT_OPENROUTER_MODEL
   };
   function isRetiredModelError(errorMessage) {
@@ -14727,7 +14793,8 @@ ${msg}`);
       openrouter: state.settings.openrouterApiKey,
       zai: state.settings.zaiApiKey || state.settings.apiKey,
       sakana: state.settings.sakanaApiKey,
-      bai: state.settings.baiApiKey
+      bai: state.settings.baiApiKey,
+      meta: state.settings.metaApiKey
     };
     const urls = {
       openai: "https://api.openai.com/v1/chat/completions",
@@ -14738,7 +14805,8 @@ ${msg}`);
       openrouter: OPENROUTER_API_BASE_URL,
       zai: ZAI_API_BASE_URL,
       sakana: SAKANA_API_BASE_URL,
-      bai: BAI_API_BASE_URL
+      bai: BAI_API_BASE_URL,
+      meta: META_API_BASE_URL
     };
     return { apiKey: keys[provider], baseUrl: urls[provider] };
   }
@@ -14799,6 +14867,9 @@ ${msg}`);
       if (provider === "deepseek" && lightweight) {
         Object.assign(body, deepseekThinkingOffParams(model) || {});
       }
+      if (provider === "meta" && lightweight) {
+        Object.assign(body, metaLightReasoningParams(model) || {});
+      }
       parse = /* @__PURE__ */ __name((d) => d.choices?.[0]?.message?.content, "parse");
     }
     const response = await fetch(endpoint, { method: "POST", headers, body: JSON.stringify(body) });
@@ -14821,6 +14892,7 @@ ${msg}`);
     if (m.startsWith("mistral") || m.startsWith("codestral") || m.startsWith("open-mistral") || m.startsWith("open-mixtral")) return "mistral";
     if (m.startsWith("glm")) return "zai";
     if (m.startsWith("fugu")) return "sakana";
+    if (m.startsWith("muse-")) return "meta";
     return fallback;
   }
   __name(inferProviderFromModel, "inferProviderFromModel");
@@ -16825,7 +16897,8 @@ ${pageText}
             { key: "deepseek", url: "https://api.deepseek.com/v1/models", apiKey: state.settings.deepseekApiKey },
             { key: "xai", url: "https://api.x.ai/v1/models", apiKey: state.settings.xaiApiKey },
             { key: "mistral", url: "https://api.mistral.ai/v1/models", apiKey: state.settings.mistralApiKey },
-            { key: "bai", url: "https://api.b.ai/v1/models", apiKey: state.settings.baiApiKey }
+            { key: "bai", url: "https://api.b.ai/v1/models", apiKey: state.settings.baiApiKey },
+            { key: "meta", url: "https://api.meta.ai/v1/models", apiKey: state.settings.metaApiKey }
           ];
           for (const p of compatList) {
             if (p.apiKey) await fetchOpenAICompat(p.url, p.apiKey, p.key, null);
@@ -16884,14 +16957,14 @@ ${pageText}
       if (apiProvSelect) {
         const updateKeyVisibility = /* @__PURE__ */ __name(() => {
           const p = apiProvSelect.value;
-          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai"].forEach((prov) => {
+          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta"].forEach((prov) => {
             document.getElementById(`${prov}-api-key-container`)?.classList.toggle("hidden", p !== prov);
           });
         }, "updateKeyVisibility");
         apiProvSelect.addEventListener("change", updateKeyVisibility);
         setTimeout(updateKeyVisibility, 500);
       }
-      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai"];
+      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta"];
       const defaultModelLists = {
         // ここは「追加モデル」の初期値として実際に保存される。提供終了したモデルを
         // 置くと、新しく使い始めた人の一覧が最初から使えないモデルで埋まるため、

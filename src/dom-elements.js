@@ -61,6 +61,8 @@ try {
         versionHistoryList: document.getElementById('version-history-list'),
         baiApiKeyInput: document.getElementById('bai-api-key'),
         baiApiKeyContainer: document.getElementById('bai-api-key-container'),
+        metaApiKeyInput: document.getElementById('meta-api-key'),
+        metaApiKeyContainer: document.getElementById('meta-api-key-container'),
         xaiApiKeyInput: document.getElementById('xai-api-key'),
         xaiApiKeyContainer: document.getElementById('xai-api-key-container'),
         mistralApiKeyInput: document.getElementById('mistral-api-key'),
