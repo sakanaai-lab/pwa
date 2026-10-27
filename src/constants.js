@@ -219,6 +219,7 @@ export const DEFAULT_BEDROCK_REGION = 'us-east-1';
 export const OPENAI_MODELS = [
     { value: 'gpt-6-astra', label: 'GPT-6 Astra (最上位)' },
     { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol (最新・標準)' },
+    { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra (最新・中間)' },
     { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
     { value: 'gpt-6-luna', label: 'GPT-6 Luna (最新・最安)' },
     { value: 'gpt-4o', label: 'GPT-4o (2027/1/14 終了)' },
@@ -338,6 +339,7 @@ export const DEFAULT_META_MODEL = 'muse-spark-1.3';
 
 export const VERSION_HISTORY = {
     '1.72': [
+        'GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。',
         'Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。',
         'Muse は常に考えてから答えます。考えた内容は Meta が外部のアプリに返さないため、思考プロセスは表示されません。',
         '「Contributor」の付いたモデルはとても安い代わりに、送った内容と返事が Meta のモデルの学習に使われます。気になる場合は付いていないモデルを選んでください。',

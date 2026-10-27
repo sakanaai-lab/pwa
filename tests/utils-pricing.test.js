@@ -534,6 +534,16 @@ describe('getPricing — 2026-10 の新モデル', () => {
     });
 });
 
+describe('getPricing — GPT-6.1 Terra', () => {
+    const NOW = Date.UTC(2026, 9, 27);
+    it('入力$1／出力$5／キャッシュ$0.05、272K 超は上位段', () => {
+        expect(getPricing('gpt-6.1-terra', NOW)).toMatchObject({ in: 1, out: 5, cr: 0.05 });
+        expect(getPricing('gpt-6.1-terra', NOW).longCtx).toMatchObject({ threshold: 272000, in: 2, out: 7.50, cr: 0.10 });
+        // 6.1 Sol と取り違えない
+        expect(getPricing('gpt-6.1-sol', NOW).in).toBe(2);
+    });
+});
+
 describe('getPricing — Meta（Muse）', () => {
     const NOW = Date.UTC(2026, 9, 27);
 

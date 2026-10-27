@@ -80,6 +80,11 @@ describe('getOpenAIReasoningLevels（各モデルのページの記載どおり�
         }
     });
 
+    it('GPT-6.1 Terra は none〜max（6.1 Sol と違い none を受け付ける）', () => {
+        expect(getOpenAIReasoningLevels('gpt-6.1-terra')).toEqual(['none', 'low', 'medium', 'high', 'xhigh', 'max']);
+        expect(openaiSupportsReasoningNone('gpt-6.1-terra')).toBe(true);
+    });
+
     it('GPT-6 Astra / 6.1 Sol は low〜max（none なし）', () => {
         for (const m of ['gpt-6-astra', 'gpt-6.1-sol']) {
             expect(getOpenAIReasoningLevels(m)).toEqual(['low', 'medium', 'high', 'xhigh', 'max']);

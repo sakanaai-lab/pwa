@@ -123,6 +123,8 @@ export const MODEL_PRICING = {
     // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
     'gpt-6-astra':   { in: 10,   out: 50,   cr: 1,    longCtx: { threshold: 272_000, in: 20,   out: 75,   cr: 2    } },
     'gpt-6-1-sol':   { in: 2,    out: 10,   cr: 0.10, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.20 } },
+    // GPT-6.1 Terra（Sol と Luna の間）。272K 超は入力・キャッシュ2倍、出力1.5倍
+    'gpt-6-1-terra': { in: 1,    out: 5,    cr: 0.05, longCtx: { threshold: 272_000, in: 2,    out: 7.50, cr: 0.10 } },
     'gpt-6-sol':     { in: 2,    out: 10,   cr: 0.20, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.40 } },
     'gpt-6-luna':    { in: 0.10, out: 0.50, cr: 0.01, longCtx: { threshold: 272_000, in: 0.20, out: 0.75, cr: 0.02 } },
     'gpt-5-6-sol':   { in: 4,    out: 20,   cr: 0.40 },  // 2026-08-21 値下げ（少なくとも11/21まで）

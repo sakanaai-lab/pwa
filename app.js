@@ -2072,6 +2072,7 @@ ${relationship_context}`;
   var OPENAI_MODELS = [
     { value: "gpt-6-astra", label: "GPT-6 Astra (最上位)" },
     { value: "gpt-6.1-sol", label: "GPT-6.1 Sol (最新・標準)" },
+    { value: "gpt-6.1-terra", label: "GPT-6.1 Terra (最新・中間)" },
     { value: "gpt-6-sol", label: "GPT-6 Sol" },
     { value: "gpt-6-luna", label: "GPT-6 Luna (最新・最安)" },
     { value: "gpt-4o", label: "GPT-4o (2027/1/14 終了)" },
@@ -2160,6 +2161,7 @@ ${relationship_context}`;
   var DEFAULT_META_MODEL = "muse-spark-1.3";
   var VERSION_HISTORY = {
     "1.72": [
+      "GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。",
       "Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。",
       "Muse は常に考えてから答えます。考えた内容は Meta が外部のアプリに返さないため、思考プロセスは表示されません。",
       "「Contributor」の付いたモデルはとても安い代わりに、送った内容と返事が Meta のモデルの学習に使われます。気になる場合は付いていないモデルを選んでください。"
@@ -3010,6 +3012,8 @@ Reason: [NGの場合の理由]`,
     // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
     "gpt-6-astra": { in: 10, out: 50, cr: 1, longCtx: { threshold: 272e3, in: 20, out: 75, cr: 2 } },
     "gpt-6-1-sol": { in: 2, out: 10, cr: 0.1, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.2 } },
+    // GPT-6.1 Terra（Sol と Luna の間）。272K 超は入力・キャッシュ2倍、出力1.5倍
+    "gpt-6-1-terra": { in: 1, out: 5, cr: 0.05, longCtx: { threshold: 272e3, in: 2, out: 7.5, cr: 0.1 } },
     "gpt-6-sol": { in: 2, out: 10, cr: 0.2, longCtx: { threshold: 272e3, in: 4, out: 15, cr: 0.4 } },
     "gpt-6-luna": { in: 0.1, out: 0.5, cr: 0.01, longCtx: { threshold: 272e3, in: 0.2, out: 0.75, cr: 0.02 } },
     "gpt-5-6-sol": { in: 4, out: 20, cr: 0.4 },
@@ -3257,6 +3261,7 @@ Reason: [NGの場合の理由]`,
     ["gpt-6-luna", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-sol", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-1-sol", ["low", "medium", "high", "xhigh", "max"]],
+    ["gpt-6-1-terra", ["none", "low", "medium", "high", "xhigh", "max"]],
     ["gpt-6-astra", ["low", "medium", "high", "xhigh", "max"]]
   ];
   function getOpenAIReasoningLevels(model) {
