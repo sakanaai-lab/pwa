@@ -23,6 +23,7 @@ import {
     SAKANA_MODELS,
     XAI_MODELS,
     ZAI_MODELS,
+    META_MODELS,
 } from '../src/constants.js';
 import { getPricing } from '../src/utils/pricing.js';
 
@@ -153,6 +154,7 @@ describe('新しく追加したモデルに料金がある', () => {
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-luna'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.1-sol'],
         ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-argon'],
+        ...META_MODELS.map((m) => ['META_MODELS', META_MODELS, m.value]),
         ['XAI_MODELS', XAI_MODELS, 'grok-4.7'],
     ];
     for (const [name, list, value] of cases) {

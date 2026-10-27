@@ -1,5 +1,5 @@
 // apiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
+import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_META_MODEL, META_API_BASE_URL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
@@ -1812,6 +1812,21 @@ export const apiUtils = {
                     // reasoning は無い（Responses API 専用かつ OpenRouter の独自拡張）。
                     // 送ると Include Thoughts がONのときだけ 400 になる。
                     // 思考自体はモデル側が返すので、reasoning_content 等があれば表示される。
+                    verboseError: true
+                }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+            case 'meta':
+                // Meta Model API（Muse）: OpenAI Chat Completions 互換。
+                // https://dev.meta.ai/docs/protocols/chat-completions
+                // - 常に推論する。reasoning_content は外部の API キーには空で返るので思考は表示されない
+                // - supportsReasoning は付けない（OpenRouter 独自の reasoning パラメータは受け付けない）
+                // - temperature（0〜2）と top_p（0 より大きい値）は受け付ける
+                return await this._callOpenAICompatibleWithTools({
+                    label: 'Meta',
+                    baseUrl: META_API_BASE_URL,
+                    defaultModel: DEFAULT_META_MODEL,
+                    getApiKey: () => state.settings.metaApiKey,
+                    missingKeyMessage: 'Meta APIキーが設定されていません。設定画面で追加してください。',
+                    extraHeaders: () => ({}),
                     verboseError: true
                 }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
             default:

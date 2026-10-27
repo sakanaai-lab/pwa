@@ -534,6 +534,28 @@ describe('getPricing — 2026-10 の新モデル', () => {
     });
 });
 
+describe('getPricing — Meta（Muse）', () => {
+    const NOW = Date.UTC(2026, 9, 27);
+
+    it('Muse Spark 1.3 / 1.2 / 1.1 と Wonder 1.0', () => {
+        for (const m of ['muse-spark-1.3', 'muse-spark-1.2', 'muse-spark-1.1']) {
+            expect(getPricing(m, NOW)).toMatchObject({ in: 1.25, out: 4.25, cr: 0.15 });
+        }
+        expect(getPricing('muse-wonder-1.0', NOW)).toMatchObject({ in: 4, out: 20, cr: 0.20 });
+    });
+
+    // '-contributor' が無印に先に当たると、安い区分を10倍以上高く見積もってしまう
+    it('Contributor 版は無印より先に一致する', () => {
+        expect(getPricing('muse-spark-1.3-contributor', NOW)).toMatchObject({ in: 0.10, out: 0.20, cr: 0.002 });
+        expect(getPricing('muse-spark-1.2-contributor', NOW)).toMatchObject({ in: 0.10, out: 0.20, cr: 0.002 });
+    });
+
+    // 料金ページに「長コンテキストの割増なし」と明記されている
+    it('長コンテキスト段は入れていない', () => {
+        expect(getPricing('muse-spark-1.3', NOW).longCtx).toBeUndefined();
+    });
+});
+
 describe('getPricing — deepseek-v4-flash の V4.1 Flash への転送（2026-09-10）', () => {
     const BEFORE_ROUTE = DEEPSEEK_V41_FLASH_AT - 1;
     const AFTER_ROUTE = DEEPSEEK_V41_FLASH_AT;

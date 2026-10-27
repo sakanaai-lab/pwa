@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { BAI_API_BASE_URL, BAI_MODELS, DEFAULT_BAI_MODEL } from '../src/constants.js';
+import { BAI_API_BASE_URL, BAI_MODELS, DEFAULT_BAI_MODEL, META_API_BASE_URL, META_MODELS, DEFAULT_META_MODEL } from '../src/constants.js';
 import { state } from '../src/state.js';
 
 const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
@@ -102,5 +102,64 @@ describe('B.AI プロバイダーの配線', () => {
         expect(api).toContain('missingModelMessage');
         // 空のモデル名でリクエストを投げない
         expect(api).toContain('if (!model && cfg.missingModelMessage)');
+    });
+});
+
+// B.AI と同じく、1つでも抜けると「選べるのに動かない」状態になる
+describe('Meta（Muse）プロバイダーの配線', () => {
+    it('プロバイダー選択に出てくる', () => {
+        const values = Array.from(doc.querySelectorAll('#api-provider option')).map((o) => o.value);
+        expect(values).toContain('meta');
+    });
+
+    it('APIキー入力欄と追加モデル欄が他プロバイダーと同じ場所にある', () => {
+        const container = doc.getElementById('meta-api-key-container');
+        const sakana = doc.getElementById('sakana-api-key-container');
+        expect(container).toBeTruthy();
+        expect(doc.getElementById('meta-api-key')).toBeTruthy();
+        expect(doc.getElementById('meta-custom-models')).toBeTruthy();
+        expect(container.parentNode).toBe(sakana.parentNode);
+        expect(container.classList.contains('hidden')).toBe(true);
+    });
+
+    it('設定の受け皿と保存対象', () => {
+        expect('metaApiKey' in state.settings).toBe(true);
+        expect(read('src/app-logic/profile.js')).toContain("'metaApiKey'");
+        expect(read('src/app-logic/lifecycle.js')).toContain("metaApiKey: { element: elements.metaApiKeyInput");
+    });
+
+    it('Service Worker の除外ホストに api.meta.ai が入っている', () => {
+        expect(read('sw.js')).toContain("'api.meta.ai'");
+    });
+
+    it('モデル一括取得・要約/メモリ学習・タイトル生成・ディスパッチャ', () => {
+        expect(read('src/app.js')).toContain('https://api.meta.ai/v1/models');
+        expect(read('src/app-logic/memory.js')).toContain('meta: META_API_BASE_URL');
+        expect(read('src/app-logic/chat.js')).toContain('meta: META_API_BASE_URL');
+        expect(read('src/api.js')).toContain("case 'meta':");
+    });
+
+    it('モデル名 muse- からプロバイダーを推定できる（要約モデルを別プロバイダーにした場合）', () => {
+        expect(read('src/app-logic/memory.js')).toContain("if (m.startsWith('muse-')) return 'meta';");
+    });
+
+    it('エンドポイントと既定モデル', () => {
+        expect(META_API_BASE_URL).toBe('https://api.meta.ai/v1/chat/completions');
+        expect(DEFAULT_META_MODEL).toBe('muse-spark-1.3');
+        expect(META_MODELS.map((m) => m.value)).toContain(DEFAULT_META_MODEL);
+    });
+
+    // Contributor 版は会話が Meta の学習に使われる。既定にせず、ラベルで分かるようにする
+    it('Contributor 版は既定にせず、学習に使われることがラベルに書いてある', () => {
+        expect(DEFAULT_META_MODEL.endsWith('-contributor')).toBe(false);
+        for (const m of META_MODELS.filter((x) => x.value.endsWith('-contributor'))) {
+            expect(m.label).toContain('学習に使われる');
+        }
+    });
+
+    it('Meta 独自でない reasoning パラメータ（OpenRouter 用）を送らない', () => {
+        const api = read('src/api.js');
+        const block = api.slice(api.indexOf("case 'meta':"), api.indexOf('default:', api.indexOf("case 'meta':")));
+        expect(block).not.toContain('supportsReasoning: true');
     });
 });

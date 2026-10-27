@@ -890,6 +890,7 @@ window.dbUtils = dbUtils;
                     { key: 'xai',      url: 'https://api.x.ai/v1/models',               apiKey: state.settings.xaiApiKey },
                     { key: 'mistral',  url: 'https://api.mistral.ai/v1/models',          apiKey: state.settings.mistralApiKey },
                     { key: 'bai',      url: 'https://api.b.ai/v1/models',                apiKey: state.settings.baiApiKey },
+                    { key: 'meta',     url: 'https://api.meta.ai/v1/models',             apiKey: state.settings.metaApiKey },
                 ];
                 for (const p of compatList) {
                     if (p.apiKey) await fetchOpenAICompat(p.url, p.apiKey, p.key, null);
@@ -959,7 +960,7 @@ window.dbUtils = dbUtils;
         if(apiProvSelect) {
             const updateKeyVisibility = () => {
                 const p = apiProvSelect.value;
-                ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana', 'bai'].forEach(prov => {
+                ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana', 'bai', 'meta'].forEach(prov => {
                     document.getElementById(`${prov}-api-key-container`)?.classList.toggle('hidden', p !== prov);
                 });
             };
@@ -967,7 +968,7 @@ window.dbUtils = dbUtils;
             setTimeout(updateKeyVisibility, 500);
         }
 
-        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana', 'bai'];
+        const providers = ['gemini', 'zai', 'openrouter', 'bedrock', 'openai', 'anthropic', 'groq', 'deepseek', 'xai', 'mistral', 'sakana', 'bai', 'meta'];
         const defaultModelLists = {
             // ここは「追加モデル」の初期値として実際に保存される。提供終了したモデルを
             // 置くと、新しく使い始めた人の一覧が最初から使えないモデルで埋まるため、

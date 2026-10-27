@@ -102,6 +102,16 @@ export const MODEL_PRICING = {
     'glm-4-5-air':   { in: 0.20, out: 1.10, cr: 0.03 },
     'glm-4-5-flash': { in: 0,    out: 0,    cr: 0    },
 
+    // Meta Model API（Muse）— https://dev.meta.ai/docs/pricing-rate-limits
+    // 長コンテキストの割増なし（料金ページに明記）。キャッシュは自動で、書き込みの別料金の記載は無い。
+    // '-contributor' 付き（学習に使われる代わりに安い）は、前方一致のため無印より前に置くこと。
+    'muse-spark-1-3-contributor': { in: 0.10, out: 0.20, cr: 0.002 },
+    'muse-spark-1-2-contributor': { in: 0.10, out: 0.20, cr: 0.002 },
+    'muse-wonder-1-0':            { in: 4,    out: 20,   cr: 0.20 },
+    'muse-spark-1-3':             { in: 1.25, out: 4.25, cr: 0.15 },
+    'muse-spark-1-2':             { in: 1.25, out: 4.25, cr: 0.15 },
+    'muse-spark-1-1':             { in: 1.25, out: 4.25, cr: 0.15 },
+
     // Qwen — https://www.qwencloud.com/models/qwen3.8-flash
     // OpenRouter 経由（'qwen/qwen3.8-flash'）でもベンダー接頭辞が外れて一致する。
     'qwen3-8-flash': { in: 0.15, out: 0.47, cr: 0.016 },
