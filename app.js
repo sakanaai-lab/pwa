@@ -2168,6 +2168,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.74": [
+      "最大トークン数を、モデルが一度に扱える長さより大きく設定していても送れるようにしました。さくらのAI Engine の LLM-jp（4,096トークンまで）などで「max_tokens is too large」と断られたとき、収まる値に下げて自動で送り直します。",
+      "会話履歴だけで上限近くまで埋まっているときは、英語のエラーの代わりに「履歴が長すぎます」と日本語で案内します。"
+    ],
     "1.73": [
       "さくらインターネットの「さくらのAI Engine」に対応しました。設定の「APIプロバイダー」で選ぶと、国立情報学研究所の国産モデル LLM-jp や gpt-oss-120b を使えます。プレビュー版のモデルは「すべてのプロバイダーのモデルを取得」で一覧に出せます。",
       "チャットは月3,000回まで無料枠があります。料金が円建てのため、ⓘ の推定コストは表示されません。"
@@ -10016,6 +10020,48 @@ AI: ${firstModelContent}`;
   }
   __name(extractData, "extractData");
 
+  // src/utils/context-overflow.js
+  var CONTEXT_OVERFLOW_MARGIN = 16;
+  var MIN_OUTPUT_TOKENS = 256;
+  function parseContextOverflow(message) {
+    if (typeof message !== "string") return null;
+    const ctx = /maximum context length is (\d+) tokens/i.exec(message);
+    if (!ctx) return null;
+    const input = /request has (\d+) input tokens/i.exec(message) || /\((\d+) in the messages/i.exec(message) || /messages resulted in (\d+) tokens/i.exec(message);
+    if (!input) return null;
+    return { contextLength: Number(ctx[1]), inputTokens: Number(input[1]) };
+  }
+  __name(parseContextOverflow, "parseContextOverflow");
+  function resolveContextOverflow(message, requested) {
+    const parsed = parseContextOverflow(message);
+    if (!parsed) return null;
+    const room = parsed.contextLength - parsed.inputTokens - CONTEXT_OVERFLOW_MARGIN;
+    if (room < MIN_OUTPUT_TOKENS) return { action: "tooLong", ...parsed };
+    if (typeof requested !== "number" || room >= requested) return null;
+    return { action: "retry", maxTokens: room, ...parsed };
+  }
+  __name(resolveContextOverflow, "resolveContextOverflow");
+  function contextTooLongMessage({ contextLength, inputTokens }) {
+    return `履歴が長すぎます。このモデルが一度に扱えるのは ${contextLength} トークンまでですが、システムプロンプトと会話履歴だけで ${inputTokens} トークンあり、返答を書く余地がほとんどありません。古いメッセージを削除するか、新しいチャットで続けてください。`;
+  }
+  __name(contextTooLongMessage, "contextTooLongMessage");
+  async function fetchWithContextOverflowRetry(send, requestBody, label) {
+    const response = await send();
+    if (response.status !== 400) return response;
+    const text = await response.clone().text().catch(() => "");
+    const fix = resolveContextOverflow(text, requestBody.max_tokens);
+    if (!fix) return response;
+    if (fix.action === "tooLong") {
+      const e = new Error(contextTooLongMessage(fix));
+      e.status = 400;
+      throw e;
+    }
+    console.warn(`[max_tokens] ${label} ${requestBody.model}: ${requestBody.max_tokens} → ${fix.maxTokens}（文脈長 ${fix.contextLength}・入力 ${fix.inputTokens}）に下げて送り直します`);
+    requestBody.max_tokens = fix.maxTokens;
+    return await send();
+  }
+  __name(fetchWithContextOverflowRetry, "fetchWithContextOverflowRetry");
+
   // src/api.js
   function extractSystemText(systemInstruction) {
     if (!systemInstruction) return null;
@@ -10840,7 +10886,7 @@ AI: ${firstModelContent}`;
       try {
         const timestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${timestamp}] Sending fetch request to ${cfg.label} API...`);
-        const response = await fetch(cfg.baseUrl, {
+        const response = await fetchWithContextOverflowRetry(() => fetch(cfg.baseUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -10849,7 +10895,7 @@ AI: ${firstModelContent}`;
           },
           body: JSON.stringify(requestBody),
           signal
-        });
+        }), requestBody, cfg.label);
         const receivedTimestamp = (/* @__PURE__ */ new Date()).toLocaleTimeString();
         console.log(`[API_DEBUG ${receivedTimestamp}] Received response from ${cfg.label} API. Status: ${response.status}`);
         if (!response.ok) {
@@ -11370,12 +11416,12 @@ AI: ${firstModelContent}`;
       const systemText = extractSystemText(systemInstruction);
       if (systemText) requestBody.messages.push({ role: "system", content: systemText });
       this.convertGeminiToOpenAIFormat(messages).forEach((msg) => requestBody.messages.push(msg));
-      const response = await fetch(baseUrl, {
+      const response = await fetchWithContextOverflowRetry(() => fetch(baseUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
         body: JSON.stringify(requestBody),
         signal
-      });
+      }), requestBody, providerName);
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         const e = new Error(`${providerName} APIエラー: ${err.error?.message || response.statusText}`);

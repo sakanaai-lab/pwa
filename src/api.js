@@ -11,6 +11,7 @@ import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
 import { deepseekThinkingOffParams } from './utils/deepseek-params.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
+import { fetchWithContextOverflowRetry } from './utils/context-overflow.js';
 import { isImageGenerationModel } from './utils/model-select.js';
 import { getGeminiSafetySettings } from './utils/safety.js';
 import { state } from './state.js';
@@ -1049,7 +1050,7 @@ export const apiUtils = {
             const timestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${timestamp}] Sending fetch request to ${cfg.label} API...`);
 
-            const response = await fetch(cfg.baseUrl, {
+            const response = await fetchWithContextOverflowRetry(() => fetch(cfg.baseUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -1058,7 +1059,7 @@ export const apiUtils = {
                 },
                 body: JSON.stringify(requestBody),
                 signal
-            });
+            }), requestBody, cfg.label);
 
             const receivedTimestamp = new Date().toLocaleTimeString();
             console.log(`[API_DEBUG ${receivedTimestamp}] Received response from ${cfg.label} API. Status: ${response.status}`);
@@ -1698,12 +1699,12 @@ export const apiUtils = {
         if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
         this.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
 
-        const response = await fetch(baseUrl, {
+        const response = await fetchWithContextOverflowRetry(() => fetch(baseUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
             body: JSON.stringify(requestBody),
             signal
-        });
+        }), requestBody, providerName);
 
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
