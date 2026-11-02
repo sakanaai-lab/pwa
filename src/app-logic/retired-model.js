@@ -19,6 +19,7 @@ import {
     DEFAULT_SAKANA_MODEL,
     DEFAULT_BAI_MODEL,
     DEFAULT_META_MODEL,
+    DEFAULT_SAKURAAI_MODEL,
     DEFAULT_OPENROUTER_MODEL,
 } from '../constants.js';
 import { getRetirementSuccessor } from '../utils/retirement.js';
@@ -39,6 +40,7 @@ const PROVIDER_DEFAULT_MODEL = {
     sakana: DEFAULT_SAKANA_MODEL,
     bai: DEFAULT_BAI_MODEL,
     meta: DEFAULT_META_MODEL,
+    sakuraai: DEFAULT_SAKURAAI_MODEL,
     openrouter: DEFAULT_OPENROUTER_MODEL,
 };
 

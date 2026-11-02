@@ -32,6 +32,9 @@ export const SAKANA_API_BASE_URL = 'https://api.sakana.ai/v1/chat/completions';
 export const BAI_API_BASE_URL = 'https://api.b.ai/v1/chat/completions';
 // Meta Model API（Muse）。OpenAI Chat Completions 互換。https://dev.meta.ai/docs/protocols/chat-completions
 export const META_API_BASE_URL = 'https://api.meta.ai/v1/chat/completions';
+// さくらのAI Engine（さくらインターネット）。OpenAI Chat Completions 互換。
+// https://manual.sakura.ad.jp/api/cloud/portal/ai-engine-inference-api/index.html
+export const SAKURAAI_API_BASE_URL = 'https://api.ai.sakura.ad.jp/v1/chat/completions';
 export const DUPLICATE_SUFFIX = ' (コピー)';
 export const IMPORT_PREFIX = '(取込) ';
 export const LIGHT_THEME_COLOR = '#4a90e2';
@@ -337,7 +340,22 @@ export const META_MODELS = [
 ];
 export const DEFAULT_META_MODEL = 'muse-spark-1.3';
 
+// さくらのAI Engine。https://ai.sakura.ad.jp/sakura-ai/ai-engine/
+// 公式のAPI文書はモデルIDを載せず「コントロールパネル等をご確認ください」としているため、
+// 解説記事などで実際に使われている標準モデル2つだけを載せる。プレビュー版などの他のモデルは
+// 設定の「モデル一括取得」(GET /v1/models) か「追加モデル」で足す。
+// llm-jp は国立情報学研究所（NII）の LLM-jp プロジェクトの国産モデル。
+export const SAKURAAI_MODELS = [
+    { value: 'llm-jp-3.1-8x13b-instruct4', label: 'LLM-jp 3.1 8x13B (国産)' },
+    { value: 'gpt-oss-120b', label: 'gpt-oss-120b' },
+];
+export const DEFAULT_SAKURAAI_MODEL = 'llm-jp-3.1-8x13b-instruct4';
+
 export const VERSION_HISTORY = {
+    '1.73': [
+        'さくらインターネットの「さくらのAI Engine」に対応しました。設定の「APIプロバイダー」で選ぶと、国立情報学研究所の国産モデル LLM-jp や gpt-oss-120b を使えます。プレビュー版のモデルは「すべてのプロバイダーのモデルを取得」で一覧に出せます。',
+        'チャットは月3,000回まで無料枠があります。料金が円建てのため、ⓘ の推定コストは表示されません。',
+    ],
     '1.72': [
         'GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。',
         'Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。',

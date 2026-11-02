@@ -1625,6 +1625,8 @@ ${relationship_context}`;
       baiApiKeyContainer: document.getElementById("bai-api-key-container"),
       metaApiKeyInput: document.getElementById("meta-api-key"),
       metaApiKeyContainer: document.getElementById("meta-api-key-container"),
+      sakuraaiApiKeyInput: document.getElementById("sakuraai-api-key"),
+      sakuraaiApiKeyContainer: document.getElementById("sakuraai-api-key-container"),
       xaiApiKeyInput: document.getElementById("xai-api-key"),
       xaiApiKeyContainer: document.getElementById("xai-api-key-container"),
       mistralApiKeyInput: document.getElementById("mistral-api-key"),
@@ -1905,6 +1907,7 @@ ${relationship_context}`;
   var SAKANA_API_BASE_URL = "https://api.sakana.ai/v1/chat/completions";
   var BAI_API_BASE_URL = "https://api.b.ai/v1/chat/completions";
   var META_API_BASE_URL = "https://api.meta.ai/v1/chat/completions";
+  var SAKURAAI_API_BASE_URL = "https://api.ai.sakura.ad.jp/v1/chat/completions";
   var DUPLICATE_SUFFIX = " (コピー)";
   var IMPORT_PREFIX = "(取込) ";
   var LIGHT_THEME_COLOR = "#4a90e2";
@@ -2159,7 +2162,16 @@ ${relationship_context}`;
     { value: "muse-spark-1.2-contributor", label: "Muse Spark 1.2 Contributor (安価・会話が学習に使われる)" }
   ];
   var DEFAULT_META_MODEL = "muse-spark-1.3";
+  var SAKURAAI_MODELS = [
+    { value: "llm-jp-3.1-8x13b-instruct4", label: "LLM-jp 3.1 8x13B (国産)" },
+    { value: "gpt-oss-120b", label: "gpt-oss-120b" }
+  ];
+  var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.73": [
+      "さくらインターネットの「さくらのAI Engine」に対応しました。設定の「APIプロバイダー」で選ぶと、国立情報学研究所の国産モデル LLM-jp や gpt-oss-120b を使えます。プレビュー版のモデルは「すべてのプロバイダーのモデルを取得」で一覧に出せます。",
+      "チャットは月3,000回まで無料枠があります。料金が円建てのため、ⓘ の推定コストは表示されません。"
+    ],
     "1.72": [
       "GPT-6.1 Terra に対応しました。Sol と Luna の間のモデルで、入力$1／出力$5（キャッシュ読み込み$0.05）です。推論の強さは none〜max から選べます。",
       "Meta の Muse に対応しました。設定の「APIプロバイダー」で「Meta (Muse)」を選び、APIキーを入れると使えます。Muse Spark 1.3（入力$1.25／出力$4.25）、Muse Wonder 1.0（入力$4／出力$20）などを選べ、推定コストも表示されます。",
@@ -2484,6 +2496,7 @@ ${relationship_context}`;
       sakanaApiKey: "",
       baiApiKey: "",
       metaApiKey: "",
+      sakuraaiApiKey: "",
       modelName: DEFAULT_MODEL,
       systemPrompt: "",
       temperature: null,
@@ -5009,6 +5022,9 @@ ${error.message}`);
       if (elements.metaApiKeyInput) {
         elements.metaApiKeyInput.value = state.settings.metaApiKey || "";
       }
+      if (elements.sakuraaiApiKeyInput) {
+        elements.sakuraaiApiKeyInput.value = state.settings.sakuraaiApiKey || "";
+      }
       this.renderVersionHistory();
       if (elements.mistralApiKeyInput) {
         elements.mistralApiKeyInput.value = state.settings.mistralApiKey || "";
@@ -6107,7 +6123,7 @@ ${error.message}`);
     },
     getCurrentUiSettings() {
       const settings = {};
-      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "sakanaApiKey", "baiApiKey", "metaApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
+      const stringKeys = ["apiProvider", "apiKey", "zaiApiKey", "openrouterApiKey", "bedrockAccessKey", "bedrockSecretKey", "bedrockRegion", "openaiApiKey", "anthropicApiKey", "anthropicCacheTTL", "anthropicEffort", "novelaiApiKey", "novelaiModel", "groqApiKey", "deepseekApiKey", "xaiApiKey", "mistralApiKey", "sakanaApiKey", "baiApiKey", "metaApiKey", "sakuraaiApiKey", "modelName", "dummyUser", "dummyModel", "additionalModels", "historySortOrder", "fontFamily", "proofreadingModelName", "proofreadingSystemInstruction", "googleSearchApiKey", "googleSearchEngineId", "headerColor", "thoughtTranslationModel", "summaryModelName", "summarySystemPrompt"];
       const numberKeys = ["temperature", "maxTokens", "topK", "topP", "thinkingBudget", "maxRetries", "maxBackoffDelaySeconds", "overlayOpacity", "messageOpacity"];
       const booleanKeys = ["enterToSend", "darkMode", "geminiEnableGrounding", "geminiEnableFunctionCalling", "enableSwipeNavigation", "enableProofreading", "enableAutoRetry", "useFixedRetryDelay", "reverseDummyOrder", "concatDummyModel", "dummyEnabled", "includeThoughts", "enableThoughtTranslation", "applyDummyToProofread", "applyDummyToTranslate", "forceFunctionCalling", "autoScroll", "enableWideMode", "enableSummaryButton"];
       settings.systemPrompt = elements.systemPromptDefaultTextarea.value.trim();
@@ -6414,6 +6430,7 @@ ${error.message}`);
       const isSakana = provider === "sakana";
       const isBai = provider === "bai";
       const isMeta = provider === "meta";
+      const isSakuraAi = provider === "sakuraai";
       const containers = [
         [elements.geminiApiKeyContainer, isGemini2],
         [elements.zaiApiKeyContainer, isZai],
@@ -6427,7 +6444,8 @@ ${error.message}`);
         [elements.mistralApiKeyContainer, isMistral],
         [elements.sakanaApiKeyContainer, isSakana],
         [elements.baiApiKeyContainer, isBai],
-        [elements.metaApiKeyContainer, isMeta]
+        [elements.metaApiKeyContainer, isMeta],
+        [elements.sakuraaiApiKeyContainer, isSakuraAi]
       ];
       containers.forEach(([el, show]) => {
         if (el) el.classList.toggle("hidden", !show);
@@ -6527,6 +6545,8 @@ ${error.message}`);
         models = BAI_MODELS;
       } else if (provider === "meta") {
         models = META_MODELS;
+      } else if (provider === "sakuraai") {
+        models = SAKURAAI_MODELS;
       } else if (provider === "sakana") {
         models = SAKANA_MODELS;
       } else {
@@ -6601,6 +6621,8 @@ ${error.message}`);
         defaultModel = DEFAULT_BAI_MODEL;
       } else if (provider === "meta") {
         defaultModel = DEFAULT_META_MODEL;
+      } else if (provider === "sakuraai") {
+        defaultModel = DEFAULT_SAKURAAI_MODEL;
       } else if (provider === "sakana") {
         defaultModel = DEFAULT_SAKANA_MODEL;
       } else {
@@ -7158,6 +7180,7 @@ ${error.message}`);
         sakanaApiKey: { element: elements.sakanaApiKeyInput, event: "input" },
         baiApiKey: { element: elements.baiApiKeyInput, event: "input" },
         metaApiKey: { element: elements.metaApiKeyInput, event: "input" },
+        sakuraaiApiKey: { element: elements.sakuraaiApiKeyInput, event: "input" },
         modelName: {
           element: elements.modelNameSelect,
           event: "change",
@@ -9840,7 +9863,8 @@ AI: ${firstModelContent}`;
             zai: state.settings.zaiApiKey || state.settings.apiKey,
             sakana: state.settings.sakanaApiKey,
             bai: state.settings.baiApiKey,
-            meta: state.settings.metaApiKey
+            meta: state.settings.metaApiKey,
+            sakuraai: state.settings.sakuraaiApiKey
           };
           const baseUrlMap = {
             openai: "https://api.openai.com/v1/chat/completions",
@@ -9852,13 +9876,16 @@ AI: ${firstModelContent}`;
             zai: ZAI_API_BASE_URL,
             sakana: SAKANA_API_BASE_URL,
             bai: BAI_API_BASE_URL,
-            meta: META_API_BASE_URL
+            meta: META_API_BASE_URL,
+            sakuraai: SAKURAAI_API_BASE_URL
           };
           const apiKey = apiKeyMap[provider];
           const baseUrl = baseUrlMap[provider];
           if (!apiKey || !baseUrl) return;
           const titleModelMap = {
-            deepseek: DEFAULT_DEEPSEEK_MODEL
+            deepseek: DEFAULT_DEEPSEEK_MODEL,
+            // gpt-oss-120b は推論するので 200 トークンを使い切りうる。推論しない LLM-jp を使う
+            sakuraai: DEFAULT_SAKURAAI_MODEL
           };
           const titleModel = titleModelMap[provider] || state.settings.modelName;
           const resp = await fetch(baseUrl, {
@@ -10741,7 +10768,7 @@ AI: ${firstModelContent}`;
         if (generationConfig.maxOutputTokens !== void 0) {
           requestBody.max_tokens = generationConfig.maxOutputTokens;
         }
-        if (generationConfig.topP !== void 0) {
+        if (generationConfig.topP !== void 0 && !cfg.omitTopP) {
           requestBody.top_p = generationConfig.topP;
         }
       }
@@ -11455,6 +11482,17 @@ ${knowledgeText}`;
             // 思考自体はモデル側が返すので、reasoning_content 等があれば表示される。
             verboseError: true
           }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+        case "sakuraai":
+          return await this._callOpenAICompatibleWithTools({
+            label: "さくらのAI Engine",
+            baseUrl: SAKURAAI_API_BASE_URL,
+            defaultModel: DEFAULT_SAKURAAI_MODEL,
+            getApiKey: /* @__PURE__ */ __name(() => state.settings.sakuraaiApiKey, "getApiKey"),
+            missingKeyMessage: "さくらのAI Engine のAPIキーが設定されていません。設定画面で追加してください。",
+            extraHeaders: /* @__PURE__ */ __name(() => ({}), "extraHeaders"),
+            omitTopP: true,
+            verboseError: true
+          }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
         case "meta":
           return await this._callOpenAICompatibleWithTools({
             label: "Meta",
@@ -11560,6 +11598,7 @@ ${body}`;
     sakana: DEFAULT_SAKANA_MODEL,
     bai: DEFAULT_BAI_MODEL,
     meta: DEFAULT_META_MODEL,
+    sakuraai: DEFAULT_SAKURAAI_MODEL,
     openrouter: DEFAULT_OPENROUTER_MODEL
   };
   function isRetiredModelError(errorMessage) {
@@ -14717,7 +14756,7 @@ ${msg}`);
     }
   }
   __name(getUsageRange, "getUsageRange");
-  var UNPRICED_PROVIDERS = ["bai"];
+  var UNPRICED_PROVIDERS = ["bai", "sakuraai"];
   function calcMessageCost(msg) {
     if (msg?.provider && UNPRICED_PROVIDERS.includes(msg.provider)) return null;
     const pricing = getPricing(msg?.modelName, msg?.timestamp);
@@ -14794,7 +14833,8 @@ ${msg}`);
       zai: state.settings.zaiApiKey || state.settings.apiKey,
       sakana: state.settings.sakanaApiKey,
       bai: state.settings.baiApiKey,
-      meta: state.settings.metaApiKey
+      meta: state.settings.metaApiKey,
+      sakuraai: state.settings.sakuraaiApiKey
     };
     const urls = {
       openai: "https://api.openai.com/v1/chat/completions",
@@ -14806,7 +14846,8 @@ ${msg}`);
       zai: ZAI_API_BASE_URL,
       sakana: SAKANA_API_BASE_URL,
       bai: BAI_API_BASE_URL,
-      meta: META_API_BASE_URL
+      meta: META_API_BASE_URL,
+      sakuraai: SAKURAAI_API_BASE_URL
     };
     return { apiKey: keys[provider], baseUrl: urls[provider] };
   }
@@ -14893,6 +14934,7 @@ ${msg}`);
     if (m.startsWith("glm")) return "zai";
     if (m.startsWith("fugu")) return "sakana";
     if (m.startsWith("muse-")) return "meta";
+    if (m.startsWith("llm-jp")) return "sakuraai";
     return fallback;
   }
   __name(inferProviderFromModel, "inferProviderFromModel");
@@ -14905,7 +14947,9 @@ ${msg}`);
       deepseek: "deepseek-flash",
       // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
       openai: "gpt-6-luna",
-      mistral: "mistral-small-latest"
+      mistral: "mistral-small-latest",
+      // 推論しない国産モデル（gpt-oss-120b と同じ単価）
+      sakuraai: "llm-jp-3.1-8x13b-instruct4"
     };
     return lightModels[provider] || state.settings.modelName;
   }
@@ -16898,7 +16942,8 @@ ${pageText}
             { key: "xai", url: "https://api.x.ai/v1/models", apiKey: state.settings.xaiApiKey },
             { key: "mistral", url: "https://api.mistral.ai/v1/models", apiKey: state.settings.mistralApiKey },
             { key: "bai", url: "https://api.b.ai/v1/models", apiKey: state.settings.baiApiKey },
-            { key: "meta", url: "https://api.meta.ai/v1/models", apiKey: state.settings.metaApiKey }
+            { key: "meta", url: "https://api.meta.ai/v1/models", apiKey: state.settings.metaApiKey },
+            { key: "sakuraai", url: "https://api.ai.sakura.ad.jp/v1/models", apiKey: state.settings.sakuraaiApiKey }
           ];
           for (const p of compatList) {
             if (p.apiKey) await fetchOpenAICompat(p.url, p.apiKey, p.key, null);
@@ -16957,14 +17002,14 @@ ${pageText}
       if (apiProvSelect) {
         const updateKeyVisibility = /* @__PURE__ */ __name(() => {
           const p = apiProvSelect.value;
-          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta"].forEach((prov) => {
+          ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta", "sakuraai"].forEach((prov) => {
             document.getElementById(`${prov}-api-key-container`)?.classList.toggle("hidden", p !== prov);
           });
         }, "updateKeyVisibility");
         apiProvSelect.addEventListener("change", updateKeyVisibility);
         setTimeout(updateKeyVisibility, 500);
       }
-      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta"];
+      const providers = ["gemini", "zai", "openrouter", "bedrock", "openai", "anthropic", "groq", "deepseek", "xai", "mistral", "sakana", "bai", "meta", "sakuraai"];
       const defaultModelLists = {
         // ここは「追加モデル」の初期値として実際に保存される。提供終了したモデルを
         // 置くと、新しく使い始めた人の一覧が最初から使えないモデルで埋まるため、

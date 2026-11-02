@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { BAI_API_BASE_URL, BAI_MODELS, DEFAULT_BAI_MODEL, META_API_BASE_URL, META_MODELS, DEFAULT_META_MODEL } from '../src/constants.js';
+import { BAI_API_BASE_URL, BAI_MODELS, DEFAULT_BAI_MODEL, META_API_BASE_URL, META_MODELS, DEFAULT_META_MODEL, SAKURAAI_API_BASE_URL, SAKURAAI_MODELS, DEFAULT_SAKURAAI_MODEL } from '../src/constants.js';
 import { state } from '../src/state.js';
 
 const read = (p) => readFileSync(resolve(process.cwd(), p), 'utf8');
@@ -161,5 +161,58 @@ describe('Meta（Muse）プロバイダーの配線', () => {
         const api = read('src/api.js');
         const block = api.slice(api.indexOf("case 'meta':"), api.indexOf('default:', api.indexOf("case 'meta':")));
         expect(block).not.toContain('supportsReasoning: true');
+    });
+});
+
+describe('さくらのAI Engine プロバイダーの配線', () => {
+    it('プロバイダー選択・APIキー欄・追加モデル欄', () => {
+        const values = Array.from(doc.querySelectorAll('#api-provider option')).map((o) => o.value);
+        expect(values).toContain('sakuraai');
+        const container = doc.getElementById('sakuraai-api-key-container');
+        expect(container).toBeTruthy();
+        expect(doc.getElementById('sakuraai-api-key')).toBeTruthy();
+        expect(doc.getElementById('sakuraai-custom-models')).toBeTruthy();
+        expect(container.parentNode).toBe(doc.getElementById('sakana-api-key-container').parentNode);
+        expect(container.classList.contains('hidden')).toBe(true);
+    });
+
+    it('設定の受け皿と保存対象', () => {
+        expect('sakuraaiApiKey' in state.settings).toBe(true);
+        expect(read('src/app-logic/profile.js')).toContain("'sakuraaiApiKey'");
+        expect(read('src/app-logic/lifecycle.js')).toContain('sakuraaiApiKey: { element: elements.sakuraaiApiKeyInput');
+    });
+
+    it('Service Worker の除外ホスト・モデル一括取得・要約/メモリ学習・タイトル生成・ディスパッチャ', () => {
+        expect(read('sw.js')).toContain("'api.ai.sakura.ad.jp'");
+        expect(read('src/app.js')).toContain('https://api.ai.sakura.ad.jp/v1/models');
+        expect(read('src/app-logic/memory.js')).toContain('sakuraai: SAKURAAI_API_BASE_URL');
+        expect(read('src/app-logic/chat.js')).toContain('sakuraai: SAKURAAI_API_BASE_URL');
+        expect(read('src/api.js')).toContain("case 'sakuraai':");
+    });
+
+    it('エンドポイント・既定モデル（国産の LLM-jp）', () => {
+        expect(SAKURAAI_API_BASE_URL).toBe('https://api.ai.sakura.ad.jp/v1/chat/completions');
+        expect(DEFAULT_SAKURAAI_MODEL).toBe('llm-jp-3.1-8x13b-instruct4');
+        expect(SAKURAAI_MODELS.map((m) => m.value)).toContain(DEFAULT_SAKURAAI_MODEL);
+    });
+
+    // 文書の Chat Completions の項目に top_p が無い
+    it('top_p を送らない', () => {
+        const api = read('src/api.js');
+        const block = api.slice(api.indexOf("case 'sakuraai':"), api.indexOf("case 'meta':"));
+        expect(block).toContain('omitTopP: true');
+        expect(api).toContain('if (generationConfig.topP !== undefined && !cfg.omitTopP) {');
+    });
+
+    // 円建てなので推定コストを出さない（為替を決め打ちしない）
+    it('推定コストは出さない', () => {
+        expect(read('src/utils/usage.js')).toContain("export const UNPRICED_PROVIDERS = ['bai', 'sakuraai'];");
+    });
+
+    // gpt-oss-120b は推論するので、タイトル生成とメモリ学習は推論しない LLM-jp を使う
+    it('タイトル生成とメモリ学習は LLM-jp', () => {
+        expect(read('src/app-logic/chat.js')).toContain('sakuraai: DEFAULT_SAKURAAI_MODEL');
+        expect(read('src/app-logic/memory.js')).toContain("sakuraai: 'llm-jp-3.1-8x13b-instruct4',");
+        expect(read('src/app-logic/memory.js')).toContain("if (m.startsWith('llm-jp')) return 'sakuraai';");
     });
 });

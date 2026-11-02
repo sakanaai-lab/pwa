@@ -1,5 +1,5 @@
 // appLogic 機能モジュール: chat（Phase 3 で app-logic.js から分割）。挙動は不変。
-import { BAI_API_BASE_URL, CHATS_STORE, META_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_DEEPSEEK_MODEL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
+import { BAI_API_BASE_URL, CHATS_STORE, META_API_BASE_URL, SAKURAAI_API_BASE_URL, DEFAULT_SAKURAAI_MODEL, DEEPSEEK_API_BASE_URL, DEFAULT_DEEPSEEK_MODEL, DUPLICATE_SUFFIX, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, IMPORT_PREFIX, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL } from '../constants.js';
 import { dbUtils } from '../db.js';
 import { elements } from '../dom-elements.js';
 import { state } from '../state.js';
@@ -816,7 +816,8 @@ export const chatMethods = {
                     zai: state.settings.zaiApiKey || state.settings.apiKey,
                     sakana: state.settings.sakanaApiKey,
                     bai: state.settings.baiApiKey,
-                    meta: state.settings.metaApiKey
+                    meta: state.settings.metaApiKey,
+                    sakuraai: state.settings.sakuraaiApiKey
                 };
                 const baseUrlMap = {
                     openai: 'https://api.openai.com/v1/chat/completions',
@@ -828,7 +829,8 @@ export const chatMethods = {
                     zai: ZAI_API_BASE_URL,
                     sakana: SAKANA_API_BASE_URL,
                     bai: BAI_API_BASE_URL,
-                    meta: META_API_BASE_URL
+                    meta: META_API_BASE_URL,
+                    sakuraai: SAKURAAI_API_BASE_URL
                 };
                 const apiKey = apiKeyMap[provider];
                 const baseUrl = baseUrlMap[provider];
@@ -838,7 +840,9 @@ export const chatMethods = {
                 // トークンを使い切り content が空になりタイトルが生成されないため。
                 // DeepSeek の既定（deepseek-flash）は既定で思考するので、下で思考を止めて送る
                 const titleModelMap = {
-                    deepseek: DEFAULT_DEEPSEEK_MODEL
+                    deepseek: DEFAULT_DEEPSEEK_MODEL,
+                    // gpt-oss-120b は推論するので 200 トークンを使い切りうる。推論しない LLM-jp を使う
+                    sakuraai: DEFAULT_SAKURAAI_MODEL
                 };
                 const titleModel = titleModelMap[provider] || state.settings.modelName;
                 const resp = await fetch(baseUrl, {
