@@ -43,6 +43,7 @@ export const state = {
         sakanaApiKey: '',
         baiApiKey: '',
         metaApiKey: '',
+        sakuraaiApiKey: '',
         modelName: DEFAULT_MODEL,
         systemPrompt: '',
         temperature: null,

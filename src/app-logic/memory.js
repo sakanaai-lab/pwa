@@ -10,6 +10,7 @@ import {
     SAKANA_API_BASE_URL,
     BAI_API_BASE_URL,
     META_API_BASE_URL,
+    SAKURAAI_API_BASE_URL,
     DEFAULT_ANTHROPIC_MODEL,
 } from '../constants.js';
 import { sanitizeGeminiGenerationConfig } from '../utils/gemini-params.js';
@@ -38,6 +39,7 @@ function getOpenAICompatConfig(provider) {
         sakana: state.settings.sakanaApiKey,
         bai: state.settings.baiApiKey,
         meta: state.settings.metaApiKey,
+        sakuraai: state.settings.sakuraaiApiKey,
     };
     const urls = {
         openai: 'https://api.openai.com/v1/chat/completions',
@@ -50,6 +52,7 @@ function getOpenAICompatConfig(provider) {
         sakana: SAKANA_API_BASE_URL,
         bai: BAI_API_BASE_URL,
         meta: META_API_BASE_URL,
+        sakuraai: SAKURAAI_API_BASE_URL,
     };
     return { apiKey: keys[provider], baseUrl: urls[provider] };
 }
@@ -149,6 +152,7 @@ function inferProviderFromModel(model, fallback) {
     if (m.startsWith('glm')) return 'zai';
     if (m.startsWith('fugu')) return 'sakana';
     if (m.startsWith('muse-')) return 'meta';
+    if (m.startsWith('llm-jp')) return 'sakuraai';
     return fallback;
 }
 
@@ -163,6 +167,8 @@ function getMemoryLearnModel(provider) {
         // gpt-4o-mini は 2027-01-14 に終了。公式の移行先は gpt-6-luna
         openai: 'gpt-6-luna',
         mistral: 'mistral-small-latest',
+        // 推論しない国産モデル（gpt-oss-120b と同じ単価）
+        sakuraai: 'llm-jp-3.1-8x13b-instruct4',
     };
     return lightModels[provider] || state.settings.modelName;
 }

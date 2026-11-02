@@ -1,5 +1,5 @@
 // apiUtils（Phase 1 で app.js から抽出）。挙動は不変。
-import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_META_MODEL, META_API_BASE_URL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
+import { BAI_API_BASE_URL, DEEPSEEK_API_BASE_URL, DEFAULT_BAI_MODEL, DEFAULT_META_MODEL, META_API_BASE_URL, DEFAULT_SAKURAAI_MODEL, SAKURAAI_API_BASE_URL, DEFAULT_BEDROCK_MODEL, DEFAULT_BEDROCK_REGION, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_ZAI_MODEL, GEMINI_API_BASE_URL, GROQ_API_BASE_URL, INITIAL_RETRY_DELAY, MISTRAL_API_BASE_URL, OPENROUTER_API_BASE_URL, SAKANA_API_BASE_URL, XAI_API_BASE_URL, ZAI_API_BASE_URL, getAnthropicEffortLevels } from './constants.js';
 import { appLogic } from './app-logic.js';
 import { elements } from './dom-elements.js';
 import { interruptibleSleep } from './utils/format.js';
@@ -956,7 +956,8 @@ export const apiUtils = {
             if (generationConfig.maxOutputTokens !== undefined) {
                 requestBody.max_tokens = generationConfig.maxOutputTokens;
             }
-            if (generationConfig.topP !== undefined) {
+            // top_p を受け付けると書かれていないプロバイダー（さくらのAI Engine）には送らない
+            if (generationConfig.topP !== undefined && !cfg.omitTopP) {
                 requestBody.top_p = generationConfig.topP;
             }
         }
@@ -1812,6 +1813,22 @@ export const apiUtils = {
                     // reasoning は無い（Responses API 専用かつ OpenRouter の独自拡張）。
                     // 送ると Include Thoughts がONのときだけ 400 になる。
                     // 思考自体はモデル側が返すので、reasoning_content 等があれば表示される。
+                    verboseError: true
+                }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
+            case 'sakuraai':
+                // さくらのAI Engine: OpenAI Chat Completions 互換。
+                // https://manual.sakura.ad.jp/api/cloud/portal/ai-engine-inference-api/index.html
+                // - temperature（0〜2）・max_tokens・tools・tool_choice・reasoning_effort は文書にある
+                // - top_p は Chat Completions の項目に載っていないので送らない（omitTopP）
+                // - OpenRouter 用の reasoning パラメータは送らない（supportsReasoning を付けない）
+                return await this._callOpenAICompatibleWithTools({
+                    label: 'さくらのAI Engine',
+                    baseUrl: SAKURAAI_API_BASE_URL,
+                    defaultModel: DEFAULT_SAKURAAI_MODEL,
+                    getApiKey: () => state.settings.sakuraaiApiKey,
+                    missingKeyMessage: 'さくらのAI Engine のAPIキーが設定されていません。設定画面で追加してください。',
+                    extraHeaders: () => ({}),
+                    omitTopP: true,
                     verboseError: true
                 }, messagesForApi, generationConfig, systemInstruction, forceCalling, signal);
             case 'meta':

@@ -33,7 +33,9 @@ export function getUsageRange(range, now) {
 //
 // OpenRouter は同じ統合APIでも提供元の価格をほぼそのまま通すため、
 // これまでどおり上流の単価で概算する（ここには入れない）。
-export const UNPRICED_PROVIDERS = ['bai'];
+// さくらのAI Engine は料金が円建て（税込）。ドルに直すには為替の決め打ちが要るので金額を出さない。
+// 同じ名前のモデル（gpt-oss-120b など）の他社の単価を当てると違う金額になる点も B.AI と同じ。
+export const UNPRICED_PROVIDERS = ['bai', 'sakuraai'];
 
 /**
  * 1メッセージ分の料金を計算する。単価が分からなければ null（＝金額不明）。

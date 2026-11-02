@@ -12,7 +12,7 @@
 |------|------|
 | **アプリ名** | 「Aquarium Chat」に改名 |
 | **カラーテーマ** | ライトモードを水色・ブルーグリーン系「Aquarium」テーマに変更 |
-| **マルチプロバイダー対応** | OpenAI・Anthropic・Groq・DeepSeek・xAI・Mistral・Z.ai・Sakana(fugu)・B.AI・Meta(Muse) のAPIをネイティブサポート。Anthropic使用時はプロンプトキャッシングを自動適用（システムプロンプト＋会話履歴を設定TTLでキャッシュ、大幅なコスト削減） |
+| **マルチプロバイダー対応** | OpenAI・Anthropic・Groq・DeepSeek・xAI・Mistral・Z.ai・Sakana(fugu)・B.AI・Meta(Muse)・さくらのAI Engine（LLM-jp）のAPIをネイティブサポート。Anthropic使用時はプロンプトキャッシングを自動適用（システムプロンプト＋会話履歴を設定TTLでキャッシュ、大幅なコスト削減） |
 | **カスタムモデル登録** | 各プロバイダーに任意のモデルIDを追加可能 |
 | **推論モデル対応** | OpenAI o-series / DeepSeek-R1 / Anthropic Adaptive Thinking に最適化されたAPIパラメータを自動適用 |
 | **思考プロセス表示** | Gemini・Claude・DeepSeek-R1 の思考プロセスを折りたたみで表示、日本語翻訳も対応 |
@@ -79,6 +79,7 @@
 | **OpenRouter** | [OpenRouter](https://openrouter.ai/keys) | OpenRouter |
 | **B.AI** | [B.AI](https://b.ai/) | B.AI |
 | **Meta (Muse)** | [Meta Model API](https://dev.meta.ai/) | Meta (Muse) |
+| **さくらのAI Engine**（LLM-jp など） | [コントロールパネル](https://secure.sakura.ad.jp/ai/) | さくらのAI Engine (LLM-jp) |
 
 > **⚠️ 注意：** APIキーはお使いのブラウザのIndexedDBにのみ保存されます。PCとスマホでは別々のデータベースになるため、スマホで使う場合はスマホ側でも設定が必要です。
 
@@ -322,7 +323,7 @@ https://sakanaai-lab.github.io/pwa/
 | 会話サイズ | データのKBサイズ |
 | 使用モデル | この会話で使用されたモデル名 |
 
-> 料金が公表されていないモデル（B.AI 経由・OpenRouter の一部など）では推定コストは表示されません。
+> 料金が公表されていないモデル（B.AI 経由・OpenRouter の一部など）と、料金が円建てのさくらのAI Engine では推定コストは表示されません。
 
 ### 全チャットの使用量
 同じダイアログの **「全チャットの使用量」** ボタンから、チャットを横断した集計を確認できます。
@@ -545,6 +546,7 @@ AIの発言を音声で読み上げ、wavとして保存もできます。Google
 
 | 日付 | 内容 |
 |---|---|
+| **2026-11-02** | **さくらのAI Engine に対応**：プロバイダーに追加。国立情報学研究所の国産モデル LLM-jp（llm-jp-3.1-8x13b-instruct4）や gpt-oss-120b を使えます。チャットは月3,000回まで無料枠あり。料金が円建てのため推定コストは表示されません |
 | **2026-10-27** | **GPT-6.1 Terra に対応**：Sol と Luna の間のモデル（入力$1／出力$5、キャッシュ読み込み$0.05、27万2千トークン超は上位段）を料金表とモデル一覧に追加。推論の強さは none〜max から選べます |
 | **2026-10-27** | **Meta (Muse) に対応**：プロバイダーに「Meta (Muse)」を追加。Muse Spark 1.3 / 1.2、Muse Wonder 1.0 を選べます（Spark 1.3 は入力$1.25／出力$4.25、Wonder は入力$4／出力$20。推定コストも表示）。Muse は常に考えてから答えますが、考えた内容は外部のアプリに返されないため表示されません。「Contributor」付きのモデルは安い代わりに、会話が Meta のモデルの学習に使われます |
 | **2026-10-17** | **DeepSeek の旧名の廃止に対応**：deepseek-chat / deepseek-reasoner は 2026-07-24 に提供終了していたため一覧から外し、選んでいた場合と DeepSeek の既定を deepseek-flash（V4.1 Flash。10/17 に 1017 版へ更新、料金は据え置き）へ切り替え。deepseek-flash は既定で思考するので、タイトル生成・思考の翻訳・メモリ学習では思考を止めて送ります |

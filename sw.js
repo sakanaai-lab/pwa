@@ -1,6 +1,6 @@
 // sw.js
 
-const CACHE_NAME = 'gemini-pwa-cache-v1.25.98'; // 更新後はここも変更
+const CACHE_NAME = 'gemini-pwa-cache-v1.25.99'; // 更新後はここも変更
 const urlsToCache = [
   './',
   './index.html',
@@ -46,6 +46,7 @@ self.addEventListener('fetch', (event) => {
     'api.sakana.ai',
     'api.b.ai',
     'api.meta.ai',
+    'api.ai.sakura.ad.jp',
     'api.dropboxapi.com',
     'content.dropboxapi.com',
   ];
