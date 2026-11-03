@@ -2168,6 +2168,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.74": [
+      "チャット履歴などの保存データを、ブラウザに「消さないで」と頼むようにしました。これまではスマホの空き容量が少なくなると、ブラウザがデータをまとめて消してしまうことがありました。Chrome では何も表示されません（Firefox では最初に一度だけ確認が出ることがあります）。",
+      "ブラウザの設定から自分でデータを消したときは、これまでどおり消えます。大事なチャットは Dropbox 同期やエクスポートでバックアップしておくと安心です。"
+    ],
     "1.73": [
       "さくらインターネットの「さくらのAI Engine」に対応しました。設定の「APIプロバイダー」で選ぶと、国立情報学研究所の国産モデル LLM-jp や gpt-oss-120b を使えます。プレビュー版のモデルは「すべてのプロバイダーのモデルを取得」で一覧に出せます。",
       "チャットは月3,000回まで無料枠があります。料金が円建てのため、ⓘ の推定コストは表示されません。"
@@ -6241,6 +6245,18 @@ ${error.message}`);
     }
   };
 
+  // src/utils/storage-persist.js
+  async function requestPersistentStorage(storage = globalThis.navigator?.storage) {
+    if (!storage || typeof storage.persist !== "function") return "unsupported";
+    try {
+      if (typeof storage.persisted === "function" && await storage.persisted()) return "already";
+      return await storage.persist() ? "granted" : "denied";
+    } catch {
+      return "error";
+    }
+  }
+  __name(requestPersistentStorage, "requestPersistentStorage");
+
   // src/app-logic/lifecycle.js
   var lifecycleMethods = {
     _setupEventListenersCallCount: 0,
@@ -6812,6 +6828,9 @@ ${error.message}`);
         getChat: /* @__PURE__ */ __name(async (id) => console.log(await dbUtils.getChat(id || state.currentChatId)), "getChat")
       };
       registerServiceWorker();
+      requestPersistentStorage().then((result) => {
+        console.log(`[Storage] 保存データの保護: ${result}`);
+      });
       this.imageObserver = new IntersectionObserver(async (entries, observer) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {

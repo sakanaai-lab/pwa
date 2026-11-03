@@ -2,6 +2,7 @@
 import { registerServiceWorker, setupBroadcastChannel, updateMessageMaxWidthVar } from '../app.js';
 import { ANTHROPIC_MODELS, APP_VERSION, BAI_MODELS, BEDROCK_MODELS, META_MODELS, DEFAULT_META_MODEL, SAKURAAI_MODELS, DEFAULT_SAKURAAI_MODEL, DEEPSEEK_MODELS, DEFAULT_ANTHROPIC_MODEL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_DEEPSEEK_MODEL, DEFAULT_GROQ_MODEL, DEFAULT_MISTRAL_MODEL, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_XAI_MODEL, DEFAULT_ZAI_MODEL, GEMINI_MODELS, GROQ_MODELS, HISTORY_SEARCH_DEBOUNCE_MS, IMAGE_STORE, MISTRAL_MODELS, OPENAI_MODELS, SAKANA_MODELS, SETTINGS_STORE, SWIPE_THRESHOLD, VERSION_ACK_STORAGE_KEY, VERSION_HISTORY, VERSION_LEGACY_STORAGE_KEY, VERSION_NOTICE_SESSION_KEY, XAI_MODELS, ZAI_MODELS, ZOOM_THRESHOLD } from '../constants.js';
 import { filterLiveModels } from '../utils/retirement.js';
+import { requestPersistentStorage } from '../utils/storage-persist.js';
 import { dbUtils } from '../db.js';
 import { DebugLogger } from '../debug-logger.js';
 import { elements } from '../dom-elements.js';
@@ -746,7 +747,13 @@ export const lifecycleMethods = {
         
         // Service Worker登録
         registerServiceWorker();
-        
+
+        // 保存データをブラウザに消されないよう頼む（容量不足のときにサイトごと消されるのを防ぐ）。
+        // 起動を待たせないよう await しない
+        requestPersistentStorage().then((result) => {
+            console.log(`[Storage] 保存データの保護: ${result}`);
+        });
+
         // Observerの初期化
         this.imageObserver = new IntersectionObserver(async (entries, observer) => {
             for (const entry of entries) {
