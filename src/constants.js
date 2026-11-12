@@ -47,11 +47,13 @@ export const VERSION_ACK_STORAGE_KEY = 'appVersionAcknowledged';
 export const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
 
 // プロバイダーごとのモデルリスト
+// 「○月○日まで半額」のような期間限定の説明は label に書かない。
+// src/utils/model-label.js が割引の終了日時を見て、期間中だけ自動で添える。
 export const GEMINI_MODELS = [
     { value: 'gemini-4-carbon', label: 'gemini-4-carbon' },
     { value: 'gemini-4-argon', label: 'gemini-4-argon' },
-    { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash (2026年内は半額)' },
-    { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash (2026年内は半額)' },
+    { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash' },
+    { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash' },
     { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite' },
     { value: 'gemini-3.1-flash-lite', label: 'gemini-3.1-flash-lite (軽量・安価)' },
     { value: 'gemini-2.5-pro', label: 'gemini-2.5-pro' },
@@ -356,6 +358,7 @@ export const VERSION_HISTORY = {
     '1.75': [
         'Gemini 4 Carbon に対応しました。Gemini でいちばん賢い上位モデルで、難しいプログラミングや調べもの・科学の問題に向いています。Argon と同じ値段（11月末までは半額で入力$2／出力$10、12月1日から入力$4／出力$20）で、推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。',
         '「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。',
+        'モデル名の横の「12/31 まで半額」のような説明は、割引が終わると自動で消えるようにしました。',
     ],
     '1.74': [
         'チャット履歴などの保存データを、ブラウザに「消さないで」と頼むようにしました。これまではスマホの空き容量が少なくなると、ブラウザがデータをまとめて消してしまうことがありました。Chrome では何も表示されません（Firefox では最初に一度だけ確認が出ることがあります）。',

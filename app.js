@@ -1921,8 +1921,8 @@ ${relationship_context}`;
   var GEMINI_MODELS = [
     { value: "gemini-4-carbon", label: "gemini-4-carbon" },
     { value: "gemini-4-argon", label: "gemini-4-argon" },
-    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (2026年内は半額)" },
-    { value: "gemini-3.6-flash", label: "gemini-3.6-flash (2026年内は半額)" },
+    { value: "gemini-3.8-flash", label: "gemini-3.8-flash" },
+    { value: "gemini-3.6-flash", label: "gemini-3.6-flash" },
     { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
     { value: "gemini-3.1-flash-lite", label: "gemini-3.1-flash-lite (軽量・安価)" },
     { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
@@ -2171,7 +2171,8 @@ ${relationship_context}`;
   var VERSION_HISTORY = {
     "1.75": [
       "Gemini 4 Carbon に対応しました。Gemini でいちばん賢い上位モデルで、難しいプログラミングや調べもの・科学の問題に向いています。Argon と同じ値段（11月末までは半額で入力$2／出力$10、12月1日から入力$4／出力$20）で、推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
-      "「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。"
+      "「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。",
+      "モデル名の横の「12/31 まで半額」のような説明は、割引が終わると自動で消えるようにしました。"
     ],
     "1.74": [
       "チャット履歴などの保存データを、ブラウザに「消さないで」と頼むようにしました。これまではスマホの空き容量が少なくなると、ブラウザがデータをまとめて消してしまうことがありました。Chrome では何も表示されません（Firefox では最初に一度だけ確認が出ることがあります）。",
@@ -6294,6 +6295,28 @@ ${error.message}`);
   }
   __name(requestPersistentStorage, "requestPersistentStorage");
 
+  // src/utils/model-label.js
+  var MODEL_PROMOS = [
+    { models: ["gemini-4-carbon", "gemini-4-argon"], endAt: GEMINI_ARGON_INTRO_END_AT, note: "半額" },
+    { models: ["gemini-3.8-flash", "gemini-3.6-flash"], endAt: GEMINI_FLASH_PROMO_END_AT, note: "半額" }
+  ];
+  function promoLastDay(endAt) {
+    const d = new Date(endAt - 1);
+    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  }
+  __name(promoLastDay, "promoLastDay");
+  function promoNote(model, now) {
+    const promo = MODEL_PROMOS.find((p) => p.models.includes(model));
+    if (!promo || now >= promo.endAt) return null;
+    return `${promoLastDay(promo.endAt)} まで${promo.note}`;
+  }
+  __name(promoNote, "promoNote");
+  function modelDisplayLabel(entry, now) {
+    const note = promoNote(entry.value, now);
+    return note ? `${entry.label} (${note})` : entry.label;
+  }
+  __name(modelDisplayLabel, "modelDisplayLabel");
+
   // src/app-logic/lifecycle.js
   var lifecycleMethods = {
     _setupEventListenersCallCount: 0,
@@ -6606,6 +6629,7 @@ ${error.message}`);
         models = GEMINI_MODELS;
       }
       models = filterLiveModels(models, Date.now());
+      const labelNow = Date.now();
       const groups = {};
       models.forEach((model2) => {
         if (model2.group) {
@@ -6617,12 +6641,12 @@ ${error.message}`);
           }
           const option = document.createElement("option");
           option.value = model2.value;
-          option.textContent = model2.label;
+          option.textContent = modelDisplayLabel(model2, labelNow);
           groups[model2.group].appendChild(option);
         } else {
           const option = document.createElement("option");
           option.value = model2.value;
-          option.textContent = model2.label;
+          option.textContent = modelDisplayLabel(model2, labelNow);
           modelSelect.appendChild(option);
         }
       });
