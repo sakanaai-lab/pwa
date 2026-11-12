@@ -23,6 +23,8 @@ describe('geminiAcceptsSamplingParams', () => {
         expect(geminiAcceptsSamplingParams('gemini-4-flash')).toBe(false);
         // 2026-10-13 公開の 4 Argon は告知後のモデル
         expect(geminiAcceptsSamplingParams('gemini-4-argon')).toBe(false);
+        // 4 Carbon も「temperature / top_p / top_k は無視される」と案内されている
+        expect(geminiAcceptsSamplingParams('gemini-4-carbon')).toBe(false);
         expect(geminiAcceptsSamplingParams('gemini-3.9-flash')).toBe(false);
         expect(geminiAcceptsSamplingParams('gemini-flash-latest')).toBe(false);
     });
@@ -47,6 +49,7 @@ describe('geminiAcceptsThinkingBudget', () => {
     it('今後出るモデルと -latest の別名は受け付けない扱い', () => {
         expect(geminiAcceptsThinkingBudget('gemini-4-flash')).toBe(false);
         expect(geminiAcceptsThinkingBudget('gemini-4-argon')).toBe(false);
+        expect(geminiAcceptsThinkingBudget('gemini-4-carbon')).toBe(false);
         expect(geminiAcceptsThinkingBudget('gemini-3.9-flash')).toBe(false);
         expect(geminiAcceptsThinkingBudget('gemini-flash-latest')).toBe(false);
     });

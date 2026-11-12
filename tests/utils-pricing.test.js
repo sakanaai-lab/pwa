@@ -505,6 +505,16 @@ describe('getPricing — 2026-10 の新モデル', () => {
         expect(getPricing('gemini-4-argon', GEMINI_ARGON_INTRO_END_AT).longCtx).toBeUndefined();
     });
 
+    it('Gemini 4 Carbon は Argon と同じ単価・同じ期間の半額', () => {
+        const NOV = Date.UTC(2026, 10, 12);
+        expect(getPricing('gemini-4-carbon', NOV)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gemini-4-carbon', GEMINI_ARGON_INTRO_END_AT - 1)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gemini-4-carbon', GEMINI_ARGON_INTRO_END_AT)).toMatchObject({ in: 4, out: 20, cr: 0.20 });
+        expect(getPricing('gemini-4-carbon', GEMINI_ARGON_INTRO_END_AT).longCtx).toBeUndefined();
+        // Argon と Carbon が互いに前方一致で当たらない
+        expect(getPricing('gemini-4-carbon', NOV)).not.toBe(getPricing('gemini-4-argon', NOV));
+    });
+
     it('GPT-6.1 Sol を引ける（6 Sol と同額、キャッシュヒットは半額）', () => {
         expect(getPricing('gpt-6.1-sol', NOW)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
         expect(getPricing('gpt-6.1-sol', NOW).longCtx).toMatchObject({ threshold: 272000, in: 4, out: 15, cr: 0.20 });
