@@ -152,9 +152,11 @@ export const MODEL_PRICING = {
     // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
     // 3.7 / 3.6 Flash は 2026-12-31 まで半額。ここには割引終了後の通常単価を置き、
     // 割引期間中は MODEL_PRICING_GEMINI_FLASH_PROMO を優先して引く。
-    // 4 Argon（2026-10-13）は 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
+    // 4 Argon（2026-10-13）と 4 Carbon（2026-11-10 GA）は、1トークンあたりの単価が同じで、
+    // どちらも 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
     // それより前は MODEL_PRICING_GEMINI_ARGON_INTRO を優先して引く。
     // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
+    'gemini-4-carbon':       { in: 4,    out: 20,   cr: 0.20 },
     'gemini-4-argon':        { in: 4,    out: 20,   cr: 0.20 },
     'gemini-3-8-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-7-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
@@ -208,8 +210,10 @@ export const MODEL_PRICING_GEMINI_FLASH_PROMO = {
 // UTC 基準で切り替える（日本時間では 12/1 09:00 に通常単価へ）。
 export const GEMINI_ARGON_INTRO_END_AT = Date.UTC(2026, 11, 1, 0, 0, 0);
 
-// 導入価格期間中の Gemini 4 Argon の単価（通常単価のちょうど半額）。
+// 導入価格期間中の Gemini 4 Argon / 4 Carbon の単価（通常単価のちょうど半額）。
+// Carbon も料金ページで Argon と同じ期間（2026-11-30 まで）・同じ単価になっている。
 export const MODEL_PRICING_GEMINI_ARGON_INTRO = {
+    'gemini-4-carbon': { in: 2, out: 10, cr: 0.10 },
     'gemini-4-argon': { in: 2, out: 10, cr: 0.10 },
 };
 
@@ -299,7 +303,7 @@ export function getPricing(modelName, timestamp) {
             if (m.startsWith(key)) return price;
         }
     }
-    // Gemini 4 Argon の導入価格。終了より前のメッセージは半額で計算する
+    // Gemini 4 Argon / Carbon の導入価格。終了より前のメッセージは半額で計算する
     // （時刻が無い古いデータも、公開より前に存在しえないので導入価格期間として扱う）
     if (!timestamp || timestamp < GEMINI_ARGON_INTRO_END_AT) {
         for (const [key, price] of Object.entries(MODEL_PRICING_GEMINI_ARGON_INTRO)) {

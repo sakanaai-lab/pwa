@@ -3,6 +3,7 @@ import { registerServiceWorker, setupBroadcastChannel, updateMessageMaxWidthVar 
 import { ANTHROPIC_MODELS, APP_VERSION, BAI_MODELS, BEDROCK_MODELS, META_MODELS, DEFAULT_META_MODEL, SAKURAAI_MODELS, DEFAULT_SAKURAAI_MODEL, DEEPSEEK_MODELS, DEFAULT_ANTHROPIC_MODEL, DEFAULT_BAI_MODEL, DEFAULT_BEDROCK_MODEL, DEFAULT_DEEPSEEK_MODEL, DEFAULT_GROQ_MODEL, DEFAULT_MISTRAL_MODEL, DEFAULT_MODEL, DEFAULT_OPENAI_MODEL, DEFAULT_OPENROUTER_MODEL, DEFAULT_SAKANA_MODEL, DEFAULT_XAI_MODEL, DEFAULT_ZAI_MODEL, GEMINI_MODELS, GROQ_MODELS, HISTORY_SEARCH_DEBOUNCE_MS, IMAGE_STORE, MISTRAL_MODELS, OPENAI_MODELS, SAKANA_MODELS, SETTINGS_STORE, SWIPE_THRESHOLD, VERSION_ACK_STORAGE_KEY, VERSION_HISTORY, VERSION_LEGACY_STORAGE_KEY, VERSION_NOTICE_SESSION_KEY, XAI_MODELS, ZAI_MODELS, ZOOM_THRESHOLD } from '../constants.js';
 import { filterLiveModels } from '../utils/retirement.js';
 import { requestPersistentStorage } from '../utils/storage-persist.js';
+import { modelDisplayLabel } from '../utils/model-label.js';
 import { dbUtils } from '../db.js';
 import { DebugLogger } from '../debug-logger.js';
 import { elements } from '../dom-elements.js';
@@ -414,6 +415,8 @@ export const lifecycleMethods = {
         
         // 終了日を過ぎたモデルは出さない（選んで送って初めてエラーになるのを防ぐ）
         models = filterLiveModels(models, Date.now());
+        // 期間限定の割引の説明（「12/31 まで半額」など）は、期間中だけ表示名に添える
+        const labelNow = Date.now();
 
         const groups = {};
         
@@ -428,13 +431,13 @@ export const lifecycleMethods = {
                 }
                 const option = document.createElement('option');
                 option.value = model.value;
-                option.textContent = model.label;
+                option.textContent = modelDisplayLabel(model, labelNow);
                 groups[model.group].appendChild(option);
             } else {
                 // 通常のモデル
                 const option = document.createElement('option');
                 option.value = model.value;
-                option.textContent = model.label;
+                option.textContent = modelDisplayLabel(model, labelNow);
                 modelSelect.appendChild(option);
             }
         });

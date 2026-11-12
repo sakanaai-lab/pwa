@@ -155,6 +155,7 @@ describe('新しく追加したモデルに料金がある', () => {
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.1-sol'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.1-terra'],
         ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-argon'],
+        ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-carbon'],
         ...META_MODELS.map((m) => ['META_MODELS', META_MODELS, m.value]),
         ['XAI_MODELS', XAI_MODELS, 'grok-4.7'],
     ];

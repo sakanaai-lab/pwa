@@ -1919,9 +1919,10 @@ ${relationship_context}`;
   var VERSION_ACK_STORAGE_KEY = "appVersionAcknowledged";
   var VERSION_LEGACY_STORAGE_KEY = "appVersion";
   var GEMINI_MODELS = [
-    { value: "gemini-4-argon", label: "gemini-4-argon (最新・11月末まで半額)" },
-    { value: "gemini-3.8-flash", label: "gemini-3.8-flash (2026年内は半額)" },
-    { value: "gemini-3.6-flash", label: "gemini-3.6-flash (2026年内は半額)" },
+    { value: "gemini-4-carbon", label: "gemini-4-carbon" },
+    { value: "gemini-4-argon", label: "gemini-4-argon" },
+    { value: "gemini-3.8-flash", label: "gemini-3.8-flash" },
+    { value: "gemini-3.6-flash", label: "gemini-3.6-flash" },
     { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
     { value: "gemini-3.1-flash-lite", label: "gemini-3.1-flash-lite (軽量・安価)" },
     { value: "gemini-2.5-pro", label: "gemini-2.5-pro" },
@@ -2168,6 +2169,11 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.75": [
+      "Gemini 4 Carbon に対応しました。Gemini でいちばん賢い上位モデルで、難しいプログラミングや調べもの・科学の問題に向いています。Argon と同じ値段（11月末までは半額で入力$2／出力$10、12月1日から入力$4／出力$20）で、推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
+      "「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。",
+      "モデル名の横の「12/31 まで半額」のような説明は、割引が終わると自動で消えるようにしました。"
+    ],
     "1.74": [
       "チャット履歴などの保存データを、ブラウザに「消さないで」と頼むようにしました。これまではスマホの空き容量が少なくなると、ブラウザがデータをまとめて消してしまうことがありました。Chrome では何も表示されません（Firefox では最初に一度だけ確認が出ることがあります）。",
       "ブラウザの設定から自分でデータを消したときは、これまでどおり消えます。大事なチャットは Dropbox 同期やエクスポートでバックアップしておくと安心です。"
@@ -2654,6 +2660,35 @@ Reason: [NGの場合の理由]`,
     }
   };
 
+  // src/utils/gemini-models.js
+  var GEMINI_MODELS_LIST_URL = "https://generativelanguage.googleapis.com/v1beta/models";
+  var GEMINI_LIST_PAGE_SIZE = 1e3;
+  var GEMINI_LIST_MAX_PAGES = 10;
+  function geminiModelsListUrl(apiKey, pageToken) {
+    let url = `${GEMINI_MODELS_LIST_URL}?key=${encodeURIComponent(apiKey)}&pageSize=${GEMINI_LIST_PAGE_SIZE}`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+    return url;
+  }
+  __name(geminiModelsListUrl, "geminiModelsListUrl");
+  async function listAllGeminiModels(apiKey, fetchFn) {
+    const models = [];
+    let pageToken = "";
+    for (let page = 0; page < GEMINI_LIST_MAX_PAGES; page++) {
+      const response = await fetchFn(geminiModelsListUrl(apiKey, pageToken));
+      if (!response.ok) return { ok: false, response };
+      const data = await response.json();
+      models.push(...data.models || []);
+      pageToken = data.nextPageToken || "";
+      if (!pageToken) break;
+    }
+    return { ok: true, models };
+  }
+  __name(listAllGeminiModels, "listAllGeminiModels");
+  function pickGeminiChatModelIds(models) {
+    return (models || []).filter((m) => m && m.supportedGenerationMethods?.includes("generateContent")).map((m) => String(m.name || "").replace("models/", "")).filter((id) => id.includes("gemini"));
+  }
+  __name(pickGeminiChatModelIds, "pickGeminiChatModelIds");
+
   // src/db-migrations.js
   var BASE_STORES = [
     { name: SETTINGS_STORE, options: { keyPath: "key" } },
@@ -3061,9 +3096,11 @@ Reason: [NGの場合の理由]`,
     // '-flash-lite' は '-flash' より前に置くこと（前方一致のため）。
     // 3.7 / 3.6 Flash は 2026-12-31 まで半額。ここには割引終了後の通常単価を置き、
     // 割引期間中は MODEL_PRICING_GEMINI_FLASH_PROMO を優先して引く。
-    // 4 Argon（2026-10-13）は 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
+    // 4 Argon（2026-10-13）と 4 Carbon（2026-11-10 GA）は、1トークンあたりの単価が同じで、
+    // どちらも 2026-11-30 まで半額。ここには 12/1 からの単価を置き、
     // それより前は MODEL_PRICING_GEMINI_ARGON_INTRO を優先して引く。
     // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
+    "gemini-4-carbon": { in: 4, out: 20, cr: 0.2 },
     "gemini-4-argon": { in: 4, out: 20, cr: 0.2 },
     "gemini-3-8-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-7-flash": { in: 1.5, out: 7.5, cr: 0.15 },
@@ -3097,6 +3134,7 @@ Reason: [NGの場合の理由]`,
   };
   var GEMINI_ARGON_INTRO_END_AT = Date.UTC(2026, 11, 1, 0, 0, 0);
   var MODEL_PRICING_GEMINI_ARGON_INTRO = {
+    "gemini-4-carbon": { in: 2, out: 10, cr: 0.1 },
     "gemini-4-argon": { in: 2, out: 10, cr: 0.1 }
   };
   var DEEPSEEK_V41_FLASH_AT = Date.UTC(2026, 8, 10, 0, 0, 0);
@@ -6257,6 +6295,28 @@ ${error.message}`);
   }
   __name(requestPersistentStorage, "requestPersistentStorage");
 
+  // src/utils/model-label.js
+  var MODEL_PROMOS = [
+    { models: ["gemini-4-carbon", "gemini-4-argon"], endAt: GEMINI_ARGON_INTRO_END_AT, note: "半額" },
+    { models: ["gemini-3.8-flash", "gemini-3.6-flash"], endAt: GEMINI_FLASH_PROMO_END_AT, note: "半額" }
+  ];
+  function promoLastDay(endAt) {
+    const d = new Date(endAt - 1);
+    return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  }
+  __name(promoLastDay, "promoLastDay");
+  function promoNote(model, now) {
+    const promo = MODEL_PROMOS.find((p) => p.models.includes(model));
+    if (!promo || now >= promo.endAt) return null;
+    return `${promoLastDay(promo.endAt)} まで${promo.note}`;
+  }
+  __name(promoNote, "promoNote");
+  function modelDisplayLabel(entry, now) {
+    const note = promoNote(entry.value, now);
+    return note ? `${entry.label} (${note})` : entry.label;
+  }
+  __name(modelDisplayLabel, "modelDisplayLabel");
+
   // src/app-logic/lifecycle.js
   var lifecycleMethods = {
     _setupEventListenersCallCount: 0,
@@ -6569,6 +6629,7 @@ ${error.message}`);
         models = GEMINI_MODELS;
       }
       models = filterLiveModels(models, Date.now());
+      const labelNow = Date.now();
       const groups = {};
       models.forEach((model2) => {
         if (model2.group) {
@@ -6580,12 +6641,12 @@ ${error.message}`);
           }
           const option = document.createElement("option");
           option.value = model2.value;
-          option.textContent = model2.label;
+          option.textContent = modelDisplayLabel(model2, labelNow);
           groups[model2.group].appendChild(option);
         } else {
           const option = document.createElement("option");
           option.value = model2.value;
-          option.textContent = model2.label;
+          option.textContent = modelDisplayLabel(model2, labelNow);
           modelSelect.appendChild(option);
         }
       });
@@ -16917,14 +16978,13 @@ ${pageText}
           __name(fetchOpenAICompat, "fetchOpenAICompat");
           if (state.settings.apiKey) {
             try {
-              const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.apiKey}&pageSize=100`);
-              if (r.ok) {
-                const d = await r.json();
-                const models = (d.models || []).filter((m) => m.supportedGenerationMethods?.includes("generateContent")).map((m) => m.name.replace("models/", "")).filter((id) => id.includes("gemini"));
+              const listed = await listAllGeminiModels(state.settings.apiKey, (url) => fetch(url));
+              if (listed.ok) {
+                const models = pickGeminiChatModelIds(listed.models);
                 mergeModels("gemini", models);
                 results.push(`Gemini: ${models.length}件`);
               } else {
-                results.push(`Gemini: HTTP ${r.status}${await httpErrorDetail(r)}`);
+                results.push(`Gemini: HTTP ${listed.response.status}${await httpErrorDetail(listed.response)}`);
               }
             } catch (e) {
               results.push(`Gemini: エラー`);

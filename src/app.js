@@ -25,6 +25,7 @@ import { elements } from './dom-elements.js';
 // --- アプリ状態 ---
 // --- アプリ状態 ---（src/state.js へ抽出。挙動は不変）
 import { state } from "./state.js";
+import { listAllGeminiModels, pickGeminiChatModelIds } from './utils/gemini-models.js';
 
 export function updateMessageMaxWidthVar() {
     const container = elements.messageContainer;
@@ -847,16 +848,13 @@ window.dbUtils = dbUtils;
                 // Gemini
                 if (state.settings.apiKey) {
                     try {
-                        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${state.settings.apiKey}&pageSize=100`);
-                        if (r.ok) {
-                            const d = await r.json();
-                            const models = (d.models || [])
-                                .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-                                .map(m => m.name.replace('models/', ''))
-                                .filter(id => id.includes('gemini'));
+                        // 1ページ目だけだと新しいモデルが2ページ目以降に載って取りこぼすので、全ページ読む
+                        const listed = await listAllGeminiModels(state.settings.apiKey, (url) => fetch(url));
+                        if (listed.ok) {
+                            const models = pickGeminiChatModelIds(listed.models);
                             mergeModels('gemini', models);
                             results.push(`Gemini: ${models.length}件`);
-                        } else { results.push(`Gemini: HTTP ${r.status}${await httpErrorDetail(r)}`); }
+                        } else { results.push(`Gemini: HTTP ${listed.response.status}${await httpErrorDetail(listed.response)}`); }
                     } catch(e) { results.push(`Gemini: エラー`); }
                 }
 
