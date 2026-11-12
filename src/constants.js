@@ -355,6 +355,9 @@ export const SAKURAAI_MODELS = [
 export const DEFAULT_SAKURAAI_MODEL = 'llm-jp-3.1-8x13b-instruct4';
 
 export const VERSION_HISTORY = {
+    '1.76': [
+        'Gemini 4 Carbon で、Function Calling（メモリの保存などの関数）を使うと「Role \'tool\' is not supported」というエラーで止まる不具合を直しました。',
+    ],
     '1.75': [
         'Gemini 4 Carbon に対応しました。Gemini でいちばん賢い上位モデルで、難しいプログラミングや調べもの・科学の問題に向いています。Argon と同じ値段（11月末までは半額で入力$2／出力$10、12月1日から入力$4／出力$20）で、推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。',
         '「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。',

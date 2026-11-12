@@ -2169,6 +2169,9 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.76": [
+      "Gemini 4 Carbon で、Function Calling（メモリの保存などの関数）を使うと「Role 'tool' is not supported」というエラーで止まる不具合を直しました。"
+    ],
     "1.75": [
       "Gemini 4 Carbon に対応しました。Gemini でいちばん賢い上位モデルで、難しいプログラミングや調べもの・科学の問題に向いています。Argon と同じ値段（11月末までは半額で入力$2／出力$10、12月1日から入力$4／出力$20）で、推定コストも日付に合わせて切り替わります。思考の深さは low / medium / high から選べます。",
       "「すべてのプロバイダーのモデルを取得」で、Gemini の新しいモデルが一覧に出てこないことがあった不具合を直しました。",
@@ -10047,6 +10050,31 @@ AI: ${firstModelContent}`;
   }
   __name(createGeminiStreamAssembler, "createGeminiStreamAssembler");
 
+  // src/utils/gemini-contents.js
+  function cleanPart(part) {
+    if (!part || !part.functionResponse || !("_toolCallId" in part.functionResponse)) return part;
+    const { _toolCallId, ...functionResponse } = part.functionResponse;
+    return { ...part, functionResponse };
+  }
+  __name(cleanPart, "cleanPart");
+  function toGeminiContents(messages) {
+    const contents = [];
+    let lastWasTool = false;
+    for (const msg of messages || []) {
+      if (!msg) continue;
+      const isTool = msg.role === "tool";
+      const parts = (msg.parts || []).map(cleanPart);
+      if (isTool && lastWasTool) {
+        contents[contents.length - 1].parts.push(...parts);
+      } else {
+        contents.push({ ...msg, role: isTool ? "user" : msg.role, parts });
+      }
+      lastWasTool = isTool;
+    }
+    return contents;
+  }
+  __name(toGeminiContents, "toGeminiContents");
+
   // src/utils/reasoning.js
   function extractReasoningText(message) {
     if (!message || typeof message !== "object") return "";
@@ -10518,7 +10546,9 @@ AI: ${firstModelContent}`;
       }
       const sendGenerationConfig = isImageGenModel ? finalGenerationConfig : sanitizeGeminiGenerationConfig(model, finalGenerationConfig);
       const requestBody = {
-        contents: messagesForApi,
+        // 関数の結果（role: 'tool'）は Gemini の書き方（role: 'user'）に直す。
+        // Gemini 4 Carbon は 'tool' を 400 で断る
+        contents: toGeminiContents(messagesForApi),
         ...Object.keys(sendGenerationConfig).length > 0 && { generationConfig: sendGenerationConfig },
         safetySettings: getGeminiSafetySettings()
       };
