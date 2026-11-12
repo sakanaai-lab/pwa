@@ -48,8 +48,8 @@ export const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
 
 // プロバイダーごとのモデルリスト
 export const GEMINI_MODELS = [
-    { value: 'gemini-4-carbon', label: 'gemini-4-carbon (最上位・11月末まで半額)' },
-    { value: 'gemini-4-argon', label: 'gemini-4-argon (Carbon より速い・11月末まで半額)' },
+    { value: 'gemini-4-carbon', label: 'gemini-4-carbon' },
+    { value: 'gemini-4-argon', label: 'gemini-4-argon' },
     { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash (2026年内は半額)' },
     { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash (2026年内は半額)' },
     { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite' },
