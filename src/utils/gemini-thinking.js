@@ -13,7 +13,7 @@ import { normalizeModelName } from './pricing.js';
 import { geminiAcceptsThinkingBudget } from './gemini-params.js';
 
 /** 設定画面に出す順（弱い → 強い） */
-export const GEMINI_THINKING_LEVELS = ['minimal', 'low', 'medium', 'high'];
+export const GEMINI_THINKING_LEVELS = ['minimal', 'low', 'medium', 'high', 'xhigh'];
 
 /**
  * 選択中の Gemini モデルで選べる thinking_level を返す。
@@ -42,6 +42,10 @@ export function getGeminiThinkingLevels(model) {
         || m.startsWith('gemini-3-1-flash-lite')) {
         return ['minimal', 'low', 'medium', 'high'];
     }
+
+    // 4 Hydrogen（2026-11-12）は xhigh が増えた。既定は high。minimal はエラーになる。
+    // xhigh の REST 表記は他の段階と同じ規則（大文字）で送る。
+    if (m.startsWith('gemini-4-hydrogen')) return ['low', 'medium', 'high', 'xhigh'];
 
     // 3系のそれ以外（3.8 / 3.7 Flash、3.1 Pro など）と 2.5 系は low / medium / high。
     // 公式表に無い 3 以降のモデル（今後出るもの）と、gemini-flash-latest のような別名も、

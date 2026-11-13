@@ -21,6 +21,15 @@ describe('getGeminiThinkingLevels', () => {
         }
     });
 
+    it('4 Hydrogen は low / medium / high / xhigh（minimal はエラーになるので出さない）', () => {
+        expect(getGeminiThinkingLevels('gemini-4-hydrogen')).toEqual(['low', 'medium', 'high', 'xhigh']);
+        expect(buildGeminiThinkingConfig({ model: 'gemini-4-hydrogen', thinkingLevel: 'xhigh' })).toEqual({ thinkingLevel: 'XHIGH' });
+        // xhigh は他のモデルには送らない
+        expect(buildGeminiThinkingConfig({ model: 'gemini-4-carbon', thinkingLevel: 'xhigh' })).toBeNull();
+        // 軽い用途ではいちばん軽い low
+        expect(buildGeminiLightThinkingConfig('gemini-4-hydrogen')).toEqual({ thinkingLevel: 'LOW' });
+    });
+
     it('2.5 系は low / medium / high', () => {
         for (const m of ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite']) {
             expect(getGeminiThinkingLevels(m)).toEqual(['low', 'medium', 'high']);
@@ -49,7 +58,7 @@ describe('getGeminiThinkingLevels', () => {
     });
 
     it('表示順の定数', () => {
-        expect(GEMINI_THINKING_LEVELS).toEqual(['minimal', 'low', 'medium', 'high']);
+        expect(GEMINI_THINKING_LEVELS).toEqual(['minimal', 'low', 'medium', 'high', 'xhigh']);
     });
 });
 

@@ -52,6 +52,7 @@ export const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
 export const GEMINI_MODELS = [
     { value: 'gemini-4-carbon', label: 'gemini-4-carbon' },
     { value: 'gemini-4-argon', label: 'gemini-4-argon' },
+    { value: 'gemini-4-hydrogen', label: 'gemini-4-hydrogen' },
     { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash' },
     { value: 'gemini-3.6-flash', label: 'gemini-3.6-flash' },
     { value: 'gemini-3.5-flash-lite', label: 'gemini-3.5-flash-lite' },
@@ -117,6 +118,16 @@ export const RETIRED_MODEL_MAP = {
 // 後継は各社が公式に案内している移行先。時刻の明記が無いものは UTC の 0時で切り替える。
 // OpenAI — https://developers.openai.com/api/docs/deprecations
 export const SCHEDULED_RETIREMENTS = [
+    {
+        // 2026-11-02 告知（Gemini API の deprecations）。2026-12-01 に提供終了し、
+        // 以後のリクエストは下の後継へ自動で回され、後継の単価で課金される。
+        // 2.5 Flash-Lite は「終了日の告知なし」なので入れていない。
+        at: Date.UTC(2026, 11, 1),
+        models: {
+            'gemini-2.5-pro': 'gemini-3.8-flash',
+            'gemini-2.5-flash': 'gemini-3.5-flash-lite',
+        },
+    },
     {
         // 2026-04-22 告知「Legacy GPT model snapshots」
         at: Date.UTC(2026, 9, 23),
@@ -355,6 +366,10 @@ export const SAKURAAI_MODELS = [
 export const DEFAULT_SAKURAAI_MODEL = 'llm-jp-3.1-8x13b-instruct4';
 
 export const VERSION_HISTORY = {
+    '1.77': [
+        'Gemini 4 Hydrogen に対応しました。3.8 Flash などからの乗り換え先として案内されている新しいモデルで、入力$1.50／出力$7.50、無料枠でも使えます。思考の深さは low / medium / high に加えて xhigh を選べます。',
+        'Gemini 2.5 Pro と 2.5 Flash は 2026年12月1日に提供終了します。その日からは一覧に出なくなり、選んでいた場合は後継（3.8 Flash／3.5 Flash-Lite）へ自動で切り替わります。',
+    ],
     '1.76': [
         'Gemini 4 Carbon で、Function Calling（メモリの保存などの関数）を使うと「Role \'tool\' is not supported」というエラーで止まる不具合を直しました。',
     ],

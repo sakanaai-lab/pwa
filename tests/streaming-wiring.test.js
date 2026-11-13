@@ -247,7 +247,7 @@ describe('Gemini thinking_level の配線', () => {
         const sel = doc.getElementById('gemini-thinking-level');
         expect(sel).not.toBeNull();
         const values = Array.from(sel.options).map(o => o.value);
-        expect(values).toEqual(['', 'minimal', 'low', 'medium', 'high']);
+        expect(values).toEqual(['', 'minimal', 'low', 'medium', 'high', 'xhigh']);
     });
 
     it('設定の保存対象と画面反映に入っている', () => {

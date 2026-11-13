@@ -158,6 +158,8 @@ export const MODEL_PRICING = {
     // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
     'gemini-4-carbon':       { in: 4,    out: 20,   cr: 0.20 },
     'gemini-4-argon':        { in: 4,    out: 20,   cr: 0.20 },
+    // 4 Hydrogen（2026-11-12 GA）。導入価格なし・1M まで一律（長コンテキストの別単価なし）。無料枠あり。
+    'gemini-4-hydrogen':     { in: 1.50, out: 7.50, cr: 0.075 },
     'gemini-3-8-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-7-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-6-flash':      { in: 1.50, out: 7.50, cr: 0.15 },

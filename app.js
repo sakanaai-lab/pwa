@@ -1921,6 +1921,7 @@ ${relationship_context}`;
   var GEMINI_MODELS = [
     { value: "gemini-4-carbon", label: "gemini-4-carbon" },
     { value: "gemini-4-argon", label: "gemini-4-argon" },
+    { value: "gemini-4-hydrogen", label: "gemini-4-hydrogen" },
     { value: "gemini-3.8-flash", label: "gemini-3.8-flash" },
     { value: "gemini-3.6-flash", label: "gemini-3.6-flash" },
     { value: "gemini-3.5-flash-lite", label: "gemini-3.5-flash-lite" },
@@ -1976,6 +1977,16 @@ ${relationship_context}`;
     "deepseek-reasoner": "deepseek-flash"
   };
   var SCHEDULED_RETIREMENTS = [
+    {
+      // 2026-11-02 告知（Gemini API の deprecations）。2026-12-01 に提供終了し、
+      // 以後のリクエストは下の後継へ自動で回され、後継の単価で課金される。
+      // 2.5 Flash-Lite は「終了日の告知なし」なので入れていない。
+      at: Date.UTC(2026, 11, 1),
+      models: {
+        "gemini-2.5-pro": "gemini-3.8-flash",
+        "gemini-2.5-flash": "gemini-3.5-flash-lite"
+      }
+    },
     {
       // 2026-04-22 告知「Legacy GPT model snapshots」
       at: Date.UTC(2026, 9, 23),
@@ -2169,6 +2180,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_SAKURAAI_MODEL = "llm-jp-3.1-8x13b-instruct4";
   var VERSION_HISTORY = {
+    "1.77": [
+      "Gemini 4 Hydrogen に対応しました。3.8 Flash などからの乗り換え先として案内されている新しいモデルで、入力$1.50／出力$7.50、無料枠でも使えます。思考の深さは low / medium / high に加えて xhigh を選べます。",
+      "Gemini 2.5 Pro と 2.5 Flash は 2026年12月1日に提供終了します。その日からは一覧に出なくなり、選んでいた場合は後継（3.8 Flash／3.5 Flash-Lite）へ自動で切り替わります。"
+    ],
     "1.76": [
       "Gemini 4 Carbon で、Function Calling（メモリの保存などの関数）を使うと「Role 'tool' is not supported」というエラーで止まる不具合を直しました。"
     ],
@@ -3105,6 +3120,8 @@ Reason: [NGの場合の理由]`,
     // キャッシュは暗黙キャッシュのみで、保存料金の記載は無い。200k 超の別単価の記載も無い。
     "gemini-4-carbon": { in: 4, out: 20, cr: 0.2 },
     "gemini-4-argon": { in: 4, out: 20, cr: 0.2 },
+    // 4 Hydrogen（2026-11-12 GA）。導入価格なし・1M まで一律（長コンテキストの別単価なし）。無料枠あり。
+    "gemini-4-hydrogen": { in: 1.5, out: 7.5, cr: 0.075 },
     "gemini-3-8-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-7-flash": { in: 1.5, out: 7.5, cr: 0.15 },
     "gemini-3-6-flash": { in: 1.5, out: 7.5, cr: 0.15 },
@@ -3258,6 +3275,7 @@ Reason: [NGの場合の理由]`,
     if (m.startsWith("gemini-3-6-flash") || m.startsWith("gemini-3-5-flash") || m.startsWith("gemini-3-flash") || m.startsWith("gemini-3-1-flash-lite")) {
       return ["minimal", "low", "medium", "high"];
     }
+    if (m.startsWith("gemini-4-hydrogen")) return ["low", "medium", "high", "xhigh"];
     const major = /^gemini-(\d+)(?:-(\d+))?/.exec(m);
     if (major) {
       const v = Number(major[1]);
