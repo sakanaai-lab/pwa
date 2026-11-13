@@ -515,6 +515,13 @@ describe('getPricing — 2026-10 の新モデル', () => {
         expect(getPricing('gemini-4-carbon', NOV)).not.toBe(getPricing('gemini-4-argon', NOV));
     });
 
+    it('Gemini 4 Hydrogen は導入価格なし・長コンテキスト段なし', () => {
+        const NOV = Date.UTC(2026, 10, 13);
+        expect(getPricing('gemini-4-hydrogen', NOV)).toMatchObject({ in: 1.50, out: 7.50, cr: 0.075 });
+        expect(getPricing('gemini-4-hydrogen', Date.UTC(2027, 0, 2))).toMatchObject({ in: 1.50, out: 7.50, cr: 0.075 });
+        expect(getPricing('gemini-4-hydrogen', NOV).longCtx).toBeUndefined();
+    });
+
     it('GPT-6.1 Sol を引ける（6 Sol と同額、キャッシュヒットは半額）', () => {
         expect(getPricing('gpt-6.1-sol', NOW)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
         expect(getPricing('gpt-6.1-sol', NOW).longCtx).toMatchObject({ threshold: 272000, in: 4, out: 15, cr: 0.20 });

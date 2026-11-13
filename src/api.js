@@ -6,6 +6,7 @@ import { interruptibleSleep } from './utils/format.js';
 import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
+import { toGeminiContents } from './utils/gemini-contents.js';
 import { openaiIsReasoningModel, resolveOpenAIReasoningEffort } from './utils/openai-params.js';
 import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
 import { deepseekThinkingOffParams } from './utils/deepseek-params.js';
@@ -564,7 +565,9 @@ export const apiUtils = {
             : sanitizeGeminiGenerationConfig(model, finalGenerationConfig);
 
         const requestBody = {
-            contents: messagesForApi,
+            // 関数の結果（role: 'tool'）は Gemini の書き方（role: 'user'）に直す。
+            // Gemini 4 Carbon は 'tool' を 400 で断る
+            contents: toGeminiContents(messagesForApi),
             ...(Object.keys(sendGenerationConfig).length > 0 && { generationConfig: sendGenerationConfig }),
             safetySettings : getGeminiSafetySettings()
         };

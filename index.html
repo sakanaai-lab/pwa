@@ -35,7 +35,7 @@
                 console.error("AWS Bedrock Runtime SDKの読み込みに失敗しました:", err);
             });
     </script>
-    <script src="app.js?v=1.25.101" defer></script>
+    <script src="app.js?v=1.25.102" defer></script>
 </head>
 <body>
     <div class="app-container">
@@ -531,6 +531,7 @@
                                     <option value="low">low（速度・コスト重視）</option>
                                     <option value="medium">medium（バランス型）</option>
                                     <option value="high">high（最大品質）</option>
+                                    <option value="xhigh">xhigh（さらに深く・一部のモデルのみ）</option>
                                 </select>
                                 <p id="gemini-thinking-level-note" class="hidden" style="font-size: 11px; color: var(--warning-text, #c0392b); margin-top: 4px;"></p>
                                 <p style="font-size: 11px; color: var(--text-secondary); margin-top: 4px; margin-bottom: 10px;">
