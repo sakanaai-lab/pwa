@@ -149,6 +149,7 @@ describe('新しく追加したモデルに料金がある', () => {
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-opus-5-5'],
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-sonnet-5-5'],
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-haiku-5-5'],
+        ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-fable-5-2'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-astra'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-sol'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-luna'],
@@ -157,6 +158,9 @@ describe('新しく追加したモデルに料金がある', () => {
         ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-argon'],
         ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-carbon'],
         ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-hydrogen'],
+        ['GEMINI_MODELS', GEMINI_MODELS, 'gemini-4-neon'],
+        ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.2-astra'],
+        ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6.2-sol'],
         ...META_MODELS.map((m) => ['META_MODELS', META_MODELS, m.value]),
         ['XAI_MODELS', XAI_MODELS, 'grok-4.7'],
     ];

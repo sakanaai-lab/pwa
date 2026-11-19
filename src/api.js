@@ -7,8 +7,8 @@ import { createGeminiStreamAssembler } from './utils/gemini-stream.js';
 import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
 import { toGeminiContents } from './utils/gemini-contents.js';
-import { openaiIsReasoningModel, resolveOpenAIReasoningEffort } from './utils/openai-params.js';
-import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
+import { openaiIsReasoningModel, resolveOpenAIReasoningEffort, openaiChatSupportsTools } from './utils/openai-params.js';
+import { anthropicThinkingOff, anthropicAllowsForcedToolChoice } from './utils/anthropic-thinking.js';
 import { deepseekThinkingOffParams } from './utils/deepseek-params.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
@@ -1315,8 +1315,15 @@ export const apiUtils = {
         if (systemText) requestBody.messages.push({ role: 'system', content: systemText });
         this.convertGeminiToOpenAIFormat(messages).forEach(msg => requestBody.messages.push(msg));
 
+        // GPT-6.2 系は Chat Completions ではツールを使えない（Responses API が必要）。
+        // 送ると毎回断られるので、ツールを付けずに普通の会話として送る
+        const chatToolsAllowed = openaiChatSupportsTools(model);
+        if (!chatToolsAllowed && tools && tools.length > 0) {
+            console.warn(`[OpenAI] ${model} は Chat Completions で関数を使えないため、ツールを付けずに送ります。`);
+        }
+
         // Gemini形式のfunction_declarationsをOpenAI tools形式に変換
-        if (tools && tools.length > 0) {
+        if (chatToolsAllowed && tools && tools.length > 0) {
             const convertTypes = (schema) => {
                 if (!schema || typeof schema !== 'object') return schema;
                 if (Array.isArray(schema)) return schema.map(convertTypes);
@@ -1487,8 +1494,9 @@ export const apiUtils = {
             }
             if (anthropicTools.length > 0) {
                 requestBody.tools = anthropicTools;
-                // thinking有効時はtool_choice強制不可
-                if (forceCalling && !useThinking) {
+                // thinking有効時はtool_choice強制不可。
+                // Fable / Mythos 5 系・Opus 5.5・Sonnet 5.5 は思考を切っても any を 400 で断るので付けない
+                if (forceCalling && !useThinking && anthropicAllowsForcedToolChoice(model)) {
                     requestBody.tool_choice = { type: 'any' };
                 }
             }

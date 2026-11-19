@@ -4,7 +4,11 @@
 
 export const MODEL_PRICING = {
     // Claude — https://platform.claude.com/docs/en/about-claude/pricing
-    // Fable/Mythos 5.1 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // Fable/Mythos 5.1 / 5.2 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // 5.2 は 5.1 より安い（$8/$40、キャッシュ書込 5分$10・1時間$16、読込$0.20）。長コンテキストの別単価は無い。
+    // 前方一致のため 'claude-fable-5' より前に置くこと。
+    'claude-fable-5-2':  { in: 8,  out: 40, cw5m: 10,    cw1h: 16, cr: 0.20 },
+    'claude-mythos-5-2': { in: 8,  out: 40, cw5m: 10,    cw1h: 16, cr: 0.20 },
     'claude-fable-5-1':  { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 0.25 },
     'claude-mythos-5-1': { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 0.25 },
     'claude-fable-5':    { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 1    },
@@ -121,6 +125,10 @@ export const MODEL_PRICING = {
     // GPT-6 系は入力が 272K トークンを超えると長コンテキスト段の単価になる
     // （料金ページの表記: short context = 272K 以下、long context = 272K 超）。
     // GPT-6.1 Sol（2026-09-29）は 6 Sol と同額だがキャッシュヒットが半額。
+    // GPT-6.2 Astra / Sol（2026-11-17）。272K 超は入力・キャッシュ2倍、出力1.5倍。
+    // 'gpt-6-2-*' と 'gpt-6-*' は前方一致で互いに当たらない（'gpt-6-2-sol' は 'gpt-6-sol' で始まらない）
+    'gpt-6-2-astra': { in: 8,    out: 40,   cr: 0.40, longCtx: { threshold: 272_000, in: 16,   out: 60,   cr: 0.80 } },
+    'gpt-6-2-sol':   { in: 2,    out: 10,   cr: 0.10, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.20 } },
     'gpt-6-astra':   { in: 10,   out: 50,   cr: 1,    longCtx: { threshold: 272_000, in: 20,   out: 75,   cr: 2    } },
     'gpt-6-1-sol':   { in: 2,    out: 10,   cr: 0.10, longCtx: { threshold: 272_000, in: 4,    out: 15,   cr: 0.20 } },
     // GPT-6.1 Terra（Sol と Luna の間）。272K 超は入力・キャッシュ2倍、出力1.5倍
@@ -160,6 +168,8 @@ export const MODEL_PRICING = {
     'gemini-4-argon':        { in: 4,    out: 20,   cr: 0.20 },
     // 4 Hydrogen（2026-11-12 GA）。導入価格なし・1M まで一律（長コンテキストの別単価なし）。無料枠あり。
     'gemini-4-hydrogen':     { in: 1.50, out: 7.50, cr: 0.075 },
+    // 4 Neon（2026-11-18 GA）。導入価格なし・1M まで一律。無料枠なし。
+    'gemini-4-neon':         { in: 3,    out: 15,   cr: 0.15 },
     'gemini-3-8-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-7-flash':      { in: 1.50, out: 7.50, cr: 0.15 },
     'gemini-3-6-flash':      { in: 1.50, out: 7.50, cr: 0.15 },

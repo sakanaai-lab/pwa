@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { openaiIsReasoningModel, openaiSupportsReasoningNone, getOpenAIReasoningLevels, resolveOpenAIReasoningEffort } from '../src/utils/openai-params.js';
+import { openaiIsReasoningModel, openaiSupportsReasoningNone, getOpenAIReasoningLevels, resolveOpenAIReasoningEffort, openaiChatSupportsTools } from '../src/utils/openai-params.js';
 import { JSDOM } from 'jsdom';
 import { state } from '../src/state.js';
 
@@ -141,5 +141,38 @@ describe('推論の強さの設定の配線', () => {
 
     it('チャット本体は使える値のときだけ reasoning_effort を送る', () => {
         expect(read('src/api.js')).toContain('const reasoningEffort = resolveOpenAIReasoningEffort(model, state.settings.openaiReasoningEffort);');
+    });
+});
+
+describe('GPT-6.2 Astra / Sol', () => {
+    it('推論モデルとして扱う（temperature / top_p を送らない）', () => {
+        expect(openaiIsReasoningModel('gpt-6.2-astra')).toBe(true);
+        expect(openaiIsReasoningModel('gpt-6.2-sol')).toBe(true);
+    });
+
+    // none は拒否される。選べる値はモデルのページに載っていないので、共通の low / medium / high に絞る
+    it('推論の強さは low / medium / high（none は出さない・送らない）', () => {
+        for (const m of ['gpt-6.2-astra', 'gpt-6.2-sol']) {
+            expect(getOpenAIReasoningLevels(m)).toEqual(['low', 'medium', 'high']);
+            expect(openaiSupportsReasoningNone(m)).toBe(false);
+            expect(resolveOpenAIReasoningEffort(m, 'none')).toBeNull();
+            expect(resolveOpenAIReasoningEffort(m, 'high')).toBe('high');
+        }
+        // 'gpt-6-sol' の表が 'gpt-6.2-sol' に当たっていない
+        expect(getOpenAIReasoningLevels('gpt-6-sol')).toContain('none');
+    });
+
+    it('Chat Completions ではツールを送らない（Responses API が必要なため）', () => {
+        expect(openaiChatSupportsTools('gpt-6.2-astra')).toBe(false);
+        expect(openaiChatSupportsTools('gpt-6.2-sol')).toBe(false);
+        expect(openaiChatSupportsTools('gpt-6.1-sol')).toBe(true);
+        expect(openaiChatSupportsTools('gpt-6-luna')).toBe(true);
+        expect(openaiChatSupportsTools('gpt-4o')).toBe(true);
+    });
+
+    it('チャット本体はツールを付ける前に openaiChatSupportsTools を確かめる', () => {
+        const api = readFileSync(resolve(process.cwd(), 'src/api.js'), 'utf8');
+        expect(api).toContain('const chatToolsAllowed = openaiChatSupportsTools(model);');
+        expect(api).toContain('if (chatToolsAllowed && tools && tools.length > 0) {');
     });
 });
