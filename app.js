@@ -2102,9 +2102,10 @@ ${relationship_context}`;
   ];
   var DEFAULT_OPENAI_MODEL = "gpt-6-luna";
   var ANTHROPIC_MODELS = [
-    { value: "claude-opus-5-5", label: "Claude Opus 5.5 (最新・Opus 5 より安価)" },
-    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5 (最新・標準)" },
-    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5 (最新・最安)" },
+    { value: "claude-fable-5-2", label: "Claude Fable 5.2" },
+    { value: "claude-opus-5-5", label: "Claude Opus 5.5" },
+    { value: "claude-sonnet-5-5", label: "Claude Sonnet 5.5" },
+    { value: "claude-haiku-5-5", label: "Claude Haiku 5.5" },
     { value: "claude-opus-5", label: "Claude Opus 5" },
     { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
     { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
@@ -2186,7 +2187,9 @@ ${relationship_context}`;
     "1.78": [
       "Gemini 4 Neon に対応しました。Carbon と Hydrogen の間の位置づけの新しいモデルで、入力$3／出力$15（無料枠では使えません）。思考の深さは low / medium / high / xhigh から選べます。",
       "GPT-6.2 Astra と GPT-6.2 Sol に対応しました。Astra は入力$8／出力$40（GPT-6 Astra より2割安）、Sol は入力$2／出力$10 です。推論の強さは low / medium / high から選べます。",
-      "GPT-6.2 は OpenAI の決まりで、このアプリの送り方では Function Calling（関数）が使えません。設定でオンにしていても、GPT-6.2 を選んでいるときは関数を使わずに普通に返事をします。"
+      "GPT-6.2 は OpenAI の決まりで、このアプリの送り方では Function Calling（関数）が使えません。設定でオンにしていても、GPT-6.2 を選んでいるときは関数を使わずに普通に返事をします。",
+      "Claude Fable 5.2 に対応しました。Fable 5.1 より安く（入力$8／出力$40、キャッシュ読み込み$0.20）なった Claude の最上位モデルです。Fable 5.1 と同じく、思考の深さを OFF にしても low で考えます。",
+      "「Function Calling を強制」をオンにしていると、Claude Fable 5 系・Opus 5.5・Sonnet 5.5 でエラーになることがあったのを直しました（これらのモデルでは強制せずに送ります）。"
     ],
     "1.77": [
       "Gemini 4 Hydrogen に対応しました。3.8 Flash などからの乗り換え先として案内されている新しいモデルで、入力$1.50／出力$7.50、無料枠でも使えます。思考の深さは low / medium / high に加えて xhigh を選べます。",
@@ -2972,7 +2975,11 @@ Reason: [NGの場合の理由]`,
   // src/utils/pricing.js
   var MODEL_PRICING = {
     // Claude — https://platform.claude.com/docs/en/about-claude/pricing
-    // Fable/Mythos 5.1 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // Fable/Mythos 5.1 / 5.2 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // 5.2 は 5.1 より安い（$8/$40、キャッシュ書込 5分$10・1時間$16、読込$0.20）。長コンテキストの別単価は無い。
+    // 前方一致のため 'claude-fable-5' より前に置くこと。
+    "claude-fable-5-2": { in: 8, out: 40, cw5m: 10, cw1h: 16, cr: 0.2 },
+    "claude-mythos-5-2": { in: 8, out: 40, cw5m: 10, cw1h: 16, cr: 0.2 },
     "claude-fable-5-1": { in: 10, out: 50, cw5m: 12.5, cw1h: 20, cr: 0.25 },
     "claude-mythos-5-1": { in: 10, out: 50, cw5m: 12.5, cw1h: 20, cr: 0.25 },
     "claude-fable-5": { in: 10, out: 50, cw5m: 12.5, cw1h: 20, cr: 1 },
@@ -3338,6 +3345,13 @@ Reason: [NGの場合の理由]`,
     return { thinking: { type: "disabled" }, effort: null };
   }
   __name(anthropicThinkingOff, "anthropicThinkingOff");
+  function anthropicAllowsForcedToolChoice(model) {
+    const m = normalizeModelName(model);
+    if (ALWAYS_THINKS.some((p) => m.startsWith(p))) return false;
+    if (BETWEEN_TOOLS.some((p) => m.startsWith(p))) return false;
+    return true;
+  }
+  __name(anthropicAllowsForcedToolChoice, "anthropicAllowsForcedToolChoice");
 
   // src/utils/openai-params.js
   function openaiIsReasoningModel(model) {
@@ -11336,7 +11350,7 @@ AI: ${firstModelContent}`;
         }
         if (anthropicTools.length > 0) {
           requestBody.tools = anthropicTools;
-          if (forceCalling && !useThinking) {
+          if (forceCalling && !useThinking && anthropicAllowsForcedToolChoice(model)) {
             requestBody.tool_choice = { type: "any" };
           }
         }

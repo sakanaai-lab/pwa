@@ -4,7 +4,11 @@
 
 export const MODEL_PRICING = {
     // Claude — https://platform.claude.com/docs/en/about-claude/pricing
-    // Fable/Mythos 5.1 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // Fable/Mythos 5.1 / 5.2 はキャッシュヒットが基本入力の0.025倍（他モデルは0.1倍）。
+    // 5.2 は 5.1 より安い（$8/$40、キャッシュ書込 5分$10・1時間$16、読込$0.20）。長コンテキストの別単価は無い。
+    // 前方一致のため 'claude-fable-5' より前に置くこと。
+    'claude-fable-5-2':  { in: 8,  out: 40, cw5m: 10,    cw1h: 16, cr: 0.20 },
+    'claude-mythos-5-2': { in: 8,  out: 40, cw5m: 10,    cw1h: 16, cr: 0.20 },
     'claude-fable-5-1':  { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 0.25 },
     'claude-mythos-5-1': { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 0.25 },
     'claude-fable-5':    { in: 10, out: 50, cw5m: 12.50, cw1h: 20, cr: 1    },

@@ -3,7 +3,7 @@
 //
 // 以前は OFF のとき全モデルに thinking: { type: 'disabled' } を送っていたが、
 // 新しいモデルでは受け付けない（Claude API の公式ドキュメントより）:
-//   - Fable 5 / 5.1、Mythos 5 / 5.1、Opus 5.5: 思考は常に ON。disabled は 400。
+//   - Fable 5 / 5.1 / 5.2、Mythos 5 / 5.1 / 5.2、Opus 5.5: 思考は常に ON。disabled は 400。
 //     thinking を送らず、Effort をいちばん低い low にするしかない
 //   - Sonnet 5.5: disabled は 400。思考を止めるには { type: 'between_tools' }
 //     （Effort が high 以下のときだけ。OFF では Effort を送らないので既定の high になる）
@@ -12,7 +12,7 @@
 
 import { normalizeModelName } from './pricing.js';
 
-// 思考を止められないモデル（前方一致。'claude-fable-5' は 5.1 も含む）
+// 思考を止められないモデル（前方一致。'claude-fable-5' は 5.1 / 5.2 も含む）
 const ALWAYS_THINKS = ['claude-fable-5', 'claude-mythos-5', 'claude-opus-5-5'];
 // disabled の代わりに between_tools で止めるモデル
 const BETWEEN_TOOLS = ['claude-sonnet-5-5'];
@@ -39,4 +39,19 @@ export function anthropicThinkingOff(model) {
     if (ALWAYS_THINKS.some((p) => m.startsWith(p))) return { thinking: null, effort: 'low' };
     if (BETWEEN_TOOLS.some((p) => m.startsWith(p))) return { thinking: { type: 'between_tools' }, effort: null };
     return { thinking: { type: 'disabled' }, effort: null };
+}
+
+/**
+ * 「Function Calling を強制」のときに tool_choice: { type: 'any' } を送ってよいか。
+ * 思考を止められないモデル（Fable / Mythos 5 系・Opus 5.5）と Sonnet 5.5 は、
+ * tool_choice の any / tool を 400 で断る（Claude API の公式ドキュメントより）。
+ * これらには強制を付けず auto のまま送る。
+ * @param {string} model
+ * @returns {boolean}
+ */
+export function anthropicAllowsForcedToolChoice(model) {
+    const m = normalizeModelName(model);
+    if (ALWAYS_THINKS.some((p) => m.startsWith(p))) return false;
+    if (BETWEEN_TOOLS.some((p) => m.startsWith(p))) return false;
+    return true;
 }

@@ -8,7 +8,7 @@ import { buildGeminiLightThinkingConfig } from './utils/gemini-thinking.js';
 import { sanitizeGeminiGenerationConfig } from './utils/gemini-params.js';
 import { toGeminiContents } from './utils/gemini-contents.js';
 import { openaiIsReasoningModel, resolveOpenAIReasoningEffort, openaiChatSupportsTools } from './utils/openai-params.js';
-import { anthropicThinkingOff } from './utils/anthropic-thinking.js';
+import { anthropicThinkingOff, anthropicAllowsForcedToolChoice } from './utils/anthropic-thinking.js';
 import { deepseekThinkingOffParams } from './utils/deepseek-params.js';
 import { extractReasoningText } from './utils/reasoning.js';
 import { parseSSEBuffer } from './utils/sse.js';
@@ -1494,8 +1494,9 @@ export const apiUtils = {
             }
             if (anthropicTools.length > 0) {
                 requestBody.tools = anthropicTools;
-                // thinking有効時はtool_choice強制不可
-                if (forceCalling && !useThinking) {
+                // thinking有効時はtool_choice強制不可。
+                // Fable / Mythos 5 系・Opus 5.5・Sonnet 5.5 は思考を切っても any を 400 で断るので付けない
+                if (forceCalling && !useThinking && anthropicAllowsForcedToolChoice(model)) {
                     requestBody.tool_choice = { type: 'any' };
                 }
             }

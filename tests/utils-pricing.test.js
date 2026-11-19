@@ -522,6 +522,16 @@ describe('getPricing — 2026-10 の新モデル', () => {
         expect(getPricing('gemini-4-neon', NOV).longCtx).toBeUndefined();
     });
 
+    it('Claude Fable / Mythos 5.2 を引ける（5.1・5 と前方一致で混ざらない）', () => {
+        const NOV = Date.UTC(2026, 10, 19);
+        for (const m of ['claude-fable-5-2', 'claude-mythos-5-2']) {
+            expect(getPricing(m, NOV)).toMatchObject({ in: 8, out: 40, cw5m: 10, cw1h: 16, cr: 0.20 });
+            expect(getPricing(m, NOV).longCtx).toBeUndefined();
+        }
+        expect(getPricing('claude-fable-5-1', NOV)).toMatchObject({ in: 10, out: 50, cr: 0.25 });
+        expect(getPricing('claude-fable-5', NOV)).toMatchObject({ in: 10, out: 50, cr: 1 });
+    });
+
     it('GPT-6.2 Astra / Sol を引ける（6 Astra・6 Sol と前方一致で混ざらない）', () => {
         const NOV = Date.UTC(2026, 10, 19);
         expect(getPricing('gpt-6.2-astra', NOV)).toMatchObject({ in: 8, out: 40, cr: 0.40 });

@@ -149,6 +149,7 @@ describe('新しく追加したモデルに料金がある', () => {
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-opus-5-5'],
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-sonnet-5-5'],
         ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-haiku-5-5'],
+        ['ANTHROPIC_MODELS', ANTHROPIC_MODELS, 'claude-fable-5-2'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-astra'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-sol'],
         ['OPENAI_MODELS', OPENAI_MODELS, 'gpt-6-luna'],
