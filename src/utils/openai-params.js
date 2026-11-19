@@ -52,6 +52,23 @@ export function getOpenAIReasoningLevels(model) {
     return hit ? hit[1] : ['low', 'medium', 'high'];
 }
 
+// GPT-6.2 Astra / Sol（2026-11-17）は、モデルのページに選べる値が載っていない。
+// 「none は拒否する」とだけ書かれているので、表に載せずに共通の low / medium / high に任せる
+// （'gpt-6-2-sol' は前方一致で 'gpt-6-sol' に当たらない）。
+
+/**
+ * Chat Completions でツール（Function Calling）を送ってよいか。
+ * GPT-6.2 系は「ツール呼び出しには Responses API が必要」とされているため、
+ * Chat Completions では送らない（送ると断られる）。
+ * https://developers.openai.com/api/docs/changelog （2026-11-17）
+ * @param {string} model
+ * @returns {boolean}
+ */
+export function openaiChatSupportsTools(model) {
+    const m = normalizeModelName(model);
+    return !m.startsWith('gpt-6-2');
+}
+
 /**
  * 推論の強さに 'none' を指定できるか。
  * @param {string} model

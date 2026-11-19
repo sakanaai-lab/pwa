@@ -51,6 +51,7 @@ export const VERSION_LEGACY_STORAGE_KEY = 'appVersion';
 // src/utils/model-label.js が割引の終了日時を見て、期間中だけ自動で添える。
 export const GEMINI_MODELS = [
     { value: 'gemini-4-carbon', label: 'gemini-4-carbon' },
+    { value: 'gemini-4-neon', label: 'gemini-4-neon' },
     { value: 'gemini-4-argon', label: 'gemini-4-argon' },
     { value: 'gemini-4-hydrogen', label: 'gemini-4-hydrogen' },
     { value: 'gemini-3.8-flash', label: 'gemini-3.8-flash' },
@@ -234,11 +235,13 @@ export const DEFAULT_BEDROCK_MODEL = 'jp.anthropic.claude-sonnet-4-5-20250929-v1
 export const DEFAULT_BEDROCK_REGION = 'us-east-1';
 
 export const OPENAI_MODELS = [
-    { value: 'gpt-6-astra', label: 'GPT-6 Astra (最上位)' },
-    { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol (最新・標準)' },
-    { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra (最新・中間)' },
+    { value: 'gpt-6.2-astra', label: 'GPT-6.2 Astra' },
+    { value: 'gpt-6.2-sol', label: 'GPT-6.2 Sol' },
+    { value: 'gpt-6-astra', label: 'GPT-6 Astra' },
+    { value: 'gpt-6.1-sol', label: 'GPT-6.1 Sol' },
+    { value: 'gpt-6.1-terra', label: 'GPT-6.1 Terra' },
     { value: 'gpt-6-sol', label: 'GPT-6 Sol' },
-    { value: 'gpt-6-luna', label: 'GPT-6 Luna (最新・最安)' },
+    { value: 'gpt-6-luna', label: 'GPT-6 Luna' },
     { value: 'gpt-4o', label: 'GPT-4o (2027/1/14 終了)' },
     { value: 'gpt-4o-mini', label: 'GPT-4o mini (2027/1/14 終了)' },
     { value: 'gpt-4.1', label: 'GPT-4.1 (2027/1/14 終了)' },
@@ -366,6 +369,11 @@ export const SAKURAAI_MODELS = [
 export const DEFAULT_SAKURAAI_MODEL = 'llm-jp-3.1-8x13b-instruct4';
 
 export const VERSION_HISTORY = {
+    '1.78': [
+        'Gemini 4 Neon に対応しました。Carbon と Hydrogen の間の位置づけの新しいモデルで、入力$3／出力$15（無料枠では使えません）。思考の深さは low / medium / high / xhigh から選べます。',
+        'GPT-6.2 Astra と GPT-6.2 Sol に対応しました。Astra は入力$8／出力$40（GPT-6 Astra より2割安）、Sol は入力$2／出力$10 です。推論の強さは low / medium / high から選べます。',
+        'GPT-6.2 は OpenAI の決まりで、このアプリの送り方では Function Calling（関数）が使えません。設定でオンにしていても、GPT-6.2 を選んでいるときは関数を使わずに普通に返事をします。',
+    ],
     '1.77': [
         'Gemini 4 Hydrogen に対応しました。3.8 Flash などからの乗り換え先として案内されている新しいモデルで、入力$1.50／出力$7.50、無料枠でも使えます。思考の深さは low / medium / high に加えて xhigh を選べます。',
         'Gemini 2.5 Pro と 2.5 Flash は 2026年12月1日に提供終了します。その日からは一覧に出なくなり、選んでいた場合は後継（3.8 Flash／3.5 Flash-Lite）へ自動で切り替わります。',

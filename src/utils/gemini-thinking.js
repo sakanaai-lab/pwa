@@ -43,9 +43,9 @@ export function getGeminiThinkingLevels(model) {
         return ['minimal', 'low', 'medium', 'high'];
     }
 
-    // 4 Hydrogen（2026-11-12）は xhigh が増えた。既定は high。minimal はエラーになる。
-    // xhigh の REST 表記は他の段階と同じ規則（大文字）で送る。
-    if (m.startsWith('gemini-4-hydrogen')) return ['low', 'medium', 'high', 'xhigh'];
+    // 4 Hydrogen（2026-11-12）と 4 Neon（2026-11-18）は xhigh が増えた。既定は high。
+    // minimal はエラーになる。xhigh の REST 表記は他の段階と同じ規則（大文字）で送る。
+    if (m.startsWith('gemini-4-hydrogen') || m.startsWith('gemini-4-neon')) return ['low', 'medium', 'high', 'xhigh'];
 
     // 3系のそれ以外（3.8 / 3.7 Flash、3.1 Pro など）と 2.5 系は low / medium / high。
     // 公式表に無い 3 以降のモデル（今後出るもの）と、gemini-flash-latest のような別名も、

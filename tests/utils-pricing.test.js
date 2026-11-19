@@ -515,6 +515,24 @@ describe('getPricing — 2026-10 の新モデル', () => {
         expect(getPricing('gemini-4-carbon', NOV)).not.toBe(getPricing('gemini-4-argon', NOV));
     });
 
+    it('Gemini 4 Neon は導入価格なし・長コンテキスト段なし', () => {
+        const NOV = Date.UTC(2026, 10, 19);
+        expect(getPricing('gemini-4-neon', NOV)).toMatchObject({ in: 3, out: 15, cr: 0.15 });
+        expect(getPricing('gemini-4-neon', Date.UTC(2027, 0, 2))).toMatchObject({ in: 3, out: 15, cr: 0.15 });
+        expect(getPricing('gemini-4-neon', NOV).longCtx).toBeUndefined();
+    });
+
+    it('GPT-6.2 Astra / Sol を引ける（6 Astra・6 Sol と前方一致で混ざらない）', () => {
+        const NOV = Date.UTC(2026, 10, 19);
+        expect(getPricing('gpt-6.2-astra', NOV)).toMatchObject({ in: 8, out: 40, cr: 0.40 });
+        expect(getPricing('gpt-6.2-astra', NOV).longCtx).toMatchObject({ threshold: 272_000, in: 16, out: 60, cr: 0.80 });
+        expect(getPricing('gpt-6.2-sol', NOV)).toMatchObject({ in: 2, out: 10, cr: 0.10 });
+        expect(getPricing('gpt-6.2-sol', NOV).longCtx).toMatchObject({ threshold: 272_000, in: 4, out: 15, cr: 0.20 });
+        // 古いモデルの単価はそのまま
+        expect(getPricing('gpt-6-astra', NOV)).toMatchObject({ in: 10, out: 50, cr: 1 });
+        expect(getPricing('gpt-6-sol', NOV)).toMatchObject({ in: 2, out: 10, cr: 0.20 });
+    });
+
     it('Gemini 4 Hydrogen は導入価格なし・長コンテキスト段なし', () => {
         const NOV = Date.UTC(2026, 10, 13);
         expect(getPricing('gemini-4-hydrogen', NOV)).toMatchObject({ in: 1.50, out: 7.50, cr: 0.075 });

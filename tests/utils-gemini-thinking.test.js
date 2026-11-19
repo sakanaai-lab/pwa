@@ -21,6 +21,12 @@ describe('getGeminiThinkingLevels', () => {
         }
     });
 
+    it('4 Neon も low / medium / high / xhigh（minimal はエラーになるので出さない）', () => {
+        expect(getGeminiThinkingLevels('gemini-4-neon')).toEqual(['low', 'medium', 'high', 'xhigh']);
+        expect(buildGeminiThinkingConfig({ model: 'gemini-4-neon', thinkingLevel: 'xhigh' })).toEqual({ thinkingLevel: 'XHIGH' });
+        expect(buildGeminiThinkingConfig({ model: 'gemini-4-neon', thinkingLevel: 'minimal' })).toBeNull();
+    });
+
     it('4 Hydrogen は low / medium / high / xhigh（minimal はエラーになるので出さない）', () => {
         expect(getGeminiThinkingLevels('gemini-4-hydrogen')).toEqual(['low', 'medium', 'high', 'xhigh']);
         expect(buildGeminiThinkingConfig({ model: 'gemini-4-hydrogen', thinkingLevel: 'xhigh' })).toEqual({ thinkingLevel: 'XHIGH' });
